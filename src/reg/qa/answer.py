@@ -63,14 +63,16 @@ def verify(answer: dict, evidence: list[Evidence], question_numbers: set[str],
     by_id = {e.id: e for e in evidence}
     cites = answer.get("근거") or []
     exist = bool(cites) and all(c.get("id") in by_id for c in cites)
-    quotes = exist
+    kept = []
     if exist:
         for c in cites:  # 모델이 줄여 쓴 인용은 원문 구간으로 바꿔 보여준다 (화면에는 항상 원문)
             span = _align(c.get("인용", ""), by_id[c["id"]].text)
-            if span is None:
-                quotes = False
-            else:
-                c["인용"] = span
+            if span is not None:
+                kept.append({**c, "인용": span})
+    dropped = len(cites) - len(kept)
+    quotes = exist and bool(kept)
+    if kept:  # 원문과 맞는 인용이 하나라도 있으면 맞지 않는 인용만 뺀다
+        answer["근거"] = cites = kept
     cited_nums = set(RE_NUM.findall(" ".join(f"{by_id[c['id']].title} {by_id[c['id']].label} {by_id[c['id']].text}"
                                              for c in cites if c.get("id") in by_id)))  # 조문 라벨(제27조)의 숫자도 근거
     nums = set(RE_NUM.findall(answer.get("설명", ""))) - question_numbers - (allowed_numbers or set())
@@ -80,7 +82,7 @@ def verify(answer: dict, evidence: list[Evidence], question_numbers: set[str],
     problems = [k for k, ok in [("citation", exist), ("quote", quotes), ("number", numbers), ("consistency", consistent)]
                 if not ok]
     return {"ok": not problems, "citations_exist": exist, "quotes_match": quotes, "numbers_match": numbers,
-            "consistent": consistent, "problems": problems}
+            "consistent": consistent, "problems": problems, "dropped_citations": dropped}
 
 
 def _prompt(question: str, analysis, evidence: list[Evidence], problems: list[str] | None) -> list[dict]:

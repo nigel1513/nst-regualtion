@@ -95,3 +95,12 @@ def test_derived_numbers_and_ok_wording_pass():
     ok = verify({"결론": "충족", "근거": [{"id": "E1", "인용": "3주일 이내에 정산을 신청하여야 한다"}],
                  "설명": "출장 후 5일 지났지만 아직 기한 안입니다.", "확인_필요": [], "문의처": "x"}, e, {"5"})
     assert ok["consistent"]
+
+
+def test_unmatched_extra_citation_is_dropped_when_a_good_one_remains():
+    e2 = Evidence("E2", "w", "v", "여비규정", "a4", "제4조", "여비는 일반적인 경로에 의하여 계산한다.", "primary", "2024-01-02")
+    ans = {"결론": "미충족", "근거": [{"id": "E1", "인용": "7일 이내에 출장을 확인할 수 있는 증빙서를"},
+                                   {"id": "E2", "인용": "전혀 다른 내용의 문장을 지어냄"}],
+           "설명": "10일이 지나 7일 기한을 넘겼습니다.", "확인_필요": [], "문의처": "x"}
+    v = verify(ans, [E[0], e2], question_numbers={"10"})
+    assert v["ok"] and [c["id"] for c in ans["근거"]] == ["E1"] and v["dropped_citations"] == 1
