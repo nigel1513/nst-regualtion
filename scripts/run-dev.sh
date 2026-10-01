@@ -21,7 +21,7 @@ stop() {  # $1=이름 $2=명령줄에 있어야 하는 문자열 (PID 재사용�
   rm -f "$f"
 }
 stop api "reg api"
-stop web "next"
+stop web "run start"
 for port in 21061 21060; do
   for _ in $(seq 1 30); do ss -ltn "( sport = :$port )" | grep -q LISTEN || break; sleep 1; done
 done
