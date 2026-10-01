@@ -5,7 +5,8 @@ from datetime import date
 _CTRL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f​﻿]")
 _WS = re.compile(r"[ \t　\xa0]+")
 NOTE = re.compile(r"<(?:개정|신설|본조신설|전문개정|제목개정|일부개정|삭제|타법개정)[^<>]*>"
-                  r"|\[(?:본조신설|제목개정|전문개정|본조개정|종전|시행일)[^\[\]]*\]")
+                  r"|\[(?:본조신설|제목개정|전문개정|본조개정|종전|시행일)[^\[\]]*\]"
+                  r"|<\s*'?\d{2,4}\s*\.[^<>]*>")
 _DOT = re.compile(r"(?<!\d)('?\d{2}|\d{4})\s*\.\s*(\d{1,2})\s*\.\s*(\d{1,2})")
 _YMD8 = re.compile(r"(?<!\d)(\d{4})(\d{2})(\d{2})(?!\d)")
 KO_DATE = re.compile(r"(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일")
@@ -57,7 +58,7 @@ class Joiner:
         self.vocab: set[str] = set()
         for ln in lines:
             toks = ln.split()
-            self.vocab.update(toks[1:-1])
+            self.vocab.update(t for t in toks[1:-1] if len(t) > 1)  # 한 글자 어절은 띄어쓰기 근거로 약하다
 
     def join(self, prev: str, nxt: str) -> str:
         if not prev:
