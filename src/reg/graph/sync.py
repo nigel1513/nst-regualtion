@@ -37,12 +37,11 @@ def sync_graph(conn, driver) -> dict:
         if r["target_kind"] == "WORK" or not r["target_path"]:
             kind, dst = "work", r["target_work_id"]
         else:  # 대상 조항이 현행에 없으면(항·호 번호 변경) 그 조에 잇는다
-            dst = f"{r['target_work_id']}|{r['target_path']}"
+            dst, kind = f"{r['target_work_id']}|{r['target_path']}", "prov"
             if dst not in keys:
                 dst = f"{r['target_work_id']}|{r['target_path'].split('.')[0]}"
-            if dst not in keys:
-                continue
-            kind = "prov"
+            if dst not in keys:  # 현행에서 삭제된 조항: 개정 영향(삭제) 탐색을 위해 missing 노드로 남긴다
+                dst, kind = f"{r['target_work_id']}|{r['target_path']}", "missing"
         row = {"src": src, "dst": dst, "evidence": r["evidence"] or "", "source_path": r["source_path"],
                "resolution": r["resolution"], "review_status": r["review_status"]}
         by_type.setdefault((r["rel_type"], kind), {})[(src, dst, row["evidence"])] = row
@@ -64,6 +63,10 @@ def sync_graph(conn, driver) -> dict:
             s.run("UNWIND $rows AS r MATCH (w:RegWork {work_id: r.work_id})"
                   " MERGE (p:RegProvision {key: r.key}) SET p.work_id = r.work_id, p.path = r.path, p.label = r.label,"
                   " p.heading = r.heading MERGE (w)-[:HAS_PROVISION]->(p)", rows=part)
+        missing = {row["dst"] for (_, kind), rows in by_type.items() if kind == "missing" for row in rows.values()}
+        for part in _chunks([{"key": k, "work_id": k.split("|")[0], "path": k.split("|")[1]} for k in sorted(missing)]):
+            s.run("UNWIND $rows AS r MERGE (p:RegProvision {key: r.key})"
+                  " SET p.work_id = r.work_id, p.path = r.path, p.missing = true", rows=part)
         for (rel, kind), rows in by_type.items():
             target = "MATCH (b:RegWork {work_id: r.dst})" if kind == "work" else "MATCH (b:RegProvision {key: r.dst})"
             for part in _chunks(list(rows.values())):
