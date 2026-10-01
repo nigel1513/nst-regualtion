@@ -21,7 +21,8 @@ SYSTEM = ("너는 공공연구기관 내부규정 안내자다. 반드시 주어
           "6) 법적 판단이 아니라 규정 안내다.")
 RE_DEADLINE = re.compile(r"(\d+)\s*(일|주일|주)\s*이내")
 RE_NUM = re.compile(r"\d+(?:\.\d+)?")
-BAD_OK = re.compile(r"넘|초과|지났|위반|늦")
+BAD_OK = re.compile(r"기한을\s*넘|기한이\s*지났|기한을\s*지나|초과하였|위반|늦었")
+QUOTE_MIN = 0.85  # 인용문 글자 중 원문 구간과 일치해야 하는 비율
 BAD_NG = re.compile(r"문제없|문제가 없|충족합니다")
 
 
@@ -39,14 +40,40 @@ def deadline_verdict(elapsed_days: int | None, quotes: list[str]) -> tuple[str, 
     return None
 
 
-def verify(answer: dict, evidence: list[Evidence], question_numbers: set[str]) -> dict:
+def _align(quote: str, text: str) -> str | None:
+    """공백을 무시하고 인용문과 가장 잘 맞는 원문 구간을 찾는다. 충분히 일치하면 원문 그대로의 구간을 돌려준다."""
+    from difflib import SequenceMatcher
+
+    nq = _n(quote)
+    pos = [i for i, ch in enumerate(text) if not ch.isspace()]
+    nt = "".join(text[i] for i in pos)
+    if not nq or not nt:
+        return None
+    if (at := nt.find(nq)) >= 0:
+        return text[pos[at]:pos[at + len(nq) - 1] + 1]
+    blocks = [b for b in SequenceMatcher(None, nq, nt, autojunk=False).get_matching_blocks() if b.size >= 3]
+    if not blocks or sum(b.size for b in blocks) / len(nq) < QUOTE_MIN:
+        return None
+    s, e = blocks[0].b, blocks[-1].b + blocks[-1].size
+    return text[pos[s]:pos[e - 1] + 1]
+
+
+def verify(answer: dict, evidence: list[Evidence], question_numbers: set[str],
+           allowed_numbers: set[str] | None = None) -> dict:
     by_id = {e.id: e for e in evidence}
     cites = answer.get("근거") or []
     exist = bool(cites) and all(c.get("id") in by_id for c in cites)
-    quotes = exist and all(_n(c.get("인용")) and _n(c["인용"]) in _n(by_id[c["id"]].text) for c in cites)
+    quotes = exist
+    if exist:
+        for c in cites:  # 모델이 줄여 쓴 인용은 원문 구간으로 바꿔 보여준다 (화면에는 항상 원문)
+            span = _align(c.get("인용", ""), by_id[c["id"]].text)
+            if span is None:
+                quotes = False
+            else:
+                c["인용"] = span
     cited_nums = set(RE_NUM.findall(" ".join(f"{by_id[c['id']].title} {by_id[c['id']].label} {by_id[c['id']].text}"
                                              for c in cites if c.get("id") in by_id)))  # 조문 라벨(제27조)의 숫자도 근거
-    nums = set(RE_NUM.findall(answer.get("설명", ""))) - question_numbers
+    nums = set(RE_NUM.findall(answer.get("설명", ""))) - question_numbers - (allowed_numbers or set())
     numbers = nums <= cited_nums
     verdict, expl = answer.get("결론"), answer.get("설명", "")
     consistent = not ((verdict == "충족" and BAD_OK.search(expl)) or (verdict == "미충족" and BAD_NG.search(expl)))
@@ -113,6 +140,16 @@ def _code_verdict(ans: dict, analysis, evidence: list[Evidence]) -> bool:
     return True
 
 
+def _derived_numbers(analysis, evidence: list[Evidence]) -> set[str]:
+    """계산으로 나온 숫자(경과 일수, 'N주일'의 일수 환산)는 설명에 써도 된다."""
+    out = {str(analysis.elapsed_days)} if analysis.elapsed_days is not None else set()
+    for e in evidence:
+        for m in RE_DEADLINE.finditer(e.text):
+            if m[2].startswith("주"):
+                out.add(str(int(m[1]) * 7))
+    return out
+
+
 def generate(llm, question: str, analysis, evidence: list[Evidence]) -> dict:
     qnums = set(RE_NUM.findall(question))
     pattern = _pattern([e.id for e in evidence])
@@ -128,7 +165,7 @@ def generate(llm, question: str, analysis, evidence: list[Evidence]) -> dict:
             return {"answer": None, "verification": {"ok": False, "problems": [kind]}, "attempts": attempt,
                     "verdict_source": None}
         source = "code" if _code_verdict(ans, analysis, evidence) else "llm"
-        last_v = verify(ans, evidence, qnums)
+        last_v = verify(ans, evidence, qnums, _derived_numbers(analysis, evidence))
         if last_v["ok"]:
             return {"answer": ans, "verification": last_v, "attempts": attempt, "verdict_source": source}
         problems = last_v["problems"]

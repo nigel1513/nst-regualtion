@@ -1,4 +1,5 @@
 # 질의응답 평가 문항 (spec 12). 정답 조문은 2026-10-02 적재 실데이터의 현행 버전에서 확인함.
+# expect.status 가 목록이면 그중 하나면 정답 (관련 규정 없음 → 찾지 못함 또는 판단불가 답변)
 # expect.article = 근거 1~2위에 있어야 하는 조, expect.work_contains = 그 규범문서 id에 포함될 문자열
 - id: kasi-yeobi-late
   question: 천문연 소속인데 출장 다녀온 지 10일 지났고 지출결의를 아직 안 했어요. 문제가 없을까요?
@@ -44,7 +45,7 @@
   expect: {status: need_institution}
 - id: none-1
   question: 천문연 직원이 반려동물을 데리고 출근해도 되나요?
-  expect: {status: not_found, institution: KASI}
+  expect: {status: [not_found, answered], institution: KASI, verdict: 판단불가}
 - id: none-2
   question: 연구회 사무실 커피머신 사용 규칙이 있나요?
-  expect: {status: not_found, institution: NST}
+  expect: {status: [not_found, answered], institution: NST, verdict: 판단불가}

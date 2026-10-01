@@ -70,3 +70,28 @@ def test_invalid_json_is_reported_as_invalid_output():
             raise ProviderError("LLM 응답이 형식에 맞지 않음")
     r = generate(Bad(), "q", A, E)
     assert r["verification"]["problems"] == ["llm_invalid_output"]
+
+
+def test_paraphrased_quote_is_replaced_by_the_original_span():
+    e = [Evidence("E1", "w", "v", "출장요령", "a11", "제11조(출장복명)",
+                  "① 출장자는 출장 종료일부터 10일 이내에 승인권자의 결재를 받은 출장복명서를 출장복명 담당부서에 제출하여야 하며, "
+                  "출장복명 담당부서는 다음 각 호와 같다.", "primary", "2024-03-01")]
+    ans = {"결론": "미충족", "근거": [{"id": "E1", "인용": "출장자는 출장 종료일부터 10일 이내에 승인권자의 결재를 받은 출장복명서를 제출하여야 한다"}],
+           "설명": "12일이 지나 10일 기한을 넘겼습니다.", "확인_필요": [], "문의처": "x"}
+    v = verify(ans, e, question_numbers={"12"})
+    assert v["quotes_match"] and ans["근거"][0]["인용"] in e[0].text and "출장복명 담당부서에" in ans["근거"][0]["인용"]
+    bad = {**ans, "근거": [{"id": "E1", "인용": "연구원은 매년 예산을 편성하여 이사회 승인을 받는다"}]}
+    assert not verify(bad, e, question_numbers=set())["quotes_match"]
+
+
+def test_derived_numbers_and_ok_wording_pass():
+    e = [Evidence("E1", "w", "v", "여비규정", "a13-2", "제13조의2(국외여비의 정산 및 지급)",
+                  "국외출장자는 출장을 마친 날의 다음날부터 기산하여 3주일 이내에 정산을 신청하여야 한다.", "primary", "2024-01-02")]
+    a = Analysis("NST", None, "기한", 28, [])
+    r = generate(FakeLLM({"결론": "미충족", "근거": [{"id": "E1", "인용": "3주일 이내에 정산을 신청하여야 한다"}],
+                          "설명": "4주(28일)가 지나 3주일(21일) 기한을 넘겼습니다.", "확인_필요": [], "문의처": "회계"}),
+                 "NST 국외출장 다녀온 지 4주 지났어요", a, e)
+    assert r["verification"]["ok"], r["verification"]
+    ok = verify({"결론": "충족", "근거": [{"id": "E1", "인용": "3주일 이내에 정산을 신청하여야 한다"}],
+                 "설명": "출장 후 5일 지났지만 아직 기한 안입니다.", "확인_필요": [], "문의처": "x"}, e, {"5"})
+    assert ok["consistent"]
