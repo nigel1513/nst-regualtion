@@ -128,3 +128,31 @@ def api_cmd(host: str = "0.0.0.0", port: int = 21061) -> None:
     from reg.api.app import create_app
 
     uvicorn.run(create_app(get_settings().database_url, _blob()), host=host, port=port, log_level="info")
+
+
+index = typer.Typer(no_args_is_help=True, help="검색 색인(게시 버전)")
+app.add_typer(index, name="index")
+
+
+@index.command("build")
+def index_build(no_publish: bool = typer.Option(False, "--no-publish")) -> None:
+    from reg.llm import EmbeddingProvider
+    from reg.search.indexer import build_release
+    from reg.search.os import OpenSearch
+
+    s = get_settings()
+    conn = connect(s.database_url)
+    st = build_release(conn, OpenSearch(s.os_url), EmbeddingProvider(s.embed_url, s.embed_model), s.embed_model,
+                       publish=not no_publish)
+    typer.echo(f"release {st}")
+
+
+@index.command("status")
+def index_status() -> None:
+    from reg.search.os import OpenSearch
+
+    s = get_settings()
+    conn = connect(s.database_url)
+    for r in conn.execute("SELECT id, state, os_index, stats, created_at FROM regulation.release ORDER BY id DESC LIMIT 5"):
+        typer.echo(f"{r['id']} {r['state']} {r['os_index']} {r['stats']}")
+    typer.echo(f"alias → {OpenSearch(s.os_url).alias_target()}")
