@@ -98,9 +98,11 @@ def rebuild_work(conn, work_id: str, today: date) -> dict:
     versions = conn.execute(
         "SELECT id, effective_from, parsed FROM regulation.work_version WHERE work_id = %s"
         " ORDER BY effective_from NULLS LAST, created_at, id", (work_id,)).fetchall()
-    dated = [v for v in versions if v["effective_from"]]
-    for i, v in enumerate(versions):
-        nxt = dated[dated.index(v) + 1]["effective_from"] if v in dated and dated.index(v) + 1 < len(dated) else None
+    dated_ids = [v["id"] for v in versions if v["effective_from"]]
+    by_id = {v["id"]: v for v in versions}
+    for v in versions:
+        k = dated_ids.index(v["id"]) if v["id"] in dated_ids else -1
+        nxt = by_id[dated_ids[k + 1]]["effective_from"] if 0 <= k < len(dated_ids) - 1 else None
         if v["effective_from"] is None:
             state = "UNDATED"
         elif v["effective_from"] > today:
@@ -145,8 +147,8 @@ def rebuild_work(conn, work_id: str, today: date) -> dict:
                     n_changes += 1
             else:
                 same_text = text_hash(old) == text_hash(p) and old.heading == p.heading and old.deleted == p.deleted
-                if kind is None and same_text and old.annotations == p.annotations and old.anchor == p.anchor \
-                        and old.effective_override == p.effective_override:
+                if kind is None and same_text and old.annotations == p.annotations \
+                        and old.effective_override == p.effective_override:  # 원문 위치는 버전별(vp.anchor)이라 비교하지 않는다
                     new_pv = pvid
                 else:
                     new_pv = _insert_pv(conn, pid, p)
@@ -154,8 +156,9 @@ def rebuild_work(conn, work_id: str, today: date) -> dict:
                 if kind:
                     _change(conn, work_id, prev_vid, v["id"], pid, pvid, new_pv, kind)
                     n_changes += 1
-            conn.execute("INSERT INTO regulation.version_provision (work_version_id, provision_version_id, ord)"
-                         " VALUES (%s,%s,%s) ON CONFLICT DO NOTHING", (v["id"], new_pv, ord_))
+            conn.execute("INSERT INTO regulation.version_provision (work_version_id, provision_version_id, ord, anchor)"
+                         " VALUES (%s,%s,%s,%s) ON CONFLICT DO NOTHING",
+                         (v["id"], new_pv, ord_, json.dumps(p.anchor) if p.anchor else None))
             cur[p.path] = (pid, new_pv, p)
         for path, (pid, pvid, old) in unmatched_prev.items():
             _change(conn, work_id, prev_vid, v["id"], pid, pvid, None, "DELETED")

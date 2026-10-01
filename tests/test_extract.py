@@ -49,3 +49,8 @@ def test_hwp_surrogate_pairs_are_combined():
     t = _para_text(raw)
     assert "𠀀" in t
     t.encode("utf-8")  # 서로게이트 조각이 남으면 UnicodeEncodeError
+
+
+def test_review_bare_page_numbers_dropped():
+    blocks = extract((S / "nst-yeobi-18.view.pdf").read_bytes(), "application/pdf", "a.pdf")
+    assert not any(b.text == str(b.page) for b in blocks)  # 쪽번호 줄 (서식 안의 숫자는 본문이라 남는다)

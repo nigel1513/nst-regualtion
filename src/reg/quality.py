@@ -53,11 +53,21 @@ def record(conn, work_id: str, version_id: str, issues: list[Issue]) -> str:
 
 
 def record_reference_tasks(conn, work_id: str) -> int:
-    rows = conn.execute("SELECT id, target_name, evidence_text FROM regulation.reference WHERE work_id = %s"
-                        " AND target_kind = 'EXTERNAL_UNRESOLVED'", (work_id,)).fetchall()
+    """현행 버전의 미해석 외부 참조마다 검수 작업 하나. 참조 id는 재처리 때 바뀌므로 내용으로 키를 만든다."""
+    rows = conn.execute(
+        "SELECT DISTINCT pv.path, r.span_start, r.target_name, r.evidence_text FROM regulation.reference r"
+        " JOIN regulation.provision_version pv ON pv.id = r.source_pv_id"
+        " JOIN regulation.version_provision vp ON vp.provision_version_id = pv.id"
+        " JOIN regulation.work_version v ON v.id = vp.work_version_id AND v.version_state = 'CURRENT'"
+        " WHERE r.work_id = %s AND r.target_kind = 'EXTERNAL_UNRESOLVED'", (work_id,)).fetchall()
+    keys = []
     for r in rows:
+        key = f"ref:{work_id}:{r['path']}:{r['span_start']}:{r['target_name']}"
+        keys.append(key)
         conn.execute("INSERT INTO regulation.review_task (kind, target, work_id, detail) VALUES ('REFERENCE', %s, %s, %s)"
                      " ON CONFLICT (kind, target) DO NOTHING",
-                     (f"ref:{r['id']}", work_id, json.dumps({"name": r["target_name"], "evidence": r["evidence_text"]},
-                                                           ensure_ascii=False)))
+                     (key, work_id, json.dumps({"name": r["target_name"], "evidence": r["evidence_text"],
+                                                "path": r["path"]}, ensure_ascii=False)))
+    conn.execute("UPDATE regulation.review_task SET status = 'RESOLVED', resolved_at = now() WHERE kind = 'REFERENCE'"
+                 " AND work_id = %s AND status = 'OPEN' AND NOT (target = ANY(%s))", (work_id, keys))
     return len(rows)

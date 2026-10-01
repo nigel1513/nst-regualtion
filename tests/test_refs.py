@@ -76,3 +76,28 @@ def test_resolve_against_laws_and_seed_unknown(conn, tmp_path):
     seed = conn.execute("SELECT origin FROM regulation.law_seed WHERE name='국가공무원 복무·징계 관련 예규'").fetchone()
     assert seed["origin"] == "reference" and st["seeds"] == 1
     assert resolve_and_store(conn, "kr/reg/KASI/여비규정")["refs"] == st["refs"]  # 다시 해도 중복 없음
+
+
+def test_review_external_name_carries_over_article_lists_and_same_law():
+    refs = extract_refs(P("a1.p1", "「국가공무원법」 제5조 및 제6조에 따른다. 같은 법 제7조는 준용한다."))
+    got = [(r.kind, r.name, r.target_path) for r in refs if r.kind == "external"]
+    assert got == [("external", "국가공무원법", "a5"), ("external", "국가공무원법", "a6"),
+                   ("external", "국가공무원법", "a7")]
+    assert not any(r.kind == "internal" for r in refs)
+
+
+def test_review_i_jochi_is_not_this_article():
+    assert extract_refs(P("a3.p1", "이 조치는 즉시 시행한다.", parent="a3")) == []
+    assert [r.target_path for r in extract_refs(P("a3.p1", "이 조에서 정한 기한", parent="a3"))] == ["a3"]
+
+
+def test_review_reference_tasks_do_not_pile_up(conn, tmp_path):
+    from reg.quality import record_reference_tasks
+
+    _load(conn, tmp_path, "kr/reg/X/규정", "INTERNAL_REG", "규정",
+          [Prov("a1", "article", "제1조", "기타", "「없는 예규」를 준용한다.")])
+    for _ in range(3):
+        resolve_and_store(conn, "kr/reg/X/규정")
+        record_reference_tasks(conn, "kr/reg/X/규정")
+    rows = conn.execute("SELECT status FROM regulation.review_task WHERE kind='REFERENCE'").fetchall()
+    assert [r["status"] for r in rows] == ["OPEN"]

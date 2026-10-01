@@ -28,4 +28,11 @@ def extract_pdf(data: bytes) -> list[Block]:
         for b in lines[:2] + lines[-2:]:
             edge[b.text] += 1
     running = {t for t, n in edge.items() if n >= 3 and n >= len(pages) * 0.3}
-    return [b for lines in pages for b in lines if b.text not in running and not PAGE_NO.match(b.text)]
+    out = []
+    for lines in pages:
+        for i, b in enumerate(lines):
+            edge_line = i < 2 or i >= len(lines) - 2
+            if b.text in running or PAGE_NO.match(b.text) or (edge_line and re.fullmatch(r"\d{1,3}", b.text)):
+                continue
+            out.append(b)
+    return out

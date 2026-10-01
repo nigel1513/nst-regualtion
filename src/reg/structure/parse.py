@@ -14,12 +14,14 @@ RE_SECTION = re.compile(r"^제\s*(\d+)\s*절\s*(.{0,30})$")
 RE_ARTICLE = re.compile(r"^제\s*(\d+)\s*조(?:\s*의\s*(\d+))?\s*(?:\(\s*([^()]{1,40}?)\s*\))?\s*(.*)$")
 RE_SUPPL = re.compile(r"^부\s*칙\s*(?:[<〈(](.*?)[>〉)])?\s*(.*)$")
 RE_ANNEX = re.compile(r"^[<\[〈]?\s*(별\s*표|별\s*지)\s*(?:제\s*)?(\d+)\s*(?:호)?(?:\s*의\s*(\d+))?\s*(?:서식)?\s*[>\]〉]?\s*(.*)$")
-RE_ITEM = re.compile(r"^(\d+)(?:\s*의\s*(\d+))?\.\s*(.*)$")
+RE_ITEM = re.compile(r"^(\d{1,3})(?:\s*의\s*(\d+))?\.(?!\d)\s*(.*)$")  # 날짜(2024. 3. 1.)·소수(3.5)는 호가 아니다
 RE_SUB = re.compile(r"^([가-하])\.\s*(.*)$")
 RE_HIST = re.compile(r"^(제\s*정|전\s*부\s*개\s*정|일\s*부\s*개\s*정|개\s*정|폐\s*지)\s*"
                      r"(\d{4}\s*\.\s*\d{1,2}\s*\.\s*\d{1,2})\s*\.?\s*(?:(?:규|훈령|예규|규정)?\s*제?\s*(\d+)\s*호)?")
 RE_CLASS = re.compile(r"원규\s*분류\s*(?:기호)?\s*[:：]\s*([\w-]+)")
 RE_LEADER = re.compile(r"[·.…]{2,}|·\s*·|^[·\s]+$|\s·$")
+PARTICLE = re.compile(r"^(?:에서|에|의|을|를|과|와|및|으로|로)(?:\s|$)")
+RE_LAWNO = re.compile(r"^[<(〈]?\s*제\s*\d+\s*호")
 INLINE_PARA = re.compile(r"(?<=[.。>\]」)])\s*(?=[①-⑳])")
 
 
@@ -91,9 +93,19 @@ def _header(blocks: list[Block]) -> tuple[str, str | None, list[HistEntry]]:
     return title, code, hist
 
 
+def _is_toc_entry(blocks: list[Block], i: int) -> bool:
+    """제목만 있고 본문이 없으며 바로 다음 줄도 조문 머리인 줄은 목차 항목이다."""
+    m = RE_ARTICLE.match(blocks[i].text)
+    if not m or (m[4] or "").strip():
+        return False
+    nxt = blocks[i + 1].text if i + 1 < len(blocks) else ""
+    return bool(RE_ARTICLE.match(nxt) or RE_CHAPTER.match(nxt))
+
+
 def _body_start(blocks: list[Block]) -> int:
     first = next((i for i, b in enumerate(blocks)
-                  if (m := RE_ARTICLE.match(b.text)) and m[3] and not RE_LEADER.search(b.text)), None)
+                  if (m := RE_ARTICLE.match(b.text)) and m[3] and not RE_LEADER.search(b.text)
+                  and not _is_toc_entry(blocks, i)), None)
     if first is None:
         return len(blocks)
     for i in range(first - 1, max(first - 4, -1), -1):
@@ -117,7 +129,7 @@ def parse_blocks(blocks: list[Block]) -> ParsedDoc:
     title, code, hist = _header(blocks[:start])
     toc = []
     for b in blocks[:start]:
-        if (m := RE_ARTICLE.match(b.text)) and not m[3]:
+        if m := RE_ARTICLE.match(b.text):
             k = _article_key(m[1], m[2])
             if k not in toc:
                 toc.append(k)
@@ -141,7 +153,7 @@ def parse_blocks(blocks: list[Block]) -> ParsedDoc:
         if in_annex:
             B.append_text(t)
             continue
-        if m := RE_SUPPL.match(t):
+        if (m := RE_SUPPL.match(t)) and (m[1] is not None or not m[2] or RE_LAWNO.match(m[2])):
             d = parse_dot_date(m[1] or "")
             base = f"supp@{d.isoformat()}" if d else f"supp#{len(B.supp_dates) + 1}"
             n = B.supp_dates.get(base, 0) + 1
@@ -163,7 +175,8 @@ def parse_blocks(blocks: list[Block]) -> ParsedDoc:
             B.add(Prov(B.section, "section", f"제{int(m[1])}절", heading=clean(m[2]) or None, parent=B.chapter), b)
             B.cur = None
             continue
-        if (m := RE_ARTICLE.match(t)) and (m[3] or re.match(r"삭\s*제", m[4] or "")):
+        if (m := RE_ARTICLE.match(t)) and (m[3] or re.match(r"삭\s*제", m[4] or "")) \
+                and not PARTICLE.match((m[4] or "").strip()):
             num = _num(m[1], m[2])
             in_supp = B.supp is not None
             if in_supp or num > B.last_art:

@@ -43,7 +43,7 @@ def resolve(doc: ParsedDoc, alio_date: date | None = None, filename: str = "") -
     dated = [(date.fromisoformat(s.meta["date"]) if s.meta.get("date") else None, i, s) for i, s in enumerate(supps)]
     last = max(dated, key=lambda x: (x[0] or date.min, x[1]))[2] if dated else None
     header = date.fromisoformat(last.meta["date"]) if last is not None and last.meta.get("date") else None
-    text = " ".join([last.text] + [p.text for p in doc.provisions if p.parent == last.path]) if last else ""
+    text = " ".join([last.text] + [p.text for p in doc.provisions if p.path.startswith(last.path + "/")]) if last else ""
     eff = _from_supplement(text, header) if last else None
     overrides = {}
     for m in RE_BUT.finditer(text):
@@ -53,7 +53,7 @@ def resolve(doc: ParsedDoc, alio_date: date | None = None, filename: str = "") -
     promulgated = hist_last or header
     if eff is not None:
         conflict = (hist_last and header and hist_last != header) or (
-            alio_date and alio_date not in {hist_last, eff})
+            alio_date and alio_date not in {hist_last, eff, header})
         return Effective(eff, "supplement", "CONFLICT" if conflict else "CONFIRMED", promulgated, overrides)
     if hist_last:
         return Effective(hist_last, "history", "UNCERTAIN", promulgated, overrides)

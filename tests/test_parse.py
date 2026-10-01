@@ -78,3 +78,32 @@ def test_duplicate_supplement_dates_get_distinct_paths():
                       Block("부 칙 <2023.12.21.>"), Block("제1조(시행일) 이 규정은 2024년 1월 2일부터 시행한다.")])
     assert [s.path for s in d.supplements()] == ["supp@2023-12-21", "supp@2023-12-21~2"]
     assert d.get("supp@2023-12-21~2/a1").heading == "시행일"
+
+
+def _arts(d):
+    return [p.path for p in d.provisions if p.unit == "article"]
+
+
+def test_review_date_wrap_is_not_an_item():
+    d = parse_blocks([Block("제1조(목적) 목적이다."), Block("배율은"), Block("3.5배로 한다."),
+                      Block("부 칙 <2024.3.1.>"), Block("이 규정은"), Block("2024. 3. 1.부터 시행한다.")])
+    assert not any(p.unit == "item" for p in d.provisions)
+    assert "2024. 3. 1.부터 시행한다" in d.get("supp@2024-03-01").text
+
+
+def test_review_body_line_starting_with_buchik_is_not_a_supplement():
+    d = parse_blocks([Block("제1조(목적) 목적."), Block("부칙 제3조에 따른 경과조치는 다음과 같다."), Block("제2조(정의) 정의.")])
+    assert _arts(d) == ["a1", "a2"] and d.supplements() == []
+
+
+def test_review_wrapped_reference_with_heading_is_not_an_article():
+    d = parse_blocks([Block("제1조(목적) 목적."), Block("제2조(정의) 정의는"), Block("제9조(징계)에 따른 절차를 따른다."),
+                      Block("제3조(적용) 적용.")])
+    assert _arts(d) == ["a1", "a2", "a3"]
+
+
+def test_review_toc_with_headings_does_not_displace_body():
+    d = parse_blocks([Block("어떤 규정"), Block("제1조(목적)"), Block("제2조(정의)"), Block("제3조(적용)"),
+                      Block("제1조(목적) 이 규정은 목적을 정한다."), Block("제2조(정의) 정의는 다음과 같다."), Block("제3조(적용) 적용한다.")])
+    assert _arts(d) == ["a1", "a2", "a3"] and d.get("a1").text == "이 규정은 목적을 정한다."
+    assert d.meta["toc"] == ["a1", "a2", "a3"]

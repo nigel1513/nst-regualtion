@@ -67,3 +67,28 @@ def test_broken_file_fails_then_parks(conn, tmp_path):
     ev = conn.execute("SELECT attempts, processed_at, last_error FROM regulation.outbox").fetchone()
     assert ev["attempts"] == 3 and ev["processed_at"] is None and ev["last_error"]
     assert process_once(conn, blob, today=TODAY)["claimed"] == 0
+
+
+def test_review_each_event_commits_independently(conn, tmp_path, monkeypatch):
+    import psycopg
+
+    from reg import process as P
+
+    blob = LocalBlobStore(tmp_path)
+    seed_alio(conn, blob, (FX / "samples" / "kasi-yeobi-339.pdf").read_bytes())
+    conn.execute("INSERT INTO regulation.outbox (topic, payload) VALUES ('regulation.law_fetched', '{}')")
+    conn.commit()
+    real = P.HANDLERS["regulation.law_fetched"]
+
+    def boom(*a, **k):
+        raise KeyboardInterrupt
+    monkeypatch.setitem(P.HANDLERS, "regulation.law_fetched", boom)
+    import pytest
+    with pytest.raises(KeyboardInterrupt):
+        process_once(conn, blob, today=TODAY)
+    conn.rollback()
+    other = psycopg.connect(conn.info.dsn + " password=app")
+    n = other.execute("SELECT count(*) FROM regulation.outbox WHERE processed_at IS NOT NULL").fetchone()[0]
+    other.close()
+    monkeypatch.setitem(P.HANDLERS, "regulation.law_fetched", real)
+    assert n == 1

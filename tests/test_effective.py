@@ -3,7 +3,7 @@ from pathlib import Path
 
 from reg.extract import extract
 from reg.structure.effective import resolve
-from reg.structure.model import HistEntry, ParsedDoc, Prov
+from reg.structure.model import Block, HistEntry, ParsedDoc, Prov
 from reg.structure.parse import parse_blocks
 
 S = Path(__file__).parent / "fixtures" / "samples"
@@ -69,3 +69,16 @@ def test_real_phrasings_of_approval_day():
     for header, text, want in cases:
         e = resolve(doc([date.fromisoformat(header)], [(header, text)]))
         assert (e.effective_from, e.basis) == (want, "supplement"), text
+
+
+def test_review_supplement_article_paragraphs_are_read():
+    d = parse_blocks([Block("제1조(목적) 목적."), Block("제2조(정의) 정의."), Block("부 칙 <2024.3.1.>"),
+                      Block("제1조(시행일) ① 이 규정은 2024년 3월 1일부터 시행한다."),
+                      Block("② 다만, 제2조는 2024년 6월 1일부터 시행한다.")])
+    e = resolve(d)
+    assert e.effective_from == date(2024, 3, 1) and e.overrides == {"a2": date(2024, 6, 1)}
+
+
+def test_review_alio_date_equal_to_supplement_header_is_not_conflict():
+    e = resolve(doc([], [("2024-01-01", "이 규정은 2024년 2월 1일부터 시행한다.")]), alio_date=date(2024, 1, 1))
+    assert (e.effective_from, e.status) == (date(2024, 2, 1), "CONFIRMED")

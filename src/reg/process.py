@@ -108,7 +108,7 @@ def process_once(conn, blob: BlobStore, limit: int = 100, today: date | None = N
         "SELECT id, topic, payload, attempts FROM regulation.outbox WHERE processed_at IS NULL AND attempts < %s"
         " AND topic = ANY(%s) ORDER BY id LIMIT %s FOR UPDATE SKIP LOCKED",
         (MAX_ATTEMPTS, list(TOPICS), limit)).fetchall()
-    for ev in events:
+    for ev in events:  # 이벤트마다 커밋: 긴 변환이 배치 전체의 잠금을 잡지 않고, 중단돼도 끝난 이벤트는 남는다
         st["claimed"] += 1
         try:
             with conn.transaction():
@@ -122,5 +122,6 @@ def process_once(conn, blob: BlobStore, limit: int = 100, today: date | None = N
             st["failed"] += 1
             if ev["attempts"] + 1 >= MAX_ATTEMPTS:
                 st["parked"] += 1
+        conn.commit()
     conn.commit()
     return st

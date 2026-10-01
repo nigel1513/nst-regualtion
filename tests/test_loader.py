@@ -98,3 +98,18 @@ def test_duplicate_paths_in_one_document_are_kept_distinct(conn, tmp_path):
         "SELECT pv.path FROM regulation.version_provision vp JOIN regulation.provision_version pv"
         " ON pv.id = vp.provision_version_id WHERE vp.work_version_id = %s ORDER BY vp.ord", (vid,)).fetchall()]
     assert paths == ["a1", "a1~2"]
+
+
+def test_review_anchor_only_difference_is_not_a_change(conn, tmp_path):
+    wid = setup(conn, tmp_path)
+    a, b = doc(("a1", "목적", "같은 본문입니다.")), doc(("a1", "목적", "같은 본문입니다."))
+    a.provisions[0].anchor, b.provisions[0].anchor = {"page": 1, "bbox": None}, {"page": 2, "bbox": None}
+    add_version(conn, wid, src(conn, tmp_path, b"p1"), a, eff(date(2020, 1, 1)))
+    vb = add_version(conn, wid, src(conn, tmp_path, b"p2"), b, eff(date(2024, 1, 1)))
+    rebuild_work(conn, wid, today=date(2026, 10, 2))
+    assert changes(conn, wid, vb) == []
+    pages = [r["page"] for r in conn.execute(
+        "SELECT (coalesce(vp.anchor, pv.source_anchor)->>'page')::int AS page FROM regulation.version_provision vp"
+        " JOIN regulation.provision_version pv ON pv.id = vp.provision_version_id"
+        " JOIN regulation.work_version v ON v.id = vp.work_version_id ORDER BY v.effective_from").fetchall()]
+    assert pages == [1, 2]
