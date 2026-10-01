@@ -52,3 +52,17 @@ def test_params_are_sent():
     c, _, _ = make()
     c.get("https://x/a", params={"q": "여비"})
     assert route.called
+
+
+@respx.mock
+def test_backoff_is_capped_and_recovers_after_successes():
+    route = respx.get("https://x/a")
+    route.side_effect = ([httpx.Response(429, headers={"Retry-After": "1"}), httpx.Response(200)] * 6
+                         + [httpx.Response(200)] * 20)
+    c, _, _ = make()
+    for _ in range(6):
+        c.get("https://x/a")
+    assert c.min_interval <= 30.0
+    for _ in range(20):
+        c.get("https://x/a")
+    assert c.min_interval == 1.5

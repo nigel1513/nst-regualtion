@@ -73,7 +73,7 @@ class AlioClient:
                 if r.get("apbaId") != apba_id:
                     continue
                 yield ListRow(str(r["seq"]), r["title"].strip(), r["apbaId"], r.get("insdRuleDivis"),
-                              f"{r.get('submissionNo')}|{r.get('ruleStDa')}")
+                              "|".join(str(r.get(k)) for k in ("submissionNo", "ruleStDa", "idate", "crctYn", "reSbmtYn")))
             if page >= int(data["page"]["totalPage"]):
                 return
             page += 1

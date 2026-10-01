@@ -17,3 +17,14 @@ def test_finish_failed_discards_uncommitted_work(conn):
     conn.execute("INSERT INTO regulation.outbox (topic, payload) VALUES ('x', '{}')")
     finish_run(conn, run_id, "failed", {}, "boom")
     assert conn.execute("SELECT count(*) AS n FROM regulation.outbox").fetchone()["n"] == 0
+
+
+def test_request_log_survives_failed_run(conn, migrated):
+    from reg.collect.runs import open_log_conn
+
+    run_id = start_run(conn, "alio", None)
+    log_conn = open_log_conn(migrated[0])
+    db_logger(log_conn, run_id)(RequestLog("alio", "https://x", 403, 0, 5, 0))
+    finish_run(conn, run_id, "failed", {}, "403")
+    log_conn.close()
+    assert conn.execute("SELECT count(*) AS n FROM regulation.request_log WHERE run_id=%s", (run_id,)).fetchone()["n"] == 1

@@ -18,6 +18,13 @@ def finish_run(conn, run_id: int, status: str, stats: dict, error: str | None = 
     conn.commit()
 
 
+def open_log_conn(dsn: str):
+    """request_log 전용 autocommit 연결: 규정 작업이 롤백돼도 요청 기록(특히 중지 원인)은 남는다."""
+    import psycopg
+
+    return psycopg.connect(dsn, autocommit=True)
+
+
 def db_logger(conn, run_id: int) -> Callable[[RequestLog], None]:
     def log(r: RequestLog) -> None:
         conn.execute("INSERT INTO regulation.request_log (run_id, source, url, status, bytes, elapsed_ms,"

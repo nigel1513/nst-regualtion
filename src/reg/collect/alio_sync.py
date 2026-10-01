@@ -34,6 +34,18 @@ def _upsert_rule(conn, inst_id: int, d: RuleDetail, fingerprint: str) -> None:
          json.dumps(d.raw, ensure_ascii=False)))
 
 
+def _record_file(conn, file_no, seq, name, ord_, status, reason, doc_id) -> None:
+    """거부됐던 fileNo는 재시도 결과로 덮어쓴다. 이미 받은 fileNo는 건드리지 않는다."""
+    conn.execute(
+        "INSERT INTO regulation.alio_rule_file (file_no, seq, file_name, ord, status, reject_reason,"
+        " source_document_id) VALUES (%s,%s,%s,%s,%s,%s,%s)"
+        " ON CONFLICT (file_no) DO UPDATE SET seq = EXCLUDED.seq, file_name = EXCLUDED.file_name,"
+        " ord = EXCLUDED.ord, status = EXCLUDED.status, reject_reason = EXCLUDED.reject_reason,"
+        " source_document_id = EXCLUDED.source_document_id, fetched_at = now()"
+        " WHERE regulation.alio_rule_file.status = 'rejected'",
+        (file_no, seq, name, ord_, status, reason, doc_id))
+
+
 def sync_institution(conn, alio: AlioClient, blob: BlobStore, inst: dict, limit: int | None = None) -> dict:
     st = dict(rules_seen=0, details_fetched=0, files_fetched=0, files_new_content=0, files_rejected=0)
     for row in alio.list_rules(inst["alio_name"], inst["alio_apba_id"]):
@@ -41,7 +53,8 @@ def sync_institution(conn, alio: AlioClient, blob: BlobStore, inst: dict, limit:
             break
         st["rules_seen"] += 1
         known = conn.execute(
-            "SELECT r.list_fingerprint, (SELECT count(*) FROM regulation.alio_rule_file f WHERE f.seq = r.seq) AS nfiles"
+            "SELECT r.list_fingerprint, (SELECT count(*) FROM regulation.alio_rule_file f"
+            " WHERE f.seq = r.seq AND f.status = 'fetched') AS nfiles"
             " FROM regulation.alio_rule r WHERE r.seq = %s", (row.seq,)).fetchone()
         if known and known["list_fingerprint"] == row.fingerprint and known["nfiles"] > 0:
             conn.execute("UPDATE regulation.alio_rule SET last_seen_at = now() WHERE seq = %s", (row.seq,))
@@ -50,26 +63,24 @@ def sync_institution(conn, alio: AlioClient, blob: BlobStore, inst: dict, limit:
         d = alio.detail(row.seq)
         st["details_fetched"] += 1
         _upsert_rule(conn, inst["id"], d, row.fingerprint)
-        have = {r["file_no"] for r in conn.execute(
-            "SELECT file_no FROM regulation.alio_rule_file WHERE seq = %s", (row.seq,)).fetchall()}
+        have = {r["file_no"] for r in conn.execute(  # 다른 규정에 이미 받은 fileNo도 다시 받지 않는다
+            "SELECT file_no FROM regulation.alio_rule_file WHERE status = 'fetched' AND file_no = ANY(%s)",
+            ([f for f, _ in d.files],)).fetchall()}
         for ord_, (file_no, name) in enumerate(d.files):
             if file_no in have:
                 continue
+            have.add(file_no)  # 같은 bFiles 안의 중복 fileNo
             content = alio.download(file_no)
             st["files_fetched"] += 1
             kind = sniff(content, name)
             if kind is None:
                 st["files_rejected"] += 1
-                conn.execute("INSERT INTO regulation.alio_rule_file (file_no, seq, file_name, ord, status,"
-                             " reject_reason) VALUES (%s,%s,%s,%s,'rejected',%s)",
-                             (file_no, row.seq, name, ord_, f"형식 불명 ({content[:16]!r})"))
+                _record_file(conn, file_no, row.seq, name, ord_, "rejected", f"형식 불명 ({content[:16]!r})", None)
                 continue
             doc = store(conn, blob, source="alio", url=DOWNLOAD_URL.format(file_no), content=content,
                         kind=kind, meta={"seq": row.seq, "file_no": file_no, "file_name": name,
                                          "institution_code": inst["code"]})
-            conn.execute("INSERT INTO regulation.alio_rule_file (file_no, seq, file_name, ord, status,"
-                         " source_document_id) VALUES (%s,%s,%s,%s,'fetched',%s)",
-                         (file_no, row.seq, name, ord_, doc.id))
+            _record_file(conn, file_no, row.seq, name, ord_, "fetched", None, doc.id)
             if doc.is_new:
                 st["files_new_content"] += 1
                 outbox.write(conn, "regulation.source_fetched", {

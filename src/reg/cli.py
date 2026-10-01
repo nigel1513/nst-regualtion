@@ -10,7 +10,7 @@ from reg.collect.alio_sync import load_institutions, sync_institution
 from reg.collect.law_sync import sync_laws
 from reg.collect.lawgo import LawGoClient
 from reg.collect.polite import PoliteClient
-from reg.collect.runs import db_logger, finish_run, start_run
+from reg.collect.runs import db_logger, finish_run, open_log_conn, start_run
 from reg.db.bootstrap import bootstrap
 from reg.db.conn import connect
 from reg.db.migrate import upgrade
@@ -53,16 +53,24 @@ def bucket_ensure() -> None:
 
 
 def _run(source: str, scope: str | None, body) -> None:
-    conn = connect(get_settings().database_url)
+    dsn = get_settings().database_url
+    conn, log_conn = connect(dsn), open_log_conn(dsn)
     run_id = start_run(conn, source, scope)
     try:
-        stats = body(conn, db_logger(conn, run_id))
+        stats = body(conn, db_logger(log_conn, run_id))
     except Exception as e:
         finish_run(conn, run_id, "failed", {}, f"{type(e).__name__}: {e}")
         typer.echo(f"실패 (run {run_id}): {e}", err=True)
         raise typer.Exit(1)
-    finish_run(conn, run_id, "succeeded", stats)
-    typer.echo(f"완료 (run {run_id}): {stats}")
+    except BaseException as e:  # Ctrl-C, SIGTERM: 실행 상태를 남기고 그대로 전파
+        finish_run(conn, run_id, "failed", {}, type(e).__name__)
+        raise
+    else:
+        finish_run(conn, run_id, "succeeded", stats)
+        typer.echo(f"완료 (run {run_id}): {stats}")
+    finally:
+        log_conn.close()
+        conn.close()
 
 
 @collect.command("alio")

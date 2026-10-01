@@ -46,3 +46,17 @@ def test_non_json_response_raises():
     respx.get(f"{BASE}/occasional/findRuleDtl.json").respond(200, text="<html>점검중</html>")
     with pytest.raises(AlioError):
         client().detail("1")
+
+
+@respx.mock
+def test_fingerprint_changes_with_posting_and_correction_flags():
+    data = json.loads((FX / "alio_list_kasi_p1.json").read_text())
+    respx.get(f"{BASE}/occasional/findRuleList.json").respond(200, json=data)
+    a = next(client().list_rules("한국천문연구원", "C0266")).fingerprint
+    data["data"]["result"][0]["idate"] = "2099.01.01"
+    respx.get(f"{BASE}/occasional/findRuleList.json").respond(200, json=data)
+    b = next(client().list_rules("한국천문연구원", "C0266")).fingerprint
+    data["data"]["result"][0]["crctYn"] = "Y"
+    respx.get(f"{BASE}/occasional/findRuleList.json").respond(200, json=data)
+    c = next(client().list_rules("한국천문연구원", "C0266")).fingerprint
+    assert len({a, b, c}) == 3

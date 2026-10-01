@@ -104,3 +104,26 @@ def test_stop_midway_then_resume(conn, tmp_path):
     mock_alio({"1": PDF_A, "2": PDF_B}, "1|a.pdf,2|b.pdf")
     st = run(conn, tmp_path, inst)
     assert st["files_fetched"] == 2
+
+
+@respx.mock
+def test_rejected_file_is_retried_on_next_run(conn, tmp_path):
+    inst = setup_inst(conn, tmp_path)
+    mock_alio({"1": b"<html>error</html>"}, "1|a.pdf")
+    run(conn, tmp_path, inst)
+    respx.reset()
+    mock_alio({"1": PDF_A}, "1|a.pdf")  # 목록 지문은 그대로
+    st = run(conn, tmp_path, inst)
+    f = conn.execute("SELECT * FROM regulation.alio_rule_file WHERE file_no='1'").fetchone()
+    assert st["files_fetched"] == 1 and f["status"] == "fetched" and f["source_document_id"] is not None
+    assert len(events(conn)) == 1
+
+
+@respx.mock
+def test_duplicate_file_no_does_not_break_the_run(conn, tmp_path):
+    inst = setup_inst(conn, tmp_path)
+    mock_alio({"1": PDF_A}, "1|a.pdf,1|a.pdf")
+    st = run(conn, tmp_path, inst)
+    assert st["files_fetched"] == 1
+    st2 = run(conn, tmp_path, inst)  # 다시 실행해도 실패하지 않는다
+    assert st2["files_fetched"] == 0
