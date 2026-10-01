@@ -127,12 +127,13 @@ def api_cmd(host: str = "0.0.0.0", port: int = 21061) -> None:
 
     from reg.api.app import create_app
 
-    from reg.llm import EmbeddingProvider, RerankProvider
+    from reg.llm import EmbeddingProvider, LLMProvider, RerankProvider
     from reg.search.os import OpenSearch
 
     s = get_settings()
     deps = {"os": OpenSearch(s.os_url), "embedder": EmbeddingProvider(s.embed_url, s.embed_model),
-            "reranker": RerankProvider(s.rerank_url, s.rerank_model)}
+            "reranker": RerankProvider(s.rerank_url, s.rerank_model),
+            "llm": LLMProvider(s.llm_url, s.llm_model), "llm_model": s.llm_model}
     uvicorn.run(create_app(s.database_url, _blob(), deps), host=host, port=port, log_level="info")
 
 

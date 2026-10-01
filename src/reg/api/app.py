@@ -5,11 +5,27 @@ from urllib.parse import quote
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import Response
+from typing import Literal
+
+from pydantic import BaseModel, Field
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 
 from reg.api import queries as Q
 from reg.storage.blob import BlobStore
+
+
+
+class QaIn(BaseModel):
+    question: str = Field(min_length=2, max_length=500)
+    institution: str | None = None
+    user_institution: str | None = None
+    as_of: date | None = None
+
+
+class FeedbackIn(BaseModel):
+    feedback: Literal["helpful", "not_helpful"]
+    reason: str | None = None
 
 
 def create_app(dsn: str, blob: BlobStore, search_deps: dict | None = None) -> FastAPI:
@@ -114,5 +130,24 @@ def create_app(dsn: str, blob: BlobStore, search_deps: dict | None = None) -> Fa
             raise HTTPException(503, "검색 색인이 아직 없습니다")
         return hybrid(deps["os"], deps["embedder"], deps.get("reranker"), q, institution,
                       as_of.isoformat() if as_of else None, kind, rerank, size)
+
+    @app.post("/api/v1/qa")
+    def qa(body: QaIn, c=Depends(conn)):
+        from reg.qa.service import ask
+
+        deps = app.state.search
+        if not deps or deps["os"].alias_target() is None:
+            raise HTTPException(503, "검색 색인이 아직 없습니다")
+        return ask(c, deps, body.question, body.institution, body.user_institution,
+                   body.as_of.isoformat() if body.as_of else None)
+
+    @app.post("/api/v1/qa/{qa_id}/feedback")
+    def qa_feedback(qa_id: int, body: FeedbackIn, c=Depends(conn)):
+        n = c.execute("UPDATE regulation.qa_log SET feedback = %s WHERE id = %s",
+                      (body.feedback + (f": {body.reason[:300]}" if body.reason else ""), qa_id)).rowcount
+        c.commit()
+        if not n:
+            raise HTTPException(404, "질의 기록을 찾을 수 없습니다")
+        return {"ok": True}
 
     return app
