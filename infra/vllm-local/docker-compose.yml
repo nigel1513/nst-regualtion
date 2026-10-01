@@ -1,0 +1,59 @@
+# 규정 플랫폼 개발용 로컬 추론 서버 (Windows WSL2 + RTX 4090 24GB)
+#   llm    : EXAONE-3.5-7.8B-Instruct-AWQ  -> :8001  (/v1/chat/completions)
+#   embed  : BAAI/bge-m3 (1024 dim)        -> :8002  (/v1/embeddings)
+#   rerank : BAAI/bge-reranker-v2-m3       -> :8003  (/rerank, /score)
+# VRAM: embed 0.10 + rerank 0.10 + llm 0.60 = 0.80 (~19.6GB), 나머지는 화면 출력·여유분
+# 시작 순서를 embed -> rerank -> llm 으로 고정: vLLM이 기동 시 남은 VRAM을 확인하므로 동시 기동 시 충돌함
+# 포트는 내부망에 공개됨. Windows 방화벽에서 플랫폼 서버(192.168.0.3)만 허용할 것:
+#   New-NetFirewallRule -DisplayName "vLLM (nst server only)" -Direction Inbound -Protocol TCP -LocalPort 8001-8003 -RemoteAddress 192.168.0.3 -Action Allow
+
+x-vllm: &vllm
+  image: vllm/vllm-openai:v0.30.0
+  ipc: host
+  environment:
+    - HF_TOKEN=${HF_TOKEN:-}
+  volumes:
+    - hf-cache:/root/.cache/huggingface
+  deploy:
+    resources:
+      reservations:
+        devices: [{ driver: nvidia, count: all, capabilities: [gpu] }]
+  healthcheck:
+    test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+    interval: 15s
+    timeout: 5s
+    start_period: 60s
+    retries: 120
+  restart: unless-stopped
+
+services:
+  embed:
+    <<: *vllm
+    ports: ["8002:8000"]
+    command: >
+      --model BAAI/bge-m3 --served-model-name bge-m3
+      --runner pooling
+      --gpu-memory-utilization 0.10 --max-model-len 8192
+
+  rerank:
+    <<: *vllm
+    ports: ["8003:8000"]
+    command: >
+      --model BAAI/bge-reranker-v2-m3 --served-model-name bge-reranker
+      --runner pooling
+      --gpu-memory-utilization 0.10 --max-model-len 8192
+    depends_on:
+      embed: { condition: service_healthy }
+
+  llm:
+    <<: *vllm
+    ports: ["8001:8000"]
+    command: >
+      --model LGAI-EXAONE/EXAONE-3.5-7.8B-Instruct-AWQ --served-model-name llm
+      --trust-remote-code
+      --gpu-memory-utilization 0.60 --max-model-len 32768
+    depends_on:
+      rerank: { condition: service_healthy }
+
+volumes:
+  hf-cache:
