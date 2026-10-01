@@ -115,6 +115,12 @@ def parse_blocks(blocks: list[Block]) -> ParsedDoc:
     blocks = [b for b in blocks if b.text]
     start = _body_start(blocks)
     title, code, hist = _header(blocks[:start])
+    toc = []
+    for b in blocks[:start]:
+        if (m := RE_ARTICLE.match(b.text)) and not m[3]:
+            k = _article_key(m[1], m[2])
+            if k not in toc:
+                toc.append(k)
     body = [b for b in _pre_split(blocks[start:]) if not RE_LEADER.search(b.text) or RE_ARTICLE.match(b.text)]
     B = _Builder(Joiner([b.text for b in body]))
     annexes = 0
@@ -205,7 +211,8 @@ def parse_blocks(blocks: list[Block]) -> ParsedDoc:
           [("articles", "article"), ("paragraphs", "paragraph"), ("items", "item"), ("supplements", "supplement"),
            ("annexes", "annex")]}
     st["unparsed_lines"] = B.unparsed
-    return ParsedDoc(title, code, [h for h in hist if h.date], B.provs, {"stats": st})
+    return ParsedDoc(title, code, [h for h in hist if h.date], B.provs,
+                     {"stats": st, **({"toc": toc} if len(toc) >= 3 else {})})
 
 
 def _para(B: _Builder, t: str, b: Block) -> None:
