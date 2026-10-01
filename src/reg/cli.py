@@ -14,7 +14,8 @@ from reg.collect.runs import db_logger, finish_run, open_log_conn, start_run
 from reg.db.bootstrap import bootstrap
 from reg.db.conn import connect
 from reg.db.migrate import upgrade
-from reg.process import process_once
+from reg.process import process_once, rebuild_all
+from reg.views.converter import DockerConverter
 from reg.settings import get_settings
 from reg.storage.blob import S3BlobStore
 
@@ -102,13 +103,19 @@ def collect_law() -> None:
 
 @app.command("process")
 def process_cmd(limit: int = typer.Option(100, help="한 번에 처리할 이벤트 수"),
-                all_: bool = typer.Option(False, "--all", help="남은 이벤트가 없을 때까지 반복")) -> None:
+                all_: bool = typer.Option(False, "--all", help="남은 이벤트가 없을 때까지 반복"),
+                rebuild: bool = typer.Option(False, "--rebuild", help="구조화 결과를 지우고 처음부터 다시 처리"),
+                no_convert: bool = typer.Option(False, "--no-convert", help="HWP 보기용 PDF 변환 생략")) -> None:
     def body(conn, log):
+        loop = all_ or rebuild
+        if rebuild:
+            rebuild_all(conn)
+        converter = None if no_convert else DockerConverter()
         total = {"claimed": 0, "ok": 0, "failed": 0, "parked": 0}
         while True:
-            st = process_once(conn, _blob(), limit=limit)
+            st = process_once(conn, _blob(), limit=limit, converter=converter)
             for k in total:
                 total[k] += st[k]
-            if not all_ or st["claimed"] == 0 or st["ok"] == 0:
+            if not loop or st["claimed"] == 0 or st["ok"] == 0:
                 return total
     _run("process", None, body)
