@@ -34,7 +34,9 @@ def conn(migrated):
     c.rollback()
     with c.cursor() as cur:  # 테스트 간 격리: 데이터만 비운다
         cur.execute(
-            "TRUNCATE regulation.outbox, regulation.alio_rule_file, regulation.alio_rule,"
+            "TRUNCATE regulation.provision_change, regulation.version_provision, regulation.provision_version,"
+            " regulation.provision, regulation.amendment_history, regulation.work_version, regulation.work,"
+            " regulation.outbox, regulation.alio_rule_file, regulation.alio_rule,"
             " regulation.law_watch, regulation.request_log, regulation.fetch_run,"
             " regulation.source_document, regulation.institution CASCADE"
         )
