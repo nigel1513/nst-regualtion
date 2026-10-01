@@ -75,6 +75,7 @@ def handle_source_fetched(conn, blob: BlobStore, payload: dict, today: date, con
     alio_date = rule["revised_on"] if this and this["ord"] == last_ord else None
     eff = resolve(doc, alio_date=alio_date, filename=payload["file_name"])
     _view(conn, blob, sd, doc, converter)
+    conn.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (f"alio:{rule['seq']}",))  # 같은 규정은 한 작업자만
     wid = work_key_for_regulation(conn, rule["inst_code"], rule["institution_id"], rule["title"], rule["seq"])
     upsert_work(conn, wid, "INTERNAL_REG", rule["title"], rule["institution_id"], {"alio_seq": rule["seq"]})
     vid = add_version(conn, wid, sd["id"], doc, eff, posted_on=rule["posted_on"])
@@ -88,6 +89,7 @@ def handle_law_fetched(conn, blob: BlobStore, payload: dict, today: date, conver
                       (payload["source_document_id"],)).fetchone()
     doc = parse_law_xml(blob.get(sd["blob_key"]))
     wid = f"kr/law/{payload['law_id']}"
+    conn.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (wid,))
     upsert_work(conn, wid, doc.meta.get("kind") or "LAW", doc.title, None,
                 {"law_id": payload["law_id"], "mst": payload["mst"]})
     eff = resolve(doc)
@@ -104,11 +106,13 @@ def process_once(conn, blob: BlobStore, limit: int = 100, today: date | None = N
                  converter: Converter | None = None) -> dict:
     today = today or kst_today()
     st = {"claimed": 0, "ok": 0, "failed": 0, "parked": 0}
-    events = conn.execute(
-        "SELECT id, topic, payload, attempts FROM regulation.outbox WHERE processed_at IS NULL AND attempts < %s"
-        " AND topic = ANY(%s) ORDER BY id LIMIT %s FOR UPDATE SKIP LOCKED",
-        (MAX_ATTEMPTS, list(TOPICS), limit)).fetchall()
-    for ev in events:  # 이벤트마다 커밋: 긴 변환이 배치 전체의 잠금을 잡지 않고, 중단돼도 끝난 이벤트는 남는다
+    # 한 건씩 잠그고 처리한 뒤 커밋한다: 여러 작업자가 동시에 돌아도 같은 이벤트를 두 번 가져가지 않는다
+    for _ in range(limit):
+        ev = conn.execute(
+            "SELECT id, topic, payload, attempts FROM regulation.outbox WHERE processed_at IS NULL AND attempts < %s"
+            " AND topic = ANY(%s) ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED", (MAX_ATTEMPTS, list(TOPICS))).fetchone()
+        if ev is None:
+            break
         st["claimed"] += 1
         try:
             with conn.transaction():
