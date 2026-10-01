@@ -7,9 +7,9 @@ from reg.structure.model import ParsedDoc
 from reg.structure.text import parse_dot_date
 
 DATE_ANY = r"(\d{4}\s*년\s*\d{1,2}\s*월\s*\d{1,2}\s*일|\d{4}\s*\.\s*\d{1,2}\s*\.\s*\d{1,2}\s*\.?)"
-RE_PAREN = re.compile(r"공포한\s*날\s*[(（]\s*" + DATE_ANY + r"\s*[)）]\s*부터")
+RE_PAREN = re.compile(r"날\s*[(（]\s*" + DATE_ANY + r"\s*[)）]\s*(?:로)?\s*부터")
 RE_FROM = re.compile(DATE_ANY + r"\s*부터\s*시행")
-RE_PUB = re.compile(r"(공포한\s*날|결재[^.。]{0,30}?날)\s*부터\s*시행")
+RE_PUB = re.compile(r"(?:공포|결재|의결|통보|승인|시달|게시)[^.。]{0,40}?날\s*(?:로)?\s*부터\s*시행")
 RE_BUT = re.compile(r"다만[,，]?\s*(.*?)(?:은|는)\s*" + DATE_ANY + r"\s*부터")
 RE_ART = re.compile(r"제\s*(\d+)\s*조(?:\s*의\s*(\d+))?")
 RE_FILE = re.compile(r"(\d{4})\s*년(?:도)?\s*(\d{1,2})\s*월")

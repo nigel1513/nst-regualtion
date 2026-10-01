@@ -55,3 +55,17 @@ def test_law_meta_is_api_confirmed():
     e = resolve(d)
     assert (e.effective_from, e.basis, e.status, e.promulgated_on) == (
         date(2026, 9, 11), "api", "CONFIRMED", date(2026, 3, 10))
+
+
+def test_real_phrasings_of_approval_day():
+    cases = [
+        ("2019-03-14", "이 규칙은 이사장 결재를 받은 날(2019년 3월 14일)부터 시행한다.", date(2019, 3, 14)),
+        ("2018-05-10", "이 규칙은 이사장 결재를 받은 날(2018년 5월 10일) 부터 시행한다.", date(2018, 5, 10)),
+        ("2018-05-18", "이 규정은 이사회의 의결을 받은 날(2018.05.18.)부터 시행한다. 다만, 제20조제3항의 개정규정은"
+                       " 2018년 5월 29일부터 시행한다.", date(2018, 5, 18)),
+        ("2020-02-01", "이 기준은 이사회의 의결을 거쳐 연구기관에 통보한 날부터 시행한다.", date(2020, 2, 1)),
+        ("2021-07-01", "이 규정은 공포한 날로부터 시행한다.", date(2021, 7, 1)),
+    ]
+    for header, text, want in cases:
+        e = resolve(doc([date.fromisoformat(header)], [(header, text)]))
+        assert (e.effective_from, e.basis) == (want, "supplement"), text
