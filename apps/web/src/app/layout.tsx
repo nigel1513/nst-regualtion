@@ -10,6 +10,7 @@ export const metadata: Metadata = { title: "NST 규정·법령", description: "�
 
 const NAV = [
   { href: "/regulations", label: "규정" },
+  { href: "/qa", label: "질의응답" },
   { href: "/search", label: "검색" },
   { href: "/review", label: "검수" },
 ];

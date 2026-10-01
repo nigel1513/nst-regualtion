@@ -47,6 +47,18 @@ export type HHit = {
 };
 export type HSearch = { mode: "hybrid" | "bm25"; reranked: boolean; release_id: string | null; hits: HHit[] };
 
+export type QaEvidence = {
+  id: string; work_id: string; version_id: string; title: string; path: string; label: string; text: string;
+  role: string; effective_from: string | null; rel: string | null;
+};
+export type QaAnswer = { 결론: string; 근거: { id: string; 인용: string }[]; 설명: string; 확인_필요: string[]; 문의처: string };
+export type QaResult = {
+  id: number; status: "answered" | "need_institution" | "not_found" | "evidence_only"; institution: string | null;
+  as_of: string | null; question_type: string | null; evidence: QaEvidence[]; answer: QaAnswer | null;
+  verification: { ok: boolean; citations_exist?: boolean; quotes_match?: boolean; numbers_match?: boolean; consistent?: boolean; problems: string[] } | null;
+  verdict_source: string | null; release_id: string | null; note: string | null; options?: { code: string; name: string }[];
+};
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) { super(message); }
 }
