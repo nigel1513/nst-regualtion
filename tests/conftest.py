@@ -34,7 +34,7 @@ def conn(migrated):
     c.rollback()
     with c.cursor() as cur:  # 테스트 간 격리: 데이터만 비운다
         cur.execute(
-            "TRUNCATE regulation.qa_log, regulation.release_item, regulation.release, regulation.reference, regulation.review_task, regulation.law_seed, regulation.provision_change, regulation.version_provision, regulation.provision_version,"
+            "TRUNCATE regulation.email_delivery, regulation.notification, regulation.change_impact, regulation.owner_assignment, regulation.qa_log, regulation.release_item, regulation.release, regulation.reference, regulation.review_task, regulation.law_seed, regulation.provision_change, regulation.version_provision, regulation.provision_version,"
             " regulation.provision, regulation.amendment_history, regulation.work_version, regulation.work,"
             " regulation.outbox, regulation.alio_rule_file, regulation.alio_rule,"
             " regulation.law_watch, regulation.request_log, regulation.fetch_run,"
@@ -79,3 +79,24 @@ def loaded(conn, tmp_path):
     seed_alio(conn, blob, (FX / "samples" / "kasi-yeobi-339.pdf").read_bytes())
     process_once(conn, blob, today=date(2026, 10, 2))
     return conn
+
+
+@pytest.fixture(scope="session")
+def neo4j_driver():
+    import time
+
+    from neo4j import GraphDatabase
+    from testcontainers.core.container import DockerContainer
+
+    c = DockerContainer("neo4j:5.26-community").with_exposed_ports(7687).with_env("NEO4J_AUTH", "neo4j/testpass1234")
+    with c:
+        uri = f"bolt://{c.get_container_host_ip()}:{c.get_exposed_port(7687)}"
+        drv = GraphDatabase.driver(uri, auth=("neo4j", "testpass1234"))
+        for _ in range(120):
+            try:
+                drv.verify_connectivity()
+                break
+            except Exception:
+                time.sleep(1)
+        yield drv
+        drv.close()

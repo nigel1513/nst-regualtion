@@ -18,6 +18,13 @@ class Settings(BaseSettings):
     alio_min_interval: float = 1.5
     lawgo_min_interval: float = 1.0
     os_url: str = "http://127.0.0.1:21067"
+    neo4j_url: str = "bolt://127.0.0.1:21064"
+    neo4j_user: str = "neo4j"
+    neo4j_password: str = ""
+    smtp_host: str = "127.0.0.1"
+    smtp_port: int = 21068
+    smtp_from: str = "NST 규정·법령 <no-reply@nst-regulation.local>"
+    web_url: str = "http://192.168.0.3:21060"
     embed_url: str = "http://192.168.0.2:8002"
     embed_model: str = "bge-m3"
     rerank_url: str = "http://192.168.0.2:8003"

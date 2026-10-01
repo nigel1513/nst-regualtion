@@ -16,8 +16,26 @@ services:
     ports: ["127.0.0.1:21067:9200"]
     networks: [default, nais]
     restart: unless-stopped
+  # 개정 영향 탐색용 그래프 (PostgreSQL에서 파생, 언제든 재투영 가능)
+  neo4j:
+    image: neo4j:5.26-community
+    environment:
+      NEO4J_AUTH: neo4j/${REG_NEO4J_PASSWORD:?set REG_NEO4J_PASSWORD}
+      NEO4J_server_memory_heap_max__size: 2G
+    ports: ["127.0.0.1:21064:7687", "127.0.0.1:21065:7474"]
+    volumes:
+      - neo4j-data:/data
+    restart: unless-stopped
+  # 공유 nst-nexus Mailpit(개발용 SMTP)으로의 중계: 127.0.0.1:21068 → mailpit:1025
+  mailpit-proxy:
+    image: alpine/socat:1.8.0.0
+    command: TCP-LISTEN:1025,fork,reuseaddr TCP:mailpit:1025
+    ports: ["127.0.0.1:21068:1025"]
+    networks: [default, nais]
+    restart: unless-stopped
 volumes:
   storage-data:
+  neo4j-data:
 networks:
   nais:
     name: nais_default
