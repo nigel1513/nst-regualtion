@@ -34,7 +34,7 @@ def conn(migrated):
     c.rollback()
     with c.cursor() as cur:  # 테스트 간 격리: 데이터만 비운다
         cur.execute(
-            "TRUNCATE regulation.reference, regulation.review_task, regulation.law_seed, regulation.provision_change, regulation.version_provision, regulation.provision_version,"
+            "TRUNCATE regulation.release_item, regulation.release, regulation.reference, regulation.review_task, regulation.law_seed, regulation.provision_change, regulation.version_provision, regulation.provision_version,"
             " regulation.provision, regulation.amendment_history, regulation.work_version, regulation.work,"
             " regulation.outbox, regulation.alio_rule_file, regulation.alio_rule,"
             " regulation.law_watch, regulation.request_log, regulation.fetch_run,"
@@ -42,3 +42,25 @@ def conn(migrated):
         )
     c.commit()
     c.close()
+
+
+@pytest.fixture(scope="session")
+def os_url():
+    import time
+
+    import httpx
+    from testcontainers.core.container import DockerContainer
+
+    c = (DockerContainer("nais-opensearch:2.19.1-nori").with_exposed_ports(9200)
+         .with_env("discovery.type", "single-node").with_env("DISABLE_SECURITY_PLUGIN", "true")
+         .with_env("DISABLE_INSTALL_DEMO_CONFIG", "true").with_env("OPENSEARCH_JAVA_OPTS", "-Xms512m -Xmx512m"))
+    with c:
+        url = f"http://{c.get_container_host_ip()}:{c.get_exposed_port(9200)}"
+        for _ in range(90):
+            try:
+                if httpx.get(f"{url}/_cluster/health", timeout=2).status_code == 200:
+                    break
+            except httpx.HTTPError:
+                pass
+            time.sleep(1)
+        yield url
