@@ -106,3 +106,18 @@ def test_events_of_one_work_are_rebuilt_once(conn, tmp_path, monkeypatch):
     monkeypatch.setattr(P, "rebuild_work", lambda c, w, t: calls.append(w) or real(c, w, t))
     st = process_once(conn, blob, today=TODAY)
     assert st["claimed"] == 2 and st["ok"] == 2 and calls == ["kr/reg/KASI/여비규정"]
+
+
+def test_document_without_readable_articles_goes_to_review_queue(conn, tmp_path, monkeypatch):
+    from reg import process as P
+    from reg.structure.model import Block
+
+    blob = LocalBlobStore(tmp_path)
+    seed_alio(conn, blob, (FX / "samples" / "kasi-yeobi-339.pdf").read_bytes())
+    # 글꼴 숫자 인코딩이 깨진 PDF처럼: 텍스트는 있지만 조 번호가 사라진 상태
+    monkeypatch.setattr(P, "extract", lambda data, mime, name: [Block("연구수당지급기준"), Block("제 조 (목적) 이 기준은")])
+    st = process_once(conn, blob, today=TODAY)
+    assert st["ok"] == 1 and st["failed"] == 0
+    t = conn.execute("SELECT kind, target, detail FROM regulation.review_task").fetchone()
+    assert t["kind"] == "LOW_TEXT" and t["target"].startswith("source:") and "조문" in t["detail"]["reason"]
+    assert conn.execute("SELECT count(*) AS n FROM regulation.work").fetchone()["n"] == 0

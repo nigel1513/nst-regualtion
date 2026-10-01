@@ -1,4 +1,5 @@
 """outbox 소비자: 수집 이벤트 → 추출 → 파싱 → 시행일 판정 → 적재."""
+import json
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
@@ -67,7 +68,14 @@ def prepare_source_fetched(conn, blob: BlobStore, payload: dict, today: date,
                         (payload["file_no"],)).fetchone()
     doc = parse_blocks(extract(blob.get(sd["blob_key"]), sd["mime"], payload["file_name"]))
     if not any(p.unit == "article" for p in doc.provisions):
-        raise ValueError(f"조문을 찾지 못함 (stats={doc.meta.get('stats')})")
+        # 다시 시도해도 같다(스캔본, 글꼴 숫자 인코딩 손상 등): 검수 큐로 보내고 처리 완료로 둔다
+        conn.execute(
+            "INSERT INTO regulation.review_task (kind, target, detail) VALUES ('LOW_TEXT', %s, %s)"
+            " ON CONFLICT (kind, target) DO UPDATE SET detail = EXCLUDED.detail",
+            (f"source:{sd['id']}", json.dumps({"reason": "조문 번호를 읽지 못함 (스캔본 또는 글꼴 숫자 인코딩 손상, OCR 필요)",
+                                               "file_name": payload["file_name"], "seq": payload["seq"],
+                                               "stats": doc.meta.get("stats")}, ensure_ascii=False)))
+        return None
     alio_date = rule["revised_on"] if this and this["ord"] == last_ord else None
     eff = resolve(doc, alio_date=alio_date, filename=payload["file_name"])
     _view(conn, blob, sd, doc, converter)
@@ -129,6 +137,12 @@ def process_once(conn, blob: BlobStore, limit: int = 100, today: date | None = N
                     done.append((ev, HANDLERS[ev["topic"]](conn, blob, ev["payload"], today, converter)))
             except Exception as e:  # 파일 하나의 실패가 묶음을 멈추지 않게
                 _fail(conn, ev, e, st)
+        skipped = [ev for ev, r in done if r is None]
+        done = [(ev, r) for ev, r in done if r is not None]
+        for ev in skipped:
+            conn.execute("UPDATE regulation.outbox SET processed_at = now(), claimed_at = now(), last_error = NULL"
+                         " WHERE id = %s", (ev["id"],))
+            st["ok"] += 1
         if done:
             try:
                 with conn.transaction():
