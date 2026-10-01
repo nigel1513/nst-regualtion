@@ -10,15 +10,13 @@ def backtest(conn, driver, limit: int | None = None) -> dict:
     versions = conn.execute(
         "SELECT v.work_id, v.id FROM regulation.work_version v WHERE v.effective_from IS NOT NULL AND EXISTS ("
         " SELECT 1 FROM regulation.work_version o WHERE o.work_id = v.work_id AND o.effective_from < v.effective_from)"
+        # 알림을 기다리는 실제 개정은 재생하지 않는다 (재생 결과가 유일 키를 먼저 차지해 알림이 묻히지 않게)
+        " AND NOT EXISTS (SELECT 1 FROM regulation.outbox e WHERE e.topic = 'regulation.version_loaded'"
+        " AND e.processed_at IS NULL AND e.payload->>'version_id' = v.id)"
         " ORDER BY v.effective_from, v.id" + (" LIMIT %s" % int(limit) if limit else "")).fetchall()
     rows = []
     for v in versions:
-        got = analyze_version(conn, driver, v["work_id"], v["id"])
-        if got:
-            conn.execute("UPDATE regulation.change_impact SET status = 'RESOLVED', resolution_note = 'backtest'"
-                         " WHERE id = ANY(%s)", ([r["id"] for r in got],))
-            conn.commit()
-        rows += got
+        rows += analyze_version(conn, driver, v["work_id"], v["id"], status="RESOLVED", note="backtest")
     return {"versions": len(versions), "impacts": len(rows),
             "by_severity": dict(Counter(r["severity"] for r in rows)),
             "by_kind": dict(Counter(r["impact_kind"] for r in rows)),

@@ -75,7 +75,7 @@ def send_due(conn, mailer, now: datetime, digest_hour: int = 8, web: str = "http
         "SELECT n.id, n.recipient, n.severity, n.impact_id, ci.cause_work_id, ci.cause_path, ci.cause_change,"
         " ci.affected_work_id, ci.affected_path, ci.rel_type, ci.evidence, ci.impact_kind"
         " FROM regulation.notification n JOIN regulation.change_impact ci ON ci.id = n.impact_id"
-        " WHERE n.sent_at IS NULL ORDER BY n.id").fetchall()
+        " WHERE n.sent_at IS NULL AND ci.status IN ('NEW', 'ACKED', 'ACTION_REQUIRED') ORDER BY n.id").fetchall()
     batches: dict[tuple[str, str], list[dict]] = defaultdict(list)
     for r in rows:
         batches[(r["recipient"], URGENT if r["severity"] == "HIGH" else DAILY)].append(r)

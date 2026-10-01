@@ -54,5 +54,5 @@ def test_scan_retries_when_graph_is_down_then_processes(conn, tmp_path, neo4j_dr
     assert ev["processed_at"] is None and ev["attempts"] == 1
     sync_graph(conn, neo4j_driver)
     st = scan_once(conn, neo4j_driver)
-    assert st["ok"] == 1 and st["impacts"] == 1
+    assert st["ok"] == 1 and st["impacts"] == 2  # 제5조 근거(a3) + 법 전체 참조(a8)
     assert scan_once(conn, neo4j_driver)["claimed"] == 0

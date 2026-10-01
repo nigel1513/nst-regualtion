@@ -24,3 +24,19 @@ def test_alerts_list_detail_and_status(conn, migrated, tmp_path):
         done = c.get("/api/v1/alerts", params={"status": "done"}).json()
         assert done[0]["id"] == iid and done[0]["resolution_note"] == "영향 없음 확인"
         assert c.get("/api/v1/alerts", params={"severity": "LOW"}).json()[0]["id"] == low
+
+
+def test_detail_shows_sub_changes_under_the_referenced_unit(conn, tmp_path, neo4j_driver):
+    from reg.alerts.impact import analyze_version
+    from reg.alerts.inbox import alert_detail
+    from reg.graph.sync import sync_graph
+    from tests.test_impact import Prov, setup
+
+    def law(t1):
+        return [Prov("a5", "article", "제5조", "정산", ""), Prov("a5.p1", "paragraph", "①", None, t1, "a5"),
+                Prov("a6", "article", "제6조", "기록", "기록한다.")]
+    vid = setup(conn, tmp_path, law("7일 이내 정산."), v1=law("5일 이내 정산."))
+    sync_graph(conn, neo4j_driver)
+    row = next(r for r in analyze_version(conn, neo4j_driver, "kr/law/L1", vid) if r["affected_path"] == "a3")
+    d = alert_detail(conn, row["id"])
+    assert row["cause_path"] == "a5" and "5일 이내" in d["cause_old"] and "7일 이내" in d["cause_new"]

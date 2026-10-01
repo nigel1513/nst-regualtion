@@ -1,7 +1,21 @@
 """PostgreSQL(기준) → Neo4j(파생) 전체 재투영. 현행 버전만, Reg* 라벨만 다룬다 (spec 5.5, D-05)."""
+from contextlib import contextmanager
+
 RELS = ("BASIS", "DELEGATION", "IMPLEMENTS", "MUTATIS", "EXCEPTION", "CITATION")
 UNITS = ("article", "paragraph", "item", "subitem", "supplement", "supp_article", "annex")
 BATCH = 2000
+GRAPH_LOCK = "regulation.graph"
+
+
+@contextmanager
+def graph_lock(conn):
+    """재투영은 그래프를 지웠다 다시 만든다. 그 사이 다른 실행의 영향 분석이 빈 그래프를 읽지 않도록
+    재투영과 분석(scan·backtest)을 한 세션 잠금 안에서 한다."""
+    conn.execute("SELECT pg_advisory_lock(hashtext(%s))", (GRAPH_LOCK,))
+    try:
+        yield
+    finally:
+        conn.execute("SELECT pg_advisory_unlock(hashtext(%s))", (GRAPH_LOCK,))
 
 
 def _chunks(rows: list, n: int = BATCH):

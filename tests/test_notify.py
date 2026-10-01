@@ -60,3 +60,12 @@ def test_failure_is_recorded_and_retried(conn):
     d = conn.execute("SELECT status, attempts FROM regulation.email_delivery").fetchone()
     assert (d["status"], d["attempts"]) == ("failed", 1)
     assert send_due(conn, FakeMailer(), datetime(2026, 10, 2, 9, 5))["notifications"] == 1
+
+
+def test_closed_alerts_are_not_mailed(conn):
+    iid = impact(conn)
+    owner(conn, "o@x")
+    build_notifications(conn, {})
+    conn.execute("UPDATE regulation.change_impact SET status = 'NO_ACTION' WHERE id = %s", (iid,))
+    conn.commit()
+    assert send_due(conn, FakeMailer(), datetime(2026, 10, 2, 9, 0))["notifications"] == 0

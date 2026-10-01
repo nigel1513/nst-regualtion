@@ -220,11 +220,11 @@ def _neo4j(s):
 
 @graph.command("sync")
 def graph_sync() -> None:
-    from reg.graph.sync import sync_graph
+    from reg.graph.sync import graph_lock, sync_graph
 
     s = get_settings()
     conn = connect(s.database_url)
-    with _neo4j(s) as drv:
+    with _neo4j(s) as drv, graph_lock(conn):
         typer.echo(f"graph {sync_graph(conn, drv)}")
 
 
@@ -236,11 +236,11 @@ app.add_typer(alerts, name="alerts")
 def alerts_scan(no_sync: bool = typer.Option(False, "--no-sync", help="그래프 재투영 없이 스캔")) -> None:
     """그래프를 현행 기준으로 다시 투영한 뒤 대기 중인 개정 이벤트의 영향을 분석한다."""
     from reg.alerts.scan import scan_once
-    from reg.graph.sync import sync_graph
+    from reg.graph.sync import graph_lock, sync_graph
 
     s = get_settings()
     conn = connect(s.database_url)
-    with _neo4j(s) as drv:
+    with _neo4j(s) as drv, graph_lock(conn):
         if not no_sync:
             typer.echo(f"graph {sync_graph(conn, drv)}")
         total = {"claimed": 0, "ok": 0, "failed": 0, "impacts": 0}
@@ -288,11 +288,11 @@ def alerts_backtest(limit: int = typer.Option(0, help="재생할 버전 수 (0�
     from datetime import datetime
 
     from reg.alerts.backtest import backtest
-    from reg.graph.sync import sync_graph
+    from reg.graph.sync import graph_lock, sync_graph
 
     s = get_settings()
     conn = connect(s.database_url)
-    with _neo4j(s) as drv:
+    with _neo4j(s) as drv, graph_lock(conn):
         g = sync_graph(conn, drv)
         r = backtest(conn, drv, limit or None)
     path = ROOT / f"docs/reports/{datetime.now():%Y-%m-%d}-impact-backtest.md"

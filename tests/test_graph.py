@@ -15,3 +15,14 @@ def test_sync_projects_current_provisions_and_relations(loaded, neo4j_driver):
     assert [ref["dst"]] in got or [ref["dst"].split(".")[0]] in got
     assert n == st["provisions"]
     assert sync_graph(loaded, neo4j_driver) == st  # 다시 해도 같다
+
+
+def test_graph_lock_excludes_a_second_runner(migrated):
+    import psycopg
+
+    from reg.graph.sync import GRAPH_LOCK, graph_lock
+
+    with psycopg.connect(migrated[0]) as a, psycopg.connect(migrated[0]) as b:
+        with graph_lock(a):
+            assert b.execute("SELECT pg_try_advisory_lock(hashtext(%s))", (GRAPH_LOCK,)).fetchone()[0] is False
+        assert b.execute("SELECT pg_try_advisory_lock(hashtext(%s))", (GRAPH_LOCK,)).fetchone()[0] is True

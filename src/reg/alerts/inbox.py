@@ -32,12 +32,22 @@ def alert_detail(conn, impact_id: int) -> dict | None:
     row = conn.execute(SELECT + " WHERE ci.id = %s", (impact_id,)).fetchone()
     if row is None:
         return None
-    ch = conn.execute(
-        "SELECT c.from_pv_id, c.to_pv_id FROM regulation.provision_change c"
+    # 원인 경로는 참조가 가리키는 단위(예: a5)이고 실제 변경은 그 아래(a5.p1)일 수 있다. 전체 참조면 'a3, a5' 목록이다
+    paths = [p.strip() for p in row["cause_path"].split(" 외 ")[0].split(",")]
+    chs = conn.execute(
+        "SELECT DISTINCT ON (coalesce(t.path, f.path)) c.from_pv_id, c.to_pv_id, coalesce(t.path, f.path) AS path"
+        " FROM regulation.provision_change c"
         " LEFT JOIN regulation.provision_version t ON t.id = c.to_pv_id"
         " LEFT JOIN regulation.provision_version f ON f.id = c.from_pv_id"
-        " WHERE c.to_version_id = %s AND (t.path = %s OR f.path = %s) LIMIT 1",
-        (row["cause_version_id"], row["cause_path"], row["cause_path"])).fetchone()
+        " WHERE c.to_version_id = %s AND c.kind <> 'ANNOTATION_ONLY'"
+        " AND EXISTS (SELECT 1 FROM unnest(%s::text[]) p WHERE coalesce(t.path, f.path) = p"
+        "  OR coalesce(t.path, f.path) LIKE p || '.%%' OR f.path = p OR f.path LIKE p || '.%%')"
+        " ORDER BY coalesce(t.path, f.path) LIMIT 12", (row["cause_version_id"], paths)).fetchall()
+
+    def joined(key: str) -> str | None:
+        texts = [t for c in chs if (t := _text(conn, c[key]))]
+        return "\n".join(texts) or None
+
     aff = conn.execute(
         "SELECT pv.id FROM regulation.version_provision vp JOIN regulation.provision_version pv"
         " ON pv.id = vp.provision_version_id WHERE vp.work_version_id = %s AND pv.path = %s",
@@ -46,7 +56,7 @@ def alert_detail(conn, impact_id: int) -> dict | None:
         "SELECT recipient AS who FROM regulation.notification WHERE impact_id = %s"
         " UNION SELECT email FROM regulation.owner_assignment WHERE work_id = %s ORDER BY 1",
         (impact_id, row["affected_work_id"])).fetchall()]
-    return {**row, "cause_old": _text(conn, ch and ch["from_pv_id"]), "cause_new": _text(conn, ch and ch["to_pv_id"]),
+    return {**row, "cause_old": joined("from_pv_id"), "cause_new": joined("to_pv_id"),
             "affected_text": _text(conn, aff and aff["id"]), "recipients": rec}
 
 
