@@ -36,7 +36,7 @@ def test_code_verdict_overrides_llm_and_consistency():
 
 
 def test_regenerates_once_then_gives_up():
-    llm = FakeLLM({**GOOD, "근거": [{"id": "E7", "인용": "없는 조문"}]})
+    llm = FakeLLM({**GOOD, "근거": [{"id": "E1", "인용": "원문에 없는 문장을 인용함"}]})  # id는 형식이 막으므로 인용 불일치로
     r = generate(llm, "q", A, E)
     assert r["answer"] is None and r["attempts"] == 2 and len(llm.calls) == 2
 
@@ -46,23 +46,27 @@ def test_llm_down():
     assert r["answer"] is None and r["verification"]["problems"] == ["llm_unavailable"]
 
 
-class SchemaSpy(FakeLLM):
-    def json(self, messages, schema, **kw):
-        self.schema = schema
-        return super().json(messages, schema, **kw)
-
-
-def test_answer_schema_restricts_citation_ids_to_given_evidence():
-    llm = SchemaSpy(GOOD)
+def test_answer_format_restricts_citation_ids_to_given_evidence():
+    llm = FakeLLM(GOOD)
     generate(llm, "천문연 출장 10일 지났어요", A, E)
-    assert llm.schema["properties"]["근거"]["items"]["properties"]["id"]["enum"] == ["E1"]
+    assert "근거: (E1)" in llm.pattern
+
+
+def test_code_uses_top_ranked_deadline_clause_when_llm_cites_another():
+    e2 = Evidence("E2", "w", "w@2024-01-17", "여비규정", "a4-2", "제4조의2(여비의 정산)",
+                  "① 여행 후 여비의 변경이 있는 경우 계정책임자의 결재로 정산할 수 있다.", "primary", "2024-01-17")
+    other = {**GOOD, "결론": "조건부", "근거": [{"id": "E2", "인용": "여행 후 여비의 변경이 있는 경우 계정책임자의 결재로 정산할 수 있다"}],
+             "설명": "여비 변경이 있으면 결재로 정산합니다."}
+    r = generate(FakeLLM(other), "천문연 출장 10일 지났어요", A, [E[0], e2])
+    assert r["answer"]["결론"] == "미충족" and r["verdict_source"] == "code"
+    assert [c["id"] for c in r["answer"]["근거"]][0] == "E1"
 
 
 def test_invalid_json_is_reported_as_invalid_output():
     from reg.llm import ProviderError
 
     class Bad(FakeLLM):
-        def json(self, *a, **k):
-            raise ProviderError("LLM 응답이 JSON이 아님")
+        def regex(self, *a, **k):
+            raise ProviderError("LLM 응답이 형식에 맞지 않음")
     r = generate(Bad(), "q", A, E)
     assert r["verification"]["problems"] == ["llm_invalid_output"]

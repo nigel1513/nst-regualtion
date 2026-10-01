@@ -12,14 +12,16 @@ class SeqLLM:
     def __init__(self, answer, fail=False):
         self.answer, self.fail, self.n = answer, fail, 0
 
-    def json(self, messages, schema, **kw):
+    def regex(self, messages, pattern, **kw):
         self.n += 1
         if self.fail:
             from reg.llm import ProviderError
             raise ProviderError("down")
-        if "question_type" in schema.get("properties", {}):
-            return {"question_type": "기한", "terms": ["증빙 제출", "여비 정산"]}
-        return self.answer
+        if pattern.startswith("유형"):
+            return "유형: 기한\n검색어: 증빙 제출, 여비 정산"
+        c = self.answer["근거"][0]
+        return (f"결론: {self.answer['결론']}\n근거: {c['id']}\n인용: {c['인용']}\n설명: {self.answer['설명']}\n"
+                f"확인: {'; '.join(self.answer['확인_필요']) or '없음'}\n문의처: {self.answer['문의처']}")
 
 
 @pytest.fixture

@@ -44,7 +44,8 @@ def verify(answer: dict, evidence: list[Evidence], question_numbers: set[str]) -
     cites = answer.get("근거") or []
     exist = bool(cites) and all(c.get("id") in by_id for c in cites)
     quotes = exist and all(_n(c.get("인용")) and _n(c["인용"]) in _n(by_id[c["id"]].text) for c in cites)
-    cited_nums = set(RE_NUM.findall(" ".join(by_id[c["id"]].text for c in cites if c.get("id") in by_id)))
+    cited_nums = set(RE_NUM.findall(" ".join(f"{by_id[c['id']].title} {by_id[c['id']].label} {by_id[c['id']].text}"
+                                             for c in cites if c.get("id") in by_id)))  # 조문 라벨(제27조)의 숫자도 근거
     nums = set(RE_NUM.findall(answer.get("설명", ""))) - question_numbers
     numbers = nums <= cited_nums
     verdict, expl = answer.get("결론"), answer.get("설명", "")
@@ -64,26 +65,69 @@ def _prompt(question: str, analysis, evidence: list[Evidence], problems: list[st
     return [{"role": "system", "content": SYSTEM}, {"role": "user", "content": user}]
 
 
+FORMAT = ("\n\n다음 형식으로만 답하라(각 항목 한 줄):\n결론: 미충족|충족|조건부|판단불가 중 하나\n"
+          "근거: 사용한 근거 id(예: E1)\n인용: 근거 본문의 핵심 구절을 글자 그대로(80자 이내)\n"
+          "설명: 질문자 상황에 대한 설명\n확인: 규정에 없어 확인이 필요한 점(없으면 없음)\n문의처: 소관부서")
+
+
+def _pattern(ids: list[str]) -> str:
+    return (r"결론: (미충족|충족|조건부|판단불가)\n근거: (" + "|".join(map(re.escape, ids)) + r")\n인용: ([^\n]{5,160})\n"
+            r"설명: ([^\n]{10,500})\n확인: ([^\n]{2,200})\n문의처: ([^\n]{2,40})")
+
+
+def _parse(text: str, pattern: str) -> dict:
+    m = re.fullmatch(pattern, text)
+    if m is None:
+        raise ProviderError("LLM 응답이 형식에 맞지 않음")
+    check = m[5].strip()
+    return {"결론": m[1], "근거": [{"id": m[2], "인용": m[3].strip().strip('"“”\'')}], "설명": m[4].strip(),
+            "확인_필요": [] if check in ("없음", "없음.") else [check], "문의처": m[6].strip()}
+
+
+def _deadline_sentence(text: str) -> str | None:
+    for sent in re.split(r"(?<=다\.)\s*", text):
+        if RE_DEADLINE.search(sent):
+            return re.sub(r"^[①-⑳\d.\s]+", "", sent).strip()[:160]
+    return None
+
+
+def _code_verdict(ans: dict, analysis, evidence: list[Evidence]) -> bool:
+    """기한형 질문: 인용 근거에 기한이 없으면 리랭크 순위가 가장 높은 기한 조문으로 코드가 판정한다."""
+    if analysis.question_type != "기한" or analysis.elapsed_days is None:
+        return False
+    by_id = {e.id: e for e in evidence}
+    cited = [by_id[c["id"]] for c in ans["근거"] if c["id"] in by_id]
+    target = next((e for e in cited if deadline_verdict(analysis.elapsed_days, [e.text])), None) or \
+        next((e for e in evidence if e.role == "primary" and deadline_verdict(analysis.elapsed_days, [e.text])), None)
+    if target is None:
+        return False
+    verdict, limit = deadline_verdict(analysis.elapsed_days, [target.text])
+    if target.id not in {c["id"] for c in ans["근거"]}:
+        ans["근거"].insert(0, {"id": target.id, "인용": _deadline_sentence(target.text) or target.text[:160]})
+    ans["결론"] = verdict
+    lead = (f"{target.title} {target.label}의 기한은 {limit}일 이내이고 질문 상황은 {analysis.elapsed_days}일이 지나 "
+            f"{'기한을 넘겼습니다' if verdict == '미충족' else '기한 안입니다'}.")
+    if verdict == "충족":
+        lead = f"{target.title} {target.label}의 기한은 {limit}일 이내이며 질문 상황({analysis.elapsed_days}일째)은 기한 안입니다."
+    ans["설명"] = lead + " " + ans["설명"]
+    return True
+
+
 def generate(llm, question: str, analysis, evidence: list[Evidence]) -> dict:
     qnums = set(RE_NUM.findall(question))
-    schema = json.loads(json.dumps(ANSWER_SCHEMA))  # 이번 근거 id만 고를 수 있게 (id를 지어내지 못하게)
-    schema["properties"]["근거"]["items"]["properties"]["id"]["enum"] = [e.id for e in evidence]
+    pattern = _pattern([e.id for e in evidence])
     problems = None
     last_v = {"ok": False, "problems": []}
     for attempt in (1, 2):
+        msgs = _prompt(question, analysis, evidence, problems)
+        msgs[-1]["content"] += FORMAT
         try:
-            ans = llm.json(_prompt(question, analysis, evidence, problems), schema, max_tokens=1500)
+            ans = _parse(llm.regex(msgs, pattern, max_tokens=700), pattern)
         except ProviderError as e:
-            kind = "llm_invalid_output" if "JSON" in str(e) else "llm_unavailable"
+            kind = "llm_invalid_output" if "형식" in str(e) or "JSON" in str(e) else "llm_unavailable"
             return {"answer": None, "verification": {"ok": False, "problems": [kind]}, "attempts": attempt,
                     "verdict_source": None}
-        source = "llm"
-        if analysis.question_type == "기한":
-            by_id = {e.id: e for e in evidence}
-            quotes = [c.get("인용", "") for c in ans.get("근거", [])] + \
-                     [by_id[c["id"]].text for c in ans.get("근거", []) if c.get("id") in by_id]
-            if dv := deadline_verdict(analysis.elapsed_days, quotes):
-                ans["결론"], source = dv[0], "code"
+        source = "code" if _code_verdict(ans, analysis, evidence) else "llm"
         last_v = verify(ans, evidence, qnums)
         if last_v["ok"]:
             return {"answer": ans, "verification": last_v, "attempts": attempt, "verdict_source": source}

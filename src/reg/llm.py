@@ -66,3 +66,17 @@ class LLMProvider:
             except (json.JSONDecodeError, TypeError):
                 continue
         raise ProviderError("LLM 응답이 JSON이 아님")
+
+    def regex(self, messages: list[dict], pattern: str, max_tokens: int = 700, temperature: float = 0.0) -> str:
+        """정규식으로 출력 형식을 고정한다. JSON 모드는 소형 모델이 키 사이 공백을 끝없이 내며 멈추는 일이 있어
+        (2026-10-02 EXAONE-7.8B 실측) 줄 단위 형식을 쓴다."""
+        import re
+
+        body = {"model": self.model, "messages": messages, "max_tokens": max_tokens, "temperature": temperature,
+                "structured_outputs": {"regex": pattern}}
+        for _ in range(2):
+            content = (_post(f"{self.url}/v1/chat/completions", body, self.timeout, 2, 1.0)
+                       ["choices"][0]["message"]["content"] or "").strip()
+            if re.fullmatch(pattern, content):
+                return content
+        raise ProviderError("LLM 응답이 형식에 맞지 않음")

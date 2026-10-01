@@ -18,6 +18,20 @@ class FakeLLM:
             raise ProviderError("down")
         return self.out
 
+    def regex(self, messages, pattern, **kw):
+        """정규식 줄 형식 응답을 흉내낸다: out(dict)을 '키: 값' 줄로 그린다."""
+        self.calls.append(messages)
+        self.pattern = pattern
+        if self.fail:
+            from reg.llm import ProviderError
+            raise ProviderError("down")
+        o = self.out
+        if "question_type" in o:
+            return f"유형: {o['question_type']}\n검색어: {', '.join(o['terms']) or '없음'}"
+        c = o["근거"][0]
+        return (f"결론: {o['결론']}\n근거: {c['id']}\n인용: {c['인용']}\n설명: {o['설명']}\n"
+                f"확인: {'; '.join(o.get('확인_필요') or []) or '없음'}\n문의처: {o.get('문의처') or '소관부서'}")
+
 
 def test_analyze_rules_and_llm_terms():
     llm = FakeLLM({"question_type": "기한", "terms": ["여비 정산", "증빙 제출"]})

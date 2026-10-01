@@ -24,6 +24,10 @@ PROMPT = ("너는 한국 공공연구기관 내부규정 검색을 돕는다. �
           "예) '지출결의' → '정산', '증빙 제출', '여비'. '출장비' → '여비'. 질문 유형은 기한/금액/가능여부/절차/정의/기타 중 하나.")
 
 
+PATTERN = r"유형: (기한|금액|가능여부|절차|정의|기타)\n검색어: ([^\n]{2,80})"
+FORMAT = "\n출력 형식(두 줄):\n유형: 기한|금액|가능여부|절차|정의|기타 중 하나\n검색어: 쉼표로 구분한 검색어 3~6개"
+
+
 @dataclass
 class Analysis:
     institution: str | None
@@ -45,10 +49,11 @@ def analyze(llm, question: str) -> Analysis:
     qtype, terms = "기타", []
     if llm is not None:
         try:
-            out = llm.json([{"role": "system", "content": PROMPT}, {"role": "user", "content": question}], SCHEMA,
-                           max_tokens=200)
-            qtype = out.get("question_type") if out.get("question_type") in TYPES else "기타"
-            terms = [t for t in out.get("terms", []) if isinstance(t, str) and t.strip()][:6]
+            out = llm.regex([{"role": "system", "content": PROMPT + FORMAT}, {"role": "user", "content": question}],
+                            PATTERN, max_tokens=120)
+            m = re.fullmatch(PATTERN, out)
+            qtype = m[1]
+            terms = [] if m[2].strip() == "없음" else [t.strip() for t in m[2].split(",") if t.strip()][:6]
         except ProviderError:
             pass
     if days is not None:  # 경과 기간이 있으면 기한 판정 대상이다 (LLM 분류보다 우선)
