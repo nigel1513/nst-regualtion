@@ -1,0 +1,42 @@
+{
+ "institutions": [
+  {
+   "code": "NST",
+   "name": "국가과학기술연구회",
+   "short": "NST"
+  },
+  {
+   "code": "KASI",
+   "name": "한국천문연구원",
+   "short": "천문연"
+  }
+ ],
+ "regulations": [
+  {
+   "id": "kr/reg/KASI/여비규정",
+   "inst": "KASI",
+   "slug": "yeobi",
+   "title": "여비규정",
+   "classCode": "2120",
+   "effective": null,
+   "amendNo": null,
+   "format": "pdf",
+   "articleCount": 36,
+   "changes": 26,
+   "posted": "2024-01-17"
+  },
+  {
+   "id": "kr/reg/NST/여비규정",
+   "inst": "NST",
+   "slug": "yeobi",
+   "title": "여비규정",
+   "classCode": null,
+   "effective": "2023-12-21",
+   "amendNo": null,
+   "format": "hwp",
+   "articleCount": 28,
+   "changes": 3,
+   "posted": "2023-12-21"
+  }
+ ]
+}
