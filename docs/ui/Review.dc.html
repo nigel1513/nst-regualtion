@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>검수 큐</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&amp;family=Noto+Serif+KR:wght@400;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F4F5F7}
+a{color:#1E4FAF;text-decoration:none}a:hover{color:#163C85;text-decoration:underline}
+.nav a{color:#C9CED6;padding:8px 12px;border-radius:6px;font-size:14px}
+.nav a:hover{color:#fff;background:#262B32;text-decoration:none}
+.btn{font:inherit;font-size:13px;height:36px;padding:0 14px;border-radius:8px;border:1px solid #CDD3DB;background:#fff;color:#16191D;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:transform 160ms ease-out}
+.btn:active{transform:scale(0.97)}
+.chip{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 9px;border-radius:999px;font-size:12px;font-weight:500}
+.row{display:grid;grid-template-columns:110px minmax(0,1fr) 90px;gap:10px;align-items:center;padding:12px 16px;border-bottom:1px solid #EBEEF2;font-size:13px;color:#16191D}
+.row:hover{background:#F7F8FA;text-decoration:none}
+.opt{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid #DDE1E6;border-radius:8px;font-size:14px;cursor:pointer}
+@media (max-width:900px){.cols{grid-template-columns:minmax(0,1fr)!important}}
+</style>
+</helmet>
+<div style="min-height:100vh;font-family:'IBM Plex Sans KR',sans-serif;color:#16191D;background:#F4F5F7">
+  <header style="display:flex;align-items:center;gap:20px;height:56px;padding:0 24px;background:#16191D;color:#fff">
+    <div style="display:flex;align-items:center;gap:10px;font-weight:600;font-size:15px;white-space:nowrap">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h11l5 5v11H4z"/><path d="M15 4v5h5M8 13h8M8 17h5"/></svg>
+      NST 규정·법령
+    </div>
+    <nav class="nav" style="display:flex;gap:4px;flex-wrap:wrap">
+      <a href="Main.dc.html">규정</a>
+      <a href="Chat.dc.html">질의응답</a>
+      <a href="Alerts.dc.html">개정 알림</a>
+      <a href="Review.dc.html" style="color:#fff;background:#262B32">검수</a>
+      <a href="#">관리</a>
+    </nav>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:12px;font-size:13px">
+      <span class="chip" style="background:#262B32;color:#E3E7EC">검수자</span>
+      <span style="color:#C9CED6">[사용자명]</span>
+    </div>
+  </header>
+
+  <div style="display:flex;align-items:center;gap:8px;padding:14px 24px;flex-wrap:wrap">
+    <div style="font-size:17px;font-weight:700;margin-right:12px">검수 큐</div>
+    <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:#3A414A">유형
+      <select style="font:inherit;font-size:13px;height:34px;border:1px solid #CDD3DB;border-radius:8px;padding:0 8px">
+        <option>전체</option><option>참조 해석</option><option>시행일</option><option>출처 충돌</option><option>파싱</option><option>텍스트 부족</option>
+      </select>
+    </label>
+    <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:#3A414A">기관
+      <select style="font:inherit;font-size:13px;height:34px;border:1px solid #CDD3DB;border-radius:8px;padding:0 8px">
+        <option>전체</option><option>국가과학기술연구회</option><option>한국천문연구원</option><option>한국과학기술연구원</option><option>한국전자통신연구원</option>
+      </select>
+    </label>
+  </div>
+
+  <div class="cols" style="display:grid;grid-template-columns:460px minmax(0,1fr);gap:16px;padding:0 24px 32px">
+    <section style="background:#fff;border:1px solid #DDE1E6;border-radius:12px;overflow:hidden;align-self:start">
+      <a class="row" href="#" style="background:#F5F8FE;box-shadow:inset 3px 0 0 #1E4FAF"><span class="chip" style="background:#E8EEFA;color:#1E4FAF">참조 해석</span><span>천문연 여비규정 제29조 · 「국가공무원 복무·징계 관련 예규」</span><span style="color:#5A626C;text-align:right">미해석</span></a>
+      <a class="row" href="#"><span class="chip" style="background:#FBF0E4;color:#9A4A00">출처 충돌</span><span>[규정명] · 부칙 시행일 ≠ ALIO 개정일</span><span style="color:#5A626C;text-align:right">충돌</span></a>
+      <a class="row" href="#"><span class="chip" style="background:#FBF0E4;color:#9A4A00">시행일</span><span>[규정명] · 파일명 날짜로만 추정</span><span style="color:#5A626C;text-align:right">불확실</span></a>
+      <a class="row" href="#"><span class="chip" style="background:#EEF1F5;color:#3A414A">파싱</span><span>[규정명] · 목차와 본문 조 목록 불일치</span><span style="color:#5A626C;text-align:right">품질</span></a>
+      <a class="row" href="#"><span class="chip" style="background:#EEF1F5;color:#3A414A">텍스트 부족</span><span>[규정명] · 스캔본 추정</span><span style="color:#5A626C;text-align:right">OCR 대기</span></a>
+    </section>
+
+    <section style="background:#fff;border:1px solid #DDE1E6;border-radius:12px;padding:22px 24px;display:flex;flex-direction:column;gap:18px">
+      <div>
+        <div style="display:flex;gap:6px;margin-bottom:8px"><span class="chip" style="background:#E8EEFA;color:#1E4FAF">참조 해석</span><span class="chip" style="background:#EEF1F5;color:#3A414A">추출: 규칙</span></div>
+        <h2 style="margin:0;font-size:20px">참조 대상을 확인해 주세요</h2>
+        <div style="font-size:13px;color:#5A626C;margin-top:6px">한국천문연구원 여비규정 제29조 · 2024. 1. 17. 시행본</div>
+      </div>
+
+      <div style="border:1px solid #DDE1E6;border-radius:10px;padding:14px 16px;font-family:'Noto Serif KR',serif;font-size:15px;line-height:1.8">
+        이 규정에서 정하지 아니한 사항은 「공무원 여비규정」 및 <mark style="background:#FFF1A8;padding:0 2px">「국가공무원 복무·징계 관련 예규」</mark>를 준용할 수 있다.
+        <div style="font-family:'IBM Plex Sans KR',sans-serif;font-size:12px;color:#5A626C;margin-top:6px">관계 유형 후보: 준용(MUTATIS) · 근거 문구 "준용할 수 있다"</div>
+      </div>
+
+      <fieldset style="border:0;padding:0;margin:0;display:flex;flex-direction:column;gap:8px">
+        <legend style="font-size:13px;font-weight:600;margin-bottom:8px">대상 후보 (law.go.kr 행정규칙 검색)</legend>
+        <label class="opt" style="border-color:#1E4FAF;background:#F5F8FE"><input type="radio" name="t" checked style="margin-top:4px"><span><span style="font-weight:600">[후보 예규명 1]</span><br><span style="font-size:12px;color:#5A626C">인사혁신처 예규 · 현행</span></span></label>
+        <label class="opt"><input type="radio" name="t" style="margin-top:4px"><span><span style="font-weight:600">[후보 예규명 2]</span><br><span style="font-size:12px;color:#5A626C">인사혁신처 예규 · 현행</span></span></label>
+        <label class="opt"><input type="radio" name="t" style="margin-top:4px"><span>대상을 특정할 수 없음 · 미해석으로 유지</span></label>
+      </fieldset>
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" style="background:#16191D;color:#fff;border-color:#16191D">승인</button>
+        <button class="btn">관계 유형 수정</button>
+        <button class="btn">반려</button>
+        <a class="btn" href="Source.dc.html" style="text-decoration:none;margin-left:auto">원문에서 보기</a>
+      </div>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

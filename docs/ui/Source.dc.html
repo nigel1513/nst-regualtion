@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>원문 대조 보기</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&amp;family=Noto+Serif+KR:wght@400;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F4F5F7}
+a{color:#1E4FAF;text-decoration:none}a:hover{color:#163C85;text-decoration:underline}
+.nav a{color:#C9CED6;padding:8px 12px;border-radius:6px;font-size:14px}
+.nav a:hover{color:#fff;background:#262B32;text-decoration:none}
+.btn{font:inherit;font-size:13px;height:36px;padding:0 14px;border-radius:8px;border:1px solid #CDD3DB;background:#fff;color:#16191D;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:transform 160ms ease-out}
+.btn:active{transform:scale(0.97)}
+.ibtn{width:36px;padding:0;justify-content:center}
+.chip{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 9px;border-radius:999px;font-size:12px;font-weight:500}
+.art{display:block;padding:10px 12px;border-radius:8px;color:#3A414A;font-size:13px}
+.art:hover{background:#EBEEF2;text-decoration:none}
+@media (max-width:900px){.cols{grid-template-columns:minmax(0,1fr)!important}}
+</style>
+</helmet>
+<div style="min-height:100vh;font-family:'IBM Plex Sans KR',sans-serif;color:#16191D;background:#F4F5F7">
+  <header style="display:flex;align-items:center;gap:20px;height:56px;padding:0 24px;background:#16191D;color:#fff">
+    <div style="display:flex;align-items:center;gap:10px;font-weight:600;font-size:15px;white-space:nowrap">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h11l5 5v11H4z"/><path d="M15 4v5h5M8 13h8M8 17h5"/></svg>
+      NST 규정·법령
+    </div>
+    <nav class="nav" style="display:flex;gap:4px;flex-wrap:wrap">
+      <a href="Main.dc.html" style="color:#fff;background:#262B32">규정</a>
+      <a href="Chat.dc.html">질의응답</a>
+      <a href="Alerts.dc.html">개정 알림</a>
+      <a href="Review.dc.html">검수</a>
+      <a href="#">관리</a>
+    </nav>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:12px;font-size:13px">
+      <span class="chip" style="background:#262B32;color:#E3E7EC">한국천문연구원</span>
+      <span style="color:#C9CED6">[사용자명]</span>
+    </div>
+  </header>
+
+  <div style="display:flex;align-items:center;gap:12px;padding:14px 24px;flex-wrap:wrap">
+    <a href="Main.dc.html" class="btn" style="text-decoration:none">← 조문 보기</a>
+    <div style="font-size:17px;font-weight:700">여비규정 · 원문 대조</div>
+    <span class="chip" style="background:#EEF1F5;color:#3A414A">2024. 1. 17. 시행본</span>
+  </div>
+
+  <div class="cols" style="display:grid;grid-template-columns:400px minmax(0,1fr);gap:16px;padding:0 24px 32px">
+    <aside style="background:#fff;border:1px solid #DDE1E6;border-radius:12px;padding:12px;align-self:start;display:flex;flex-direction:column;gap:4px">
+      <div style="font-size:12px;font-weight:600;color:#5A626C;padding:4px 12px 8px">조문 → 원문 위치</div>
+      <a class="art" href="#"><span style="font-weight:500">제4조의2</span> 여비의 정산 <span style="float:right;color:#5A626C">6쪽</span></a>
+      <a class="art" href="#"><span style="font-weight:500">제13조</span> 근무지내 출장 <span style="float:right;color:#5A626C">[쪽]</span></a>
+      <a class="art" href="#"><span style="font-weight:500">제26조</span> 부대경비 <span style="float:right;color:#5A626C">[쪽]</span></a>
+      <div style="padding:12px;border-radius:8px;background:#F5F8FE;outline:1px solid #C9D6F0">
+        <div style="display:flex;justify-content:space-between;font-size:13px"><span><span style="font-weight:600">제27조</span> 출장증빙의 제출</span><span style="color:#1E4FAF;font-weight:500">12쪽</span></div>
+        <p style="margin:8px 0 0;font-family:'Noto Serif KR',serif;font-size:14px;line-height:1.75;color:#1F242A">① 출장자는 출장 종료일 다음 날을 기점으로 7일 이내에 출장을 확인할 수 있는 증빙서를 회계담당부서에 제출하여야 한다. …</p>
+        <div style="margin-top:8px;font-size:12px;color:#5A626C">추출 방식: PDF 텍스트 레이어 · 위치 일치</div>
+      </div>
+      <a class="art" href="#"><span style="font-weight:500">제28조</span> 출장정보에 대한 DB구축 <span style="float:right;color:#5A626C">12쪽</span></a>
+      <a class="art" href="#"><span style="font-weight:500">제29조</span> 기타 <span style="float:right;color:#5A626C">[쪽]</span></a>
+    </aside>
+
+    <section style="background:#2A2F36;border-radius:12px;overflow:hidden;display:flex;flex-direction:column">
+      <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:#20242A;color:#E3E7EC;font-size:13px;flex-wrap:wrap">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#C9CED6">여비규정(2024년도 1월 개정).pdf</span>
+        <span class="chip" style="background:#343A42;color:#C9CED6">원본 PDF · ALIO</span>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
+          <button class="btn ibtn" aria-label="이전 쪽" style="background:#343A42;border-color:#444B54;color:#fff"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 6l-6 6 6 6"/></svg></button>
+          <span style="min-width:64px;text-align:center">12 / 26</span>
+          <button class="btn ibtn" aria-label="다음 쪽" style="background:#343A42;border-color:#444B54;color:#fff"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></button>
+          <button class="btn" style="background:#343A42;border-color:#444B54;color:#fff">100%</button>
+          <button class="btn" style="background:#E3E7EC;border-color:#E3E7EC;color:#16191D">원본 다운로드</button>
+        </div>
+      </div>
+      <div style="padding:28px;display:flex;justify-content:center;flex-grow:1">
+        <div style="width:100%;max-width:640px;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,0.35);padding:48px 56px;font-family:'Noto Serif KR',serif;font-size:13px;line-height:1.9;color:#222">
+          <div style="display:flex;justify-content:flex-end;font-size:11px;color:#777;margin-bottom:24px">여비규정 2120</div>
+          <p style="margin:0 0 10px;color:#555">… (제26조 부대경비 계속)</p>
+          <div style="position:relative;margin:0 -8px;padding:6px 8px;background:#FFF1A8;border-radius:3px;box-shadow:0 0 0 2px #E2B400">
+            <span style="position:absolute;top:-22px;left:0;font-family:'IBM Plex Sans KR',sans-serif;font-size:11px;font-weight:600;background:#E2B400;color:#16191D;padding:2px 8px;border-radius:4px">제27조 ①</span>
+            제 27 조 (출장증빙의 제출) ① 출장자는 출장 종료일 다음 날을 기점으로 7일 이내에 출장을 확인할 수 있는 증빙서를 회계담당부서에 제출하여야 한다. 다만, 실비로 지급한 여비항목이 있는 경우 이를 확인할 수 있는 증빙서를 제출하고, 출장 확인 증빙서 제출은 생략한다. &lt;개정 '19.1.21., 2020.11.6.&gt;
+          </div>
+          <p style="margin:10px 0 0">② 출장 증빙은 승차권, 출장지 결제 영수증, 사진(날짜·위치정보 포함), 회의록 등 포괄적으로 운영하고, 1일 출장의 경우 별지 제1호 서식의 방문기관확인서를 증빙자료로 제출할 수 있다. &lt;신설 2020.11.6.&gt;</p>
+          <p style="margin:10px 0 0">③ 제1항에도 불구하고 제13조의 근무지내 출장의 경우는 증빙서 제출을 생략할 수 있다. &lt;신설 2020.11.6.&gt;</p>
+          <p style="margin:4px 0 0">[본조신설 '07.12.28]</p>
+          <p style="margin:10px 0 0">제 28 조 (출장정보에 대한 DB구축) 출장관리담당부서장은 해당과제 정보와 연계하여 국내‧외 출장에 대한 DB를 구축하고 이를 직원들이 공람할 수 있도록 하여야 한다.</p>
+          <div style="text-align:center;font-size:11px;color:#777;margin-top:32px">- 12 -</div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

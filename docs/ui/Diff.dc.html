@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>연혁·신구 비교</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&amp;family=Noto+Serif+KR:wght@400;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F4F5F7}
+a{color:#1E4FAF;text-decoration:none}a:hover{color:#163C85;text-decoration:underline}
+.nav a{color:#C9CED6;padding:8px 12px;border-radius:6px;font-size:14px}
+.nav a:hover{color:#fff;background:#262B32;text-decoration:none}
+.btn{font:inherit;font-size:13px;height:36px;padding:0 14px;border-radius:8px;border:1px solid #CDD3DB;background:#fff;color:#16191D;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:transform 160ms ease-out}
+.btn:active{transform:scale(0.97)}
+.chip{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 9px;border-radius:999px;font-size:12px;font-weight:500}
+.ver{display:flex;justify-content:space-between;gap:8px;padding:9px 12px;border-radius:8px;font-size:13px;color:#3A414A}
+.ver:hover{background:#EBEEF2;text-decoration:none}
+@media (max-width:900px){.cols{grid-template-columns:minmax(0,1fr)!important}}
+</style>
+</helmet>
+<div style="min-height:100vh;font-family:'IBM Plex Sans KR',sans-serif;color:#16191D;background:#F4F5F7">
+  <header style="display:flex;align-items:center;gap:20px;height:56px;padding:0 24px;background:#16191D;color:#fff">
+    <div style="display:flex;align-items:center;gap:10px;font-weight:600;font-size:15px;white-space:nowrap">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h11l5 5v11H4z"/><path d="M15 4v5h5M8 13h8M8 17h5"/></svg>
+      NST 규정·법령
+    </div>
+    <nav class="nav" style="display:flex;gap:4px;flex-wrap:wrap">
+      <a href="Main.dc.html" style="color:#fff;background:#262B32">규정</a>
+      <a href="Chat.dc.html">질의응답</a>
+      <a href="Alerts.dc.html">개정 알림</a>
+      <a href="Review.dc.html">검수</a>
+      <a href="#">관리</a>
+    </nav>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:12px;font-size:13px">
+      <span class="chip" style="background:#262B32;color:#E3E7EC">한국천문연구원</span>
+      <span style="color:#C9CED6">[사용자명]</span>
+    </div>
+  </header>
+
+  <div style="display:flex;align-items:center;gap:12px;padding:14px 24px;flex-wrap:wrap">
+    <a href="Main.dc.html" class="btn" style="text-decoration:none">← 조문 보기</a>
+    <div style="font-size:17px;font-weight:700">여비규정 · 연혁과 신구 비교</div>
+  </div>
+
+  <div class="cols" style="display:grid;grid-template-columns:280px minmax(0,1fr);gap:16px;padding:0 24px 32px">
+    <aside style="background:#fff;border:1px solid #DDE1E6;border-radius:12px;padding:12px;align-self:start">
+      <div style="font-size:12px;font-weight:600;color:#5A626C;padding:4px 12px 8px">연혁 (제정 1999. 12. 21.)</div>
+      <a class="ver" href="#" style="background:#E8EEFA;color:#1E4FAF;font-weight:600"><span>2024. 1. 17.</span><span>규 제339호 · 신</span></a>
+      <a class="ver" href="#" style="background:#F1F3F6;font-weight:600"><span>2023. 4. 18.</span><span>규 제326호 · 구</span></a>
+      <a class="ver" href="#"><span>2022. 1. 25.</span><span>규 제311호</span></a>
+      <a class="ver" href="#"><span>2021. 12. 22.</span><span>규 제306호</span></a>
+      <a class="ver" href="#"><span>2020. 11. 6.</span><span>규 제290호</span></a>
+      <a class="ver" href="#"><span>2019. 1. 21.</span><span>규 제266호</span></a>
+      <a class="ver" href="#"><span>2018. 3. 27.</span><span>규 제252호</span></a>
+      <a class="ver" href="#" style="color:#5A626C"><span>이전 연혁 더 보기</span><span>20건</span></a>
+    </aside>
+
+    <section style="display:flex;flex-direction:column;gap:16px">
+      <div style="background:#fff;border:1px solid #DDE1E6;border-radius:12px;padding:14px 18px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:13px">
+        <span style="font-weight:600">2023. 4. 18. → 2024. 1. 17.</span>
+        <span class="chip" style="background:#E3F1E7;color:#1D5B33">신설 · 제4조의2</span>
+        <span class="chip" style="background:#E3F1E7;color:#1D5B33">신설 · 부칙 &lt;2024. 1. 17.&gt;</span>
+        <span class="chip" style="background:#EEF1F5;color:#3A414A">[그 밖의 변경 조항]</span>
+        <label style="margin-left:auto;display:flex;align-items:center;gap:6px;color:#3A414A"><input type="checkbox" checked> 주석만 바뀐 조항 숨기기</label>
+      </div>
+
+      <div style="background:#fff;border:1px solid #DDE1E6;border-radius:12px;overflow:hidden">
+        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));font-size:12px;font-weight:600;color:#5A626C;background:#F7F8FA;border-bottom:1px solid #DDE1E6">
+          <div style="padding:10px 18px;border-right:1px solid #DDE1E6">구 · 2023. 4. 18. 시행</div>
+          <div style="padding:10px 18px">신 · 2024. 1. 17. 시행</div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));font-family:'Noto Serif KR',serif;font-size:15px;line-height:1.8">
+          <div style="padding:16px 18px;border-right:1px solid #DDE1E6;color:#5A626C;display:flex;align-items:center;justify-content:center;background:repeating-linear-gradient(135deg,#FAFBFC 0 8px,#F3F5F8 8px 16px)">
+            <span style="font-family:'IBM Plex Sans KR',sans-serif;font-size:13px">〈신설〉</span>
+          </div>
+          <div style="padding:16px 18px;background:#EEF7F0">
+            <div style="font-weight:600">제4조의2(여비의 정산)</div>
+            <p style="margin:6px 0 0">① 여행 후 여비의 변경이 있는 경우 계정책임자의 결재로 정산할 수 있다. 다만, 전 직원이 사용할 수 있는 교육훈련비 등 기관공통경비에 대해서는 소속 1차 부서장 결재로 정산한다.</p>
+            <p style="margin:6px 0 0">② 제1항에도 불구하고 여행일수의 변경이나 여행을 취소하는 경우에는 위임전결상의 복무(출장)에 해당하는 결재권자의 승인을 받아야 한다.</p>
+            <div style="font-family:'IBM Plex Sans KR',sans-serif;font-size:12px;color:#1D5B33;margin-top:4px">[본조신설 2024. 1. 17.]</div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));font-family:'Noto Serif KR',serif;font-size:15px;line-height:1.8;border-top:1px solid #DDE1E6">
+          <div style="padding:16px 18px;border-right:1px solid #DDE1E6;color:#5A626C;display:flex;align-items:center;justify-content:center;background:repeating-linear-gradient(135deg,#FAFBFC 0 8px,#F3F5F8 8px 16px)">
+            <span style="font-family:'IBM Plex Sans KR',sans-serif;font-size:13px">〈신설〉</span>
+          </div>
+          <div style="padding:16px 18px;background:#EEF7F0">
+            <div style="font-weight:600">부칙 &lt;2024. 1. 17.&gt;</div>
+            <p style="margin:6px 0 0">이 규정은 2024년 1월 17일부터 시행한다.</p>
+            <div style="font-family:'IBM Plex Sans KR',sans-serif;font-size:12px;color:#5A626C;margin-top:4px">시행일 판정 근거: 부칙 · ALIO 개정일과 일치</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

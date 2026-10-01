@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>개정 알림함</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&amp;family=Noto+Serif+KR:wght@400;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F4F5F7}
+a{color:#1E4FAF;text-decoration:none}a:hover{color:#163C85;text-decoration:underline}
+.nav a{color:#C9CED6;padding:8px 12px;border-radius:6px;font-size:14px}
+.nav a:hover{color:#fff;background:#262B32;text-decoration:none}
+.btn{font:inherit;font-size:13px;height:36px;padding:0 14px;border-radius:8px;border:1px solid #CDD3DB;background:#fff;color:#16191D;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:transform 160ms ease-out}
+.btn:active{transform:scale(0.97)}
+.chip{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 9px;border-radius:999px;font-size:12px;font-weight:500}
+.item{display:block;padding:14px 16px;border-bottom:1px solid #EBEEF2;color:#16191D}
+.item:hover{background:#F7F8FA;text-decoration:none}
+.tab{padding:8px 12px;border-radius:8px;font-size:13px;color:#3A414A}
+.tab:hover{background:#EBEEF2;text-decoration:none}
+@media (max-width:900px){.cols{grid-template-columns:minmax(0,1fr)!important}}
+</style>
+</helmet>
+<div style="min-height:100vh;font-family:'IBM Plex Sans KR',sans-serif;color:#16191D;background:#F4F5F7">
+  <header style="display:flex;align-items:center;gap:20px;height:56px;padding:0 24px;background:#16191D;color:#fff">
+    <div style="display:flex;align-items:center;gap:10px;font-weight:600;font-size:15px;white-space:nowrap">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h11l5 5v11H4z"/><path d="M15 4v5h5M8 13h8M8 17h5"/></svg>
+      NST 규정·법령
+    </div>
+    <nav class="nav" style="display:flex;gap:4px;flex-wrap:wrap">
+      <a href="Main.dc.html">규정</a>
+      <a href="Chat.dc.html">질의응답</a>
+      <a href="Alerts.dc.html" style="color:#fff;background:#262B32">개정 알림</a>
+      <a href="Review.dc.html">검수</a>
+      <a href="#">관리</a>
+    </nav>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:12px;font-size:13px">
+      <span class="chip" style="background:#262B32;color:#E3E7EC">한국천문연구원 · 규정 담당자</span>
+      <span style="color:#C9CED6">[사용자명]</span>
+    </div>
+  </header>
+
+  <div style="display:flex;align-items:center;gap:8px;padding:14px 24px;flex-wrap:wrap">
+    <div style="font-size:17px;font-weight:700;margin-right:12px">개정 알림함</div>
+    <a class="tab" href="#" style="background:#16191D;color:#fff">처리 필요</a>
+    <a class="tab" href="#">시행 예정</a>
+    <a class="tab" href="#">완료</a>
+  </div>
+
+  <div class="cols" style="display:grid;grid-template-columns:420px minmax(0,1fr);gap:16px;padding:0 24px 32px">
+    <section style="background:#fff;border:1px solid #DDE1E6;border-radius:12px;overflow:hidden;align-self:start">
+      <a class="item" href="#" style="background:#F5F8FE;box-shadow:inset 3px 0 0 #1E4FAF">
+        <div style="display:flex;gap:6px;margin-bottom:6px"><span class="chip" style="background:#FBE9DF;color:#9A3412">높음</span><span class="chip" style="background:#E8EEFA;color:#1E4FAF">준용 대상 개정</span></div>
+        <div style="font-size:14px;font-weight:600">공무원 여비규정 개정 → 여비규정 제29조</div>
+        <div style="font-size:12px;color:#5A626C;margin-top:4px">공포 [공포일] · 시행 [시행일] · 신규</div>
+      </a>
+      <a class="item" href="#">
+        <div style="display:flex;gap:6px;margin-bottom:6px"><span class="chip" style="background:#FBE9DF;color:#9A3412">높음</span><span class="chip" style="background:#EEF1F5;color:#3A414A">근거 조문 변경</span></div>
+        <div style="font-size:14px;font-weight:600">국가연구개발혁신법 시행령 개정 → [영향 규정]</div>
+        <div style="font-size:12px;color:#5A626C;margin-top:4px">공포 2026. 7. 28. · 일부개정 · 확인함</div>
+      </a>
+      <a class="item" href="#">
+        <div style="display:flex;gap:6px;margin-bottom:6px"><span class="chip" style="background:#FFF4D6;color:#7A5200">중간</span><span class="chip" style="background:#EEF1F5;color:#3A414A">번호 이동</span></div>
+        <div style="font-size:14px;font-weight:600">[모규정] 개정 → [세부지침] 제[N]조</div>
+        <div style="font-size:12px;color:#5A626C;margin-top:4px">참조 번호 수정 필요 · 기한 D-[N]</div>
+      </a>
+      <a class="item" href="#">
+        <div style="display:flex;gap:6px;margin-bottom:6px"><span class="chip" style="background:#EEF1F5;color:#3A414A">시행 예정</span></div>
+        <div style="font-size:14px;font-weight:600">[규정명] 개정 시행 7일 전</div>
+        <div style="font-size:12px;color:#5A626C;margin-top:4px">시행 [시행일]</div>
+      </a>
+    </section>
+
+    <section style="background:#fff;border:1px solid #DDE1E6;border-radius:12px;padding:22px 24px;display:flex;flex-direction:column;gap:18px">
+      <div style="display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap">
+        <div>
+          <div style="display:flex;gap:6px;margin-bottom:8px"><span class="chip" style="background:#FBE9DF;color:#9A3412">심각도 높음</span><span class="chip" style="background:#E8EEFA;color:#1E4FAF">준용(MUTATIS)</span></div>
+          <h2 style="margin:0;font-size:20px">공무원 여비규정 개정이 여비규정 제29조에 영향</h2>
+          <div style="font-size:13px;color:#5A626C;margin-top:6px">원인: 「공무원 여비규정」 [개정 조문] · 공포 [공포일] · 시행 [시행일] · law.go.kr</div>
+        </div>
+        <div style="font-size:13px;color:#5A626C;text-align:right">담당: 회계담당부서 [담당자]<br>처리 기한 [알림일 + 14일]</div>
+      </div>
+
+      <div style="border:1px solid #DDE1E6;border-radius:10px;padding:14px 16px;font-family:'Noto Serif KR',serif;font-size:15px;line-height:1.8">
+        <div style="font-family:'IBM Plex Sans KR',sans-serif;font-size:12px;font-weight:600;color:#5A626C;margin-bottom:4px">영향받는 조문 · 한국천문연구원 여비규정</div>
+        <span style="font-weight:600">제29조(기타)</span> 이 규정에서 정하지 아니한 사항은 <mark style="background:#FFF1A8;padding:0 2px">「공무원 여비규정」</mark> 및 「국가공무원 복무·징계 관련 예규」를 준용할 수 있다.
+      </div>
+
+      <div>
+        <div style="font-size:12px;font-weight:600;color:#5A626C;margin-bottom:8px">상위 조문 신구 비교</div>
+        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));border:1px solid #DDE1E6;border-radius:10px;overflow:hidden;font-family:'Noto Serif KR',serif;font-size:14px;line-height:1.8">
+          <div style="padding:12px 14px;border-right:1px solid #DDE1E6"><div style="font-family:'IBM Plex Sans KR',sans-serif;font-size:12px;color:#5A626C">구</div>[개정 전 조문]</div>
+          <div style="padding:12px 14px;background:#EEF7F0"><div style="font-family:'IBM Plex Sans KR',sans-serif;font-size:12px;color:#5A626C">신</div>[개정 후 조문]</div>
+        </div>
+      </div>
+
+      <div style="background:#F7F8FA;border-radius:10px;padding:14px 16px;font-size:14px;line-height:1.7">
+        <div style="font-weight:600;margin-bottom:4px">검토 포인트 <span style="font-weight:400;font-size:12px;color:#5A626C">· 자동 요약, 인용 검증 통과</span></div>
+        <div>· 제29조는 이 규정에 없는 사항에 「공무원 여비규정」을 준용합니다. 개정 내용이 연구원 여비 지급에 바로 적용되는지 검토가 필요합니다.</div>
+        <div>· [개정 내용 요약]</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <label for="note" style="font-size:13px;font-weight:600">검토 의견</label>
+        <textarea id="note" rows="2" placeholder="조치 불필요로 처리할 때는 사유를 적어 주세요" style="font:inherit;font-size:14px;padding:10px 12px;border:1px solid #CDD3DB;border-radius:8px;resize:vertical"></textarea>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn" style="background:#16191D;color:#fff;border-color:#16191D">조치 필요 · 개정 착수</button>
+          <button class="btn">조치 불필요</button>
+          <button class="btn">담당자 변경</button>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

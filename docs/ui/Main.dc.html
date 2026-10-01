@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>규정 뷰어</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&amp;family=Noto+Serif+KR:wght@400;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F4F5F7}
+a{color:#1E4FAF;text-decoration:none}a:hover{color:#163C85;text-decoration:underline}
+.nav a{color:#C9CED6;padding:8px 12px;border-radius:6px;font-size:14px}
+.nav a:hover{color:#fff;background:#262B32;text-decoration:none}
+.btn{font:inherit;font-size:13px;height:36px;padding:0 14px;border-radius:8px;border:1px solid #CDD3DB;background:#fff;color:#16191D;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:transform 160ms ease-out}
+.btn:active{transform:scale(0.97)}
+.chip{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 9px;border-radius:999px;font-size:12px;font-weight:500}
+.ref{color:#1E4FAF;border-bottom:1px dashed #9FB4DD}
+.toc a{display:block;padding:5px 10px;border-radius:6px;color:#3A414A;font-size:13px}
+.toc a:hover{background:#EBEEF2;text-decoration:none}
+@media (max-width:900px){.cols{grid-template-columns:minmax(0,1fr)!important}.hide-sm{display:none!important}}
+</style>
+</helmet>
+<div style="min-height:100vh;font-family:'IBM Plex Sans KR',sans-serif;color:#16191D;background:#F4F5F7">
+  <header style="display:flex;align-items:center;gap:20px;height:56px;padding:0 24px;background:#16191D;color:#fff">
+    <div style="display:flex;align-items:center;gap:10px;font-weight:600;font-size:15px;white-space:nowrap">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h11l5 5v11H4z"/><path d="M15 4v5h5M8 13h8M8 17h5"/></svg>
+      NST 규정·법령
+    </div>
+    <nav class="nav" style="display:flex;gap:4px;flex-wrap:wrap">
+      <a href="Main.dc.html" style="color:#fff;background:#262B32">규정</a>
+      <a href="Chat.dc.html">질의응답</a>
+      <a href="Alerts.dc.html">개정 알림</a>
+      <a href="Review.dc.html">검수</a>
+      <a href="#">관리</a>
+    </nav>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:12px;font-size:13px">
+      <span class="chip" style="background:#262B32;color:#E3E7EC">한국천문연구원</span>
+      <span style="color:#C9CED6">[사용자명]</span>
+    </div>
+  </header>
+
+  <div style="padding:16px 24px 0;font-size:13px;color:#5A626C;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+    <a href="#">한국천문연구원</a><span>/</span><span>복무·인사</span><span>/</span><span style="color:#16191D">여비규정</span>
+  </div>
+
+  <section style="margin:12px 24px 0;padding:20px 24px;background:#fff;border:1px solid #DDE1E6;border-radius:12px;display:flex;gap:24px;align-items:flex-end;flex-wrap:wrap">
+    <div style="display:flex;flex-direction:column;gap:10px;flex-grow:1">
+      <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
+        <h1 style="margin:0;font-size:26px;font-weight:700;letter-spacing:-0.01em">여비규정</h1>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#5A626C">원규분류 2120 · kr/reg/KASI/여비규정</span>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <span class="chip" style="background:#E3F1E7;color:#1D5B33">현행</span>
+        <span class="chip" style="background:#EEF1F5;color:#3A414A">시행 2024. 1. 17.</span>
+        <span class="chip" style="background:#EEF1F5;color:#3A414A">일부개정 · 규 제339호</span>
+        <span class="chip" style="background:#EEF1F5;color:#3A414A">출처 ALIO · 게시 2024. 1. 17.</span>
+        <span class="chip" style="background:#E8EEFA;color:#1E4FAF">검증 통과</span>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#3A414A">기준일
+        <input type="date" value="2026-10-01" style="font:inherit;font-size:13px;height:34px;padding:0 10px;border:1px solid #CDD3DB;border-radius:8px">
+      </label>
+      <a class="btn" href="Diff.dc.html" style="text-decoration:none">연혁·비교</a>
+      <a class="btn" href="Source.dc.html" style="text-decoration:none;background:#16191D;color:#fff;border-color:#16191D">원문 보기</a>
+    </div>
+  </section>
+
+  <div class="cols" style="display:grid;grid-template-columns:240px minmax(0,1fr) 340px;gap:16px;padding:16px 24px 32px">
+    <aside class="toc hide-sm" style="background:#fff;border:1px solid #DDE1E6;border-radius:12px;padding:14px 8px;align-self:start">
+      <div style="font-size:12px;font-weight:600;color:#5A626C;padding:0 10px 8px">목차</div>
+      <a href="#">제1장 총칙</a>
+      <a href="#">제2장 운임</a>
+      <a href="#">제3장 일비, 숙박비 및 식비</a>
+      <a href="#">제4장 이전비 및 가족여비</a>
+      <a href="#">제5장 퇴직자, 휴직자 및 사망자에 대한 여비</a>
+      <a href="#" style="font-weight:600;color:#16191D">제6장 보칙</a>
+      <div style="display:flex;flex-direction:column;padding-left:12px">
+        <a href="#">제26조 부대경비</a>
+        <a href="#" style="background:#E8EEFA;color:#1E4FAF;font-weight:500">제27조 출장증빙의 제출</a>
+        <a href="#">제28조 출장정보에 대한 DB구축</a>
+        <a href="#">제29조 기타</a>
+      </div>
+      <a href="#">부칙</a>
+      <a href="#">별표·별지</a>
+    </aside>
+
+    <article style="background:#fff;border:1px solid #DDE1E6;border-radius:12px;padding:28px 36px;font-family:'Noto Serif KR',serif;font-size:16px;line-height:1.85;color:#1F242A">
+      <h2 style="margin:0 0 20px;font-family:'IBM Plex Sans KR',sans-serif;font-size:15px;font-weight:600;color:#5A626C;text-align:center;letter-spacing:0.2em">제6장 보칙</h2>
+
+      <div style="padding:16px 18px;margin:0 -18px;border-radius:10px;background:#F5F8FE;outline:1px solid #C9D6F0">
+        <div style="display:flex;justify-content:space-between;gap:12px;align-items:baseline;flex-wrap:wrap">
+          <div style="font-weight:600">제27조(출장증빙의 제출)</div>
+          <div style="display:flex;gap:6px;font-family:'IBM Plex Sans KR',sans-serif">
+            <a class="chip" href="Source.dc.html" style="background:#fff;border:1px solid #CDD3DB;color:#3A414A;text-decoration:none">원문 12쪽</a>
+            <a class="chip" href="Chat.dc.html" style="background:#fff;border:1px solid #CDD3DB;color:#3A414A;text-decoration:none">이 조문으로 질문</a>
+          </div>
+        </div>
+        <p style="margin:6px 0 0">① 출장자는 출장 종료일 다음 날을 기점으로 7일 이내에 출장을 확인할 수 있는 증빙서를 회계담당부서에 제출하여야 한다. 다만, 실비로 지급한 여비항목이 있는 경우 이를 확인할 수 있는 증빙서를 제출하고, 출장 확인 증빙서 제출은 생략한다. <span style="font-family:'IBM Plex Sans KR',sans-serif;font-size:12px;color:#9A4A00">&lt;개정 '19.1.21., 2020.11.6.&gt;</span></p>
+        <p style="margin:6px 0 0">② 출장 증빙은 승차권, 출장지 결제 영수증, 사진(날짜·위치정보 포함), 회의록 등 포괄적으로 운영하고, 1일 출장의 경우 <a class="ref" href="#">별지 제1호 서식</a>의 방문기관확인서를 증빙자료로 제출할 수 있다. <span style="font-family:'IBM Plex Sans KR',sans-serif;font-size:12px;color:#9A4A00">&lt;신설 2020.11.6.&gt;</span></p>
+        <p style="margin:6px 0 0">③ <a class="ref" href="#">제1항</a>에도 불구하고 <a class="ref" href="#">제13조</a>의 근무지내 출장의 경우는 증빙서 제출을 생략할 수 있다. <span style="font-family:'IBM Plex Sans KR',sans-serif;font-size:12px;color:#9A4A00">&lt;신설 2020.11.6.&gt;</span></p>
+        <div style="font-family:'IBM Plex Sans KR',sans-serif;font-size:12px;color:#5A626C;margin-top:4px">[본조신설 '07.12.28]</div>
+      </div>
+
+      <div style="padding:16px 0 0">
+        <div style="font-weight:600">제28조(출장정보에 대한 DB구축)</div>
+        <p style="margin:6px 0 0">출장관리담당부서장은 해당과제 정보와 연계하여 국내·외 출장에 대한 DB를 구축하고 이를 직원들이 공람할 수 있도록 하여야 한다.</p>
+        <div style="font-family:'IBM Plex Sans KR',sans-serif;font-size:12px;color:#5A626C;margin-top:4px">[본조신설 '10.12.6.]</div>
+      </div>
+
+      <div style="padding:16px 0 0">
+        <div style="font-weight:600">제29조(기타)</div>
+        <p style="margin:6px 0 0">이 규정에서 정하지 아니한 사항은 <a class="ref" href="#">「공무원 여비규정」</a> 및 <a class="ref" href="#">「국가공무원 복무·징계 관련 예규」</a>를 준용할 수 있다.</p>
+        <div style="font-family:'IBM Plex Sans KR',sans-serif;font-size:12px;color:#5A626C;margin-top:4px">[본조신설 '19.1.21.]</div>
+      </div>
+    </article>
+
+    <aside style="display:flex;flex-direction:column;gap:16px;align-self:start">
+      <section style="background:#fff;border:1px solid #DDE1E6;border-radius:12px;padding:16px">
+        <div style="font-size:13px;font-weight:600;margin-bottom:12px">제27조의 관계</div>
+        <div style="display:flex;flex-direction:column;gap:10px;font-size:13px">
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            <span class="chip" style="background:#FBF0E4;color:#9A4A00;flex-shrink:0">예외</span>
+            <div><div>③항 → 제27조 ①항</div><div style="color:#5A626C;font-size:12px">"제1항에도 불구하고"</div></div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            <span class="chip" style="background:#EEF1F5;color:#3A414A;flex-shrink:0">참조</span>
+            <div><a href="#">제13조 근무지내 출장</a><div style="color:#5A626C;font-size:12px">"제13조의 근무지내 출장의 경우"</div></div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            <span class="chip" style="background:#EEF1F5;color:#3A414A;flex-shrink:0">참조</span>
+            <div><a href="#">별지 제1호 서식 방문기관확인서</a></div>
+          </div>
+        </div>
+      </section>
+
+      <section style="background:#fff;border:1px solid #DDE1E6;border-radius:12px;padding:16px">
+        <div style="font-size:13px;font-weight:600;margin-bottom:12px">근거·위임·준용 법령</div>
+        <div style="display:flex;flex-direction:column;gap:10px;font-size:13px">
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            <span class="chip" style="background:#E8EEFA;color:#1E4FAF;flex-shrink:0">준용</span>
+            <div><a href="#">공무원 여비규정</a><div style="color:#5A626C;font-size:12px">제29조에서 · law.go.kr 대통령령</div></div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            <span class="chip" style="background:#E8EEFA;color:#1E4FAF;flex-shrink:0">준용</span>
+            <div><span>국가공무원 복무·징계 관련 예규</span><div style="color:#9A4A00;font-size:12px">대상 미해석 · 검수 대기</div></div>
+          </div>
+        </div>
+      </section>
+
+      <section style="background:#fff;border:1px solid #DDE1E6;border-radius:12px;padding:16px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px"><div style="font-size:13px;font-weight:600">연혁</div><a href="Diff.dc.html" style="font-size:12px">전체 27건 비교</a></div>
+        <ol style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px;font-size:13px">
+          <li style="display:flex;justify-content:space-between"><span style="font-weight:600">2024. 1. 17. 시행</span><span style="color:#5A626C">규 제339호 · 현행</span></li>
+          <li style="display:flex;justify-content:space-between"><a href="#">2023. 4. 18. 시행</a><span style="color:#5A626C">규 제326호</span></li>
+          <li style="display:flex;justify-content:space-between"><a href="#">2022. 1. 25. 시행</a><span style="color:#5A626C">규 제311호</span></li>
+          <li style="display:flex;justify-content:space-between"><a href="#">2021. 12. 22. 시행</a><span style="color:#5A626C">규 제306호</span></li>
+        </ol>
+      </section>
+    </aside>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
