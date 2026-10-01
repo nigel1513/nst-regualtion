@@ -39,7 +39,12 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
                 <div key={c.provision_id} className="grid grid-cols-2 border-b border-[var(--line)] font-serif text-[15px] leading-[1.8] last:border-b-0">
                   {[c.from, c.to].map((s, i) => (
                     <div key={i} className={`px-4 py-3 ${i === 0 ? "border-r border-[var(--line)]" : ""} ${!s ? "bg-[repeating-linear-gradient(135deg,#fafbfc_0_8px,#f3f5f8_8px_16px)]" : i === 1 ? "bg-[#eef7f0]" : ""}`}>
-                      {i === 1 && <span className="chip chip-green mb-1 font-sans">{CHANGE_LABEL[c.kind]}</span>}
+                      {i === 1 && (
+                        <span className="mb-1 flex gap-1.5 font-sans">
+                          <span className={`chip ${c.kind === "DELETED" ? "chip-red" : c.kind === "ADDED" ? "chip-green" : "chip-blue"}`}>{CHANGE_LABEL[c.kind]}</span>
+                          {c.moved && c.kind !== "RENUMBERED" && <span className="chip">조 이동</span>}
+                        </span>
+                      )}
                       {s ? <><div className="font-semibold">{s.label}{s.heading ? `(${s.heading})` : ""}</div><p>{s.text}</p></>
                         : <p className="font-sans text-[13px] text-[var(--muted)]">〈{i === 0 ? "신설" : "삭제"}〉</p>}
                     </div>

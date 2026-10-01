@@ -50,9 +50,11 @@ def create_app(dsn: str, blob: BlobStore) -> FastAPI:
         return Q.versions(c, id)
 
     @app.get("/api/v1/work/view")
-    def view(id: str, as_of: date | None = None, c=Depends(conn)):
+    def view(id: str, as_of: date | None = None, version: str | None = None, c=Depends(conn)):
         w = _work_or_404(c, id)
-        v = Q.pick_version(c, id, as_of)
+        v = Q.version_by_id(c, version) if version else Q.pick_version(c, id, as_of)
+        if v and v["work_id"] != id:
+            v = None
         if not v:
             raise HTTPException(404, "그 날짜에 시행 중인 버전이 없습니다" if as_of else "버전이 없습니다")
         sd = Q.source(c, v.pop("source_document_id"))

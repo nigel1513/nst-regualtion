@@ -47,7 +47,7 @@ def pick_version(conn, work_id: str, as_of: date | None) -> dict | None:
     if as_of:
         return conn.execute(
             f"SELECT {VERSION_COLS} FROM regulation.work_version v WHERE v.work_id = %s AND v.effective_from <= %s"
-            " AND (v.effective_to IS NULL OR v.effective_to > %s) ORDER BY v.effective_from DESC LIMIT 1",
+            " AND (v.effective_to IS NULL OR v.effective_to > %s) ORDER BY v.effective_from DESC, v.created_at DESC LIMIT 1",
             (work_id, as_of, as_of)).fetchone()
     return conn.execute(
         f"SELECT {VERSION_COLS} FROM regulation.work_version v WHERE v.work_id = %s"
@@ -142,15 +142,16 @@ def diff(conn, from_id: str, to_id: str) -> list[dict]:
         x, y = a.get(pid), b.get(pid)
         if x and y and x["id"] == y["id"]:
             continue
+        moved = bool(x and y and x["path"] != y["path"])
         if x and y:
             same = x["text_norm_hash"] == y["text_norm_hash"] and x["heading"] == y["heading"]
-            kind = "RENUMBERED" if x["path"] != y["path"] else ("ANNOTATION_ONLY" if same else "MODIFIED")
+            kind = "MODIFIED" if not same else ("RENUMBERED" if moved else "ANNOTATION_ONLY")
         else:
             kind = "ADDED" if y else "DELETED"
         if kind == "ANNOTATION_ONLY" and x["annotations"] == y["annotations"]:
             continue
         ref = y or x
-        out.append({"kind": kind, "provision_id": pid, "path": ref["path"], "unit": ref["unit"],
+        out.append({"kind": kind, "moved": moved, "provision_id": pid, "path": ref["path"], "unit": ref["unit"],
                     "from": side(x), "to": side(y)})
     return out
 

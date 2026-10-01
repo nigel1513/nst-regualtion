@@ -112,3 +112,39 @@ def test_references_for_article_subtree(api):
                  key=lambda i: next(x["path"] for x in v["provisions"] if x["id"] == i) != "a27.p3")  # ③항을 맨 앞에
     r = api.get("/api/v1/references", params=[("pv", i) for i in ids]).json()
     assert any(x["target_path"] == "a13" for x in r["outgoing"])  # ③항의 '제13조'가 조 단위 패널에 보인다
+
+
+def test_view_by_explicit_version(conn, migrated, tmp_path):
+    blob = LocalBlobStore(tmp_path)
+    upsert_work(conn, "kr/reg/T/규정", "INTERNAL_REG", "규정", None, {})
+    ids = []
+    for i, d in enumerate([date(2020, 1, 1), date(2024, 1, 1)]):
+        sid = _store(conn, blob, source="alio", url="u", content=b"%PDF-v" + bytes([i]),
+                     kind=FileKind("application/pdf", "pdf"), meta={}).id
+        ids.append(add_version(conn, "kr/reg/T/규정", sid, ParsedDoc("규정", None, [],
+                               [Prov("a1", "article", "제1조", "목적", f"본문 {i}")]), Effective(d, "supplement", "CONFIRMED", d)))
+    rebuild_work(conn, "kr/reg/T/규정", date(2026, 10, 2))
+    conn.commit()
+    with TestClient(create_app(migrated[0], blob)) as c:
+        v = c.get("/api/v1/work/view", params={"id": "kr/reg/T/규정", "version": ids[0]}).json()
+        assert v["version"]["id"] == ids[0] and v["provisions"][0]["text"] == "본문 0"
+        assert c.get("/api/v1/work/view", params={"id": "kr/reg/X/other", "version": ids[0]}).status_code == 404
+
+
+def test_diff_moved_and_modified_is_flagged(conn, migrated, tmp_path):
+    blob = LocalBlobStore(tmp_path)
+    upsert_work(conn, "kr/reg/T/이동", "INTERNAL_REG", "이동", None, {})
+    ids = []
+    for i, (d, provs) in enumerate([(date(2020, 1, 1), [Prov("a1", "article", "제1조", "목적", "목적 조문"),
+                                                        Prov("a2", "article", "제2조", "정의", "정의 조문 원래 본문")]),
+                                    (date(2024, 1, 1), [Prov("a1", "article", "제1조", "목적", "목적 조문"),
+                                                        Prov("a3", "article", "제3조", "정의", "정의 조문 원래 본문")])]):
+        sid = _store(conn, blob, source="alio", url="u", content=b"%PDF-m" + bytes([i]),
+                     kind=FileKind("application/pdf", "pdf"), meta={}).id
+        ids.append(add_version(conn, "kr/reg/T/이동", sid, ParsedDoc("이동", None, [], provs),
+                               Effective(d, "supplement", "CONFIRMED", d)))
+    rebuild_work(conn, "kr/reg/T/이동", date(2026, 10, 2))
+    conn.commit()
+    with TestClient(create_app(migrated[0], blob)) as c:
+        ch = c.get("/api/v1/diff", params={"from": ids[0], "to": ids[1]}).json()["changes"]
+        assert [(x["kind"], x["path"], x["moved"]) for x in ch] == [("RENUMBERED", "a3", True)]

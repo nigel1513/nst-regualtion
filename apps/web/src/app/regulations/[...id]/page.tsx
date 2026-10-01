@@ -2,22 +2,28 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ProvisionText } from "@/components/ProvisionText";
 import { Relations } from "@/components/Relations";
-import { apiGet, decodeSegments, type Provision, sourceHref, type VersionRow, type ViewData, workHref } from "@/lib/api";
+import { apiGet, decodeSegments, type Provision, sourceHref, validDate, type VersionRow, type ViewData, workHref } from "@/lib/api";
 import { BASIS_LABEL, fmtDate, STATE_LABEL, STATUS_LABEL, TASK_LABEL } from "@/lib/format";
 
 const INDENT: Record<string, string> = { paragraph: "", item: "pl-5", subitem: "pl-10" };
 
 export default async function ViewerPage({ params, searchParams }: {
-  params: Promise<{ id: string[] }>; searchParams: Promise<{ as_of?: string; a?: string }>;
+  params: Promise<{ id: string[] }>; searchParams: Promise<{ as_of?: string | string[]; a?: string }>;
 }) {
   const { id } = await params;
-  const { as_of, a } = await searchParams;
+  const sp = await searchParams;
+  const a = typeof sp.a === "string" ? sp.a : undefined;
+  const as_of = validDate(sp.as_of);
+  const badDate = sp.as_of !== undefined && !as_of;
   const workId = decodeSegments(id);
   const [view, versions] = await Promise.all([
     apiGet<ViewData>("/api/v1/work/view", { id: workId, as_of }),
     apiGet<VersionRow[]>("/api/v1/work/versions", { id: workId }),
   ]);
   if (!versions) notFound();
+  if (badDate) {
+    return <main className="mx-auto max-w-3xl px-6 py-10"><p className="card p-6">기준일 형식이 올바르지 않습니다(예: 2024-01-17). <Link href={workHref(workId)}>현행 보기</Link></p></main>;
+  }
   if (!view) {
     return (
       <main className="mx-auto max-w-3xl px-6 py-10">
@@ -65,7 +71,7 @@ export default async function ViewerPage({ params, searchParams }: {
           {isLaw ? (
             <a className="btn btn-dark" href={v.source.url.replace("type=XML", "type=HTML")} target="_blank" rel="noreferrer">law.go.kr 원문</a>
           ) : (
-            <Link className="btn btn-dark" href={sourceHref(work.id, `?version=${encodeURIComponent(v.id)}${selected ? `&a=${selected.path}` : ""}`)}>원문 보기</Link>
+            <Link className="btn btn-dark" href={sourceHref(work.id, `?${new URLSearchParams({ version: v.id, ...(selected ? { a: selected.path } : {}) })}`)}>원문 보기</Link>
           )}
         </div>
       </section>
@@ -95,11 +101,11 @@ export default async function ViewerPage({ params, searchParams }: {
                     <a className="font-sans text-xs" href={`?${new URLSearchParams({ ...(as_of ? { as_of } : {}), a: p.path })}#${p.path}`}>관계 보기</a>
                   )}
                 </div>
-                {p.text && <p className={`mt-1 ${p.deleted ? "text-[var(--muted)]" : ""}`}><ProvisionText text={p.text} refs={refs[String(p.id)]} workId={work.id} /></p>}
+                {p.text && <p className={`mt-1 ${p.deleted ? "text-[var(--muted)]" : ""}`}><ProvisionText text={p.text} refs={refs[String(p.id)]} workId={work.id} asOf={as_of} /></p>}
                 {subtree(p.path).map((c) => (
                   <p key={c.path} id={c.path} className={`mt-1.5 ${INDENT[c.unit] ?? ""} ${c.deleted ? "text-[var(--muted)]" : ""}`}>
                     {c.unit !== "supp_article" ? `${c.label} ` : <strong className="font-semibold">{c.label}{c.heading ? `(${c.heading}) ` : " "}</strong>}
-                    <ProvisionText text={c.text} refs={refs[String(c.id)]} workId={work.id} />
+                    <ProvisionText text={c.text} refs={refs[String(c.id)]} workId={work.id} asOf={as_of} />
                     {c.annotations.map((n) => <span key={n} className="note"> {n}</span>)}
                   </p>
                 ))}

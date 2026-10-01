@@ -27,7 +27,7 @@ export type ViewData = {
   history: { kind: string; date: string; number: string | null }[]; tasks: { kind: string; detail: Record<string, unknown> }[];
 };
 export type Change = {
-  kind: string; provision_id: number; path: string; unit: string;
+  kind: string; moved: boolean; provision_id: number; path: string; unit: string;
   from: { label: string; heading: string | null; text: string; annotations: string[] } | null;
   to: { label: string; heading: string | null; text: string; annotations: string[] } | null;
 };
@@ -48,6 +48,11 @@ export async function apiGet<T>(path: string, params: Record<string, string | un
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`);
   return (await res.json()) as T;
+}
+
+/** 기준일 쿼리 값 검증: YYYY-MM-DD 한 개만 받는다 (잘못된 값으로 API 500이 나지 않게). */
+export function validDate(v: string | string[] | undefined): string | undefined {
+  return typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v)) ? v : undefined;
 }
 
 export function workHref(id: string, extra = ""): string {
