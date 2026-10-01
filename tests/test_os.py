@@ -4,6 +4,8 @@ from reg.search.os import OpenSearch
 
 def test_index_bulk_alias_and_nori(os_url):
     os = OpenSearch(os_url)
+    if os.alias_target():  # 같은 세션의 다른 테스트가 남긴 색인 정리 (컨테이너는 세션 공유)
+        os.delete_index(os.alias_target())
     os.put_pipeline()
     os.create_index("nais-regulations-rt1", 4)
     doc = {"chunk_id": "c1", "release_id": "t1", "work_id": "w", "version_id": "w@2024-01-17", "path": "a27",
