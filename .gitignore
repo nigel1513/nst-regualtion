@@ -5,3 +5,4 @@ node_modules/
 .superpowers/
 .pytest_cache/
 infra/storage/s3.json
+.run/

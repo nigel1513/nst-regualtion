@@ -42,3 +42,13 @@ uv run reg collect alio [--institution KASI] [--limit N]   # ALIO 내부규정 (
 ```
 
 테스트: `uv run pytest` (Docker 필요, testcontainers), 실인프라 테스트: `uv run pytest -m integration`
+
+## 화면 실행 (M3)
+
+```bash
+bash scripts/run-dev.sh        # API :21061, 웹 :21060 (빌드 포함), PID·로그는 .run/
+```
+
+- 웹: `http://<서버>:21060/regulations` — 규정 목록·조문 뷰어·원문 대조·신구 비교·검색·검수 큐
+- API 문서: `http://<서버>:21061/docs`
+- 처리 작업자 병렬 실행: `uv run reg process --all` 를 여러 개 띄워도 된다 (규정 단위 잠금)
