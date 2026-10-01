@@ -52,6 +52,7 @@ def sync_graph(conn, driver) -> dict:
             pass
         s.run("CREATE CONSTRAINT reg_prov_key IF NOT EXISTS FOR (p:RegProvision) REQUIRE p.key IS UNIQUE")
         s.run("CREATE CONSTRAINT reg_work_id IF NOT EXISTS FOR (w:RegWork) REQUIRE w.work_id IS UNIQUE")
+        s.run("CREATE INDEX reg_prov_work IF NOT EXISTS FOR (p:RegProvision) ON (p.work_id)")
         s.run("CREATE CONSTRAINT reg_inst_code IF NOT EXISTS FOR (i:RegInstitution) REQUIRE i.code IS UNIQUE")
         for part in _chunks([dict(w) for w in works]):
             s.run("UNWIND $rows AS r MERGE (w:RegWork {work_id: r.work_id})"

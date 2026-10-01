@@ -88,3 +88,11 @@ export function sourceHref(id: string, extra = ""): string {
 export function decodeSegments(segments: string[]): string {
   return segments.map((s) => { try { return decodeURIComponent(s); } catch { return s; } }).join("/");
 }
+
+export type Alert = {
+  id: number; severity: "HIGH" | "MEDIUM" | "LOW"; impact_kind: string; status: string; hops: number;
+  cause_work_id: string; cause_version_id: string; cause_path: string; cause_change: string; cause_title: string | null;
+  affected_work_id: string; affected_version_id: string | null; affected_path: string; affected_title: string | null;
+  rel_type: string; evidence: string | null; resolution_note: string | null; created_at: string; institution: string | null;
+};
+export type AlertDetail = Alert & { cause_old: string | null; cause_new: string | null; affected_text: string | null; recipients: string[] };

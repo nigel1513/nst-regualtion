@@ -24,6 +24,11 @@ class QaIn(BaseModel):
     as_of: date | None = None
 
 
+class AlertStatusIn(BaseModel):
+    status: Literal["ACKED", "ACTION_REQUIRED", "NO_ACTION", "RESOLVED"]
+    note: str | None = Field(None, max_length=1000)
+
+
 class FeedbackIn(BaseModel):
     feedback: Literal["helpful", "not_helpful"]
     reason: str | None = Field(None, max_length=300)
@@ -148,6 +153,33 @@ def create_app(dsn: str, blob: BlobStore, search_deps: dict | None = None) -> Fa
                        body.as_of.isoformat() if body.as_of else None)
         finally:
             app.state.qa_slots.release()
+
+    @app.get("/api/v1/alerts")
+    def alerts(status: str = Query("open", pattern="^(open|done|NEW|ACKED|ACTION_REQUIRED|NO_ACTION|RESOLVED)$"),
+               institution: str | None = None, severity: str | None = Query(None, pattern="^(HIGH|MEDIUM|LOW)$"),
+               c=Depends(conn)):
+        from reg.alerts.inbox import list_alerts
+
+        return list_alerts(c, status, institution, severity)
+
+    @app.get("/api/v1/alerts/{impact_id}")
+    def alert(impact_id: int, c=Depends(conn)):
+        from reg.alerts.inbox import alert_detail
+
+        d = alert_detail(c, impact_id)
+        if d is None:
+            raise HTTPException(404, "알림을 찾을 수 없습니다")
+        return d
+
+    @app.post("/api/v1/alerts/{impact_id}/status")
+    def alert_status(impact_id: int, body: AlertStatusIn, c=Depends(conn)):
+        from reg.alerts.inbox import set_status
+
+        if body.status == "NO_ACTION" and not (body.note or "").strip():
+            raise HTTPException(422, "조치 불필요는 사유가 필요합니다")
+        if not set_status(c, impact_id, body.status, body.note):
+            raise HTTPException(404, "알림을 찾을 수 없습니다")
+        return {"ok": True}
 
     @app.post("/api/v1/qa/{qa_id}/feedback")
     def qa_feedback(qa_id: int, body: FeedbackIn, c=Depends(conn)):

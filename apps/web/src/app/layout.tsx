@@ -12,6 +12,7 @@ const NAV = [
   { href: "/regulations", label: "규정" },
   { href: "/qa", label: "질의응답" },
   { href: "/search", label: "검색" },
+  { href: "/alerts", label: "개정 알림" },
   { href: "/review", label: "검수" },
 ];
 

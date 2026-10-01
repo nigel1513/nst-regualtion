@@ -280,3 +280,29 @@ def owners_import(path: str) -> None:
     conn = connect(s.database_url)
     with open(path, encoding="utf-8-sig", newline="") as f:
         typer.echo(f"owners {import_owners(conn, list(csv.DictReader(f)))}")
+
+
+@alerts.command("backtest")
+def alerts_backtest(limit: int = typer.Option(0, help="재생할 버전 수 (0이면 전체)")) -> None:
+    """적재된 과거 개정을 재생해 영향 탐지를 사후 검증하고 보고서를 쓴다 (알림 없음)."""
+    from datetime import datetime
+
+    from reg.alerts.backtest import backtest
+    from reg.graph.sync import sync_graph
+
+    s = get_settings()
+    conn = connect(s.database_url)
+    with _neo4j(s) as drv:
+        g = sync_graph(conn, drv)
+        r = backtest(conn, drv, limit or None)
+    path = ROOT / f"docs/reports/{datetime.now():%Y-%m-%d}-impact-backtest.md"
+    lines = [f"# 개정 영향 탐지 사후 검증 ({datetime.now():%Y-%m-%d %H:%M})", "",
+             f"- 그래프: 규범문서 {g['works']} · 조항 {g['provisions']} · 참조 관계 {g['relations']}",
+             f"- 재생한 개정 버전: {r['versions']} · 탐지한 영향: {r['impacts']} · 영향받은 규범문서: {r['works_affected']}",
+             f"- 심각도: {r['by_severity']}", f"- 유형: {r['by_kind']}", "",
+             "재생 결과는 RESOLVED(backtest)로 저장되어 알림이 나가지 않는다. 그래프는 현행 참조 기준이다.", "",
+             "| 원인 | 조 | 변경 | 영향 규정 | 조 | 관계 | 심각도 |", "|---|---|---|---|---|---|---|"]
+    lines += [f"| {e['cause_work_id']} | {e['cause_path']} | {e['cause_change']} | {e['affected_work_id']} |"
+              f" {e['affected_path']} | {e['rel_type']} | {e['severity']} |" for e in r["examples"]]
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    typer.echo(f"backtest {({k: v for k, v in r.items() if k != 'examples'})}\n보고서: {path}")
