@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ProvisionText } from "@/components/ProvisionText";
 import { Relations } from "@/components/Relations";
-import { apiGet, decodeSegments, type Provision, type VersionRow, type ViewData, workHref } from "@/lib/api";
+import { apiGet, decodeSegments, type Provision, sourceHref, type VersionRow, type ViewData, workHref } from "@/lib/api";
 import { BASIS_LABEL, fmtDate, STATE_LABEL, STATUS_LABEL, TASK_LABEL } from "@/lib/format";
 
 const INDENT: Record<string, string> = { paragraph: "", item: "pl-5", subitem: "pl-10" };
@@ -64,7 +64,7 @@ export default async function ViewerPage({ params, searchParams }: {
           {isLaw ? (
             <a className="btn btn-dark" href={v.source.url.replace("type=XML", "type=HTML")} target="_blank" rel="noreferrer">law.go.kr 원문</a>
           ) : (
-            <Link className="btn btn-dark" href={workHref(work.id, `/source?version=${encodeURIComponent(v.id)}${selected ? `&a=${selected.path}` : ""}`)}>원문 보기</Link>
+            <Link className="btn btn-dark" href={sourceHref(work.id, `?version=${encodeURIComponent(v.id)}${selected ? `&a=${selected.path}` : ""}`)}>원문 보기</Link>
           )}
         </div>
       </section>

@@ -54,6 +54,10 @@ export function workHref(id: string, extra = ""): string {
   return "/regulations/" + id.split("/").map(encodeURIComponent).join("/") + extra;
 }
 
+export function sourceHref(id: string, extra = ""): string {
+  return "/source/" + id.split("/").map(encodeURIComponent).join("/") + extra;
+}
+
 export function decodeSegments(segments: string[]): string {
   return segments.map((s) => { try { return decodeURIComponent(s); } catch { return s; } }).join("/");
 }
