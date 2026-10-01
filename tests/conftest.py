@@ -64,3 +64,18 @@ def os_url():
                 pass
             time.sleep(1)
         yield url
+
+
+@pytest.fixture
+def loaded(conn, tmp_path):
+    """천문연 여비규정(실파일)을 처리까지 마친 DB 연결."""
+    from datetime import date
+
+    from reg.process import process_once
+    from reg.storage.blob import LocalBlobStore
+    from tests.test_process import FX, seed_alio
+
+    blob = LocalBlobStore(tmp_path)
+    seed_alio(conn, blob, (FX / "samples" / "kasi-yeobi-339.pdf").read_bytes())
+    process_once(conn, blob, today=date(2026, 10, 2))
+    return conn

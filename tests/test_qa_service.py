@@ -3,8 +3,7 @@ import pytest
 from reg.qa.service import ask
 from reg.search.indexer import build_release
 from reg.search.os import OpenSearch
-from tests.test_indexer import FakeEmbedder, loaded  # noqa: F401
-from tests.test_qa_analyze_evidence import FakeLLM
+from tests.test_indexer import FakeEmbedder
 from tests.test_search import FakeReranker
 
 

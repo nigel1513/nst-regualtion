@@ -1,19 +1,17 @@
 """읽기 전용 규정 API (spec 10, NFR-02: LLM 없이 열람·검색)."""
 from contextlib import asynccontextmanager
 from datetime import date
+from typing import Literal
 from urllib.parse import quote
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import Response
-from typing import Literal
-
-from pydantic import BaseModel, Field
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
+from pydantic import BaseModel, Field
 
 from reg.api import queries as Q
 from reg.storage.blob import BlobStore
-
 
 
 class QaIn(BaseModel):

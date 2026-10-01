@@ -35,3 +35,10 @@ packages = ["src/reg"]
 testpaths = ["tests"]
 markers = ["integration: needs live shared infrastructure"]
 addopts = "-m 'not integration'"
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+# B008: FastAPI Depends/Query 기본값은 관용구. BLE001: 이벤트 단위 실패 격리는 의도된 광범위 예외 처리.
+ignore = ["B008", "BLE001", "C408"]

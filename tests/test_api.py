@@ -6,14 +6,14 @@ import pytest
 from fastapi.testclient import TestClient
 
 from reg.api.app import create_app
-from reg.process import process_once
-from reg.storage.blob import LocalBlobStore
-from tests.test_process import seed_alio
 from reg.collect.archive import store as _store
 from reg.collect.sniff import FileKind
 from reg.load.loader import add_version, rebuild_work, upsert_work
+from reg.process import process_once
+from reg.storage.blob import LocalBlobStore
 from reg.structure.effective import Effective
 from reg.structure.model import ParsedDoc, Prov
+from tests.test_process import seed_alio
 
 S = Path(__file__).parent / "fixtures" / "samples"
 WID = "kr/reg/KASI/여비규정"

@@ -1,8 +1,8 @@
 """ALIO 내부규정 공시 클라이언트 (엔드포인트 2026-10-01 확인)."""
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import date
-from typing import Iterator
 
 from reg.collect.polite import PoliteClient
 

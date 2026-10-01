@@ -1,12 +1,8 @@
-from datetime import date
 
 import pytest
 
-from reg.process import process_once
 from reg.search.indexer import build_release
 from reg.search.os import OpenSearch
-from reg.storage.blob import LocalBlobStore
-from tests.test_process import FX, seed_alio
 
 
 class FakeEmbedder:
@@ -21,12 +17,6 @@ class FakeEmbedder:
         return [[float(len(t) % 7), 1.0, 0.5, 0.25] for t in texts]
 
 
-@pytest.fixture
-def loaded(conn, tmp_path):
-    blob = LocalBlobStore(tmp_path)
-    seed_alio(conn, blob, (FX / "samples" / "kasi-yeobi-339.pdf").read_bytes())
-    process_once(conn, blob, today=date(2026, 10, 2))
-    return conn
 
 
 def test_build_and_publish(loaded, os_url):

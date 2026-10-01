@@ -2,7 +2,7 @@ import re
 import unicodedata
 from datetime import date
 
-_CTRL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f​﻿]")
+_CTRL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f\u200b﻿]")
 _WS = re.compile(r"[ \t　\xa0]+")
 NOTE = re.compile(r"<(?:개정|신설|본조신설|전문개정|제목개정|일부개정|삭제|타법개정)[^<>]*>"
                   r"|\[(?:본조신설|제목개정|전문개정|본조개정|종전|시행일)[^\[\]]*\]"

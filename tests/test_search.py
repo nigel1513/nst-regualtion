@@ -4,7 +4,7 @@ from reg.llm import ProviderError
 from reg.search.indexer import build_release
 from reg.search.os import OpenSearch
 from reg.search.service import search
-from tests.test_indexer import FakeEmbedder, loaded  # noqa: F401  (fixture 재사용)
+from tests.test_indexer import FakeEmbedder
 
 
 class FakeReranker:

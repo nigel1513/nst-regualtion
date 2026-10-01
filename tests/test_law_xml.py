@@ -1,4 +1,3 @@
-from datetime import date
 from pathlib import Path
 
 from reg.structure.law_xml import parse_law_xml

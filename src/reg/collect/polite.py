@@ -5,13 +5,12 @@
 - 403, 3xx, 5xx(503 제외): 즉시 중지 / 나쁜 응답 연속 max_bad회: 중지
 """
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 import httpx
 
 from reg.settings import USER_AGENT
-
 
 MAX_INTERVAL = 30.0  # 429/503 뒤 늘린 간격의 상한 (초)
 RECOVER_AFTER = 20  # 연속 성공이 이만큼이면 기본 간격으로 되돌린다

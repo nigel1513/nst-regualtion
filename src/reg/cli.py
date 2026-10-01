@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -15,9 +14,9 @@ from reg.db.bootstrap import bootstrap
 from reg.db.conn import connect
 from reg.db.migrate import upgrade
 from reg.process import process_once, rebuild_all
-from reg.views.converter import DockerConverter
 from reg.settings import get_settings
 from reg.storage.blob import S3BlobStore
+from reg.views.converter import DockerConverter
 
 ROOT = Path(__file__).resolve().parents[2]
 app = typer.Typer(no_args_is_help=True)
@@ -126,7 +125,6 @@ def api_cmd(host: str = "0.0.0.0", port: int = 21061) -> None:
     import uvicorn
 
     from reg.api.app import create_app
-
     from reg.llm import EmbeddingProvider, LLMProvider, RerankProvider
     from reg.search.os import OpenSearch
 

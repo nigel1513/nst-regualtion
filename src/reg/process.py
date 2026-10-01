@@ -5,9 +5,9 @@ from zoneinfo import ZoneInfo
 
 from reg.extract import extract
 from reg.extract.pdf import extract_pdf
+from reg.load.loader import add_version, rebuild_work, upsert_work, work_key_for_regulation
 from reg.quality import check, record, record_reference_tasks
 from reg.refs import resolve_and_store
-from reg.load.loader import add_version, rebuild_work, upsert_work, work_key_for_regulation
 from reg.storage.blob import BlobStore
 from reg.structure.effective import resolve
 from reg.structure.law_xml import parse_law_xml

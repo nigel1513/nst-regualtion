@@ -1,4 +1,3 @@
-from reg.search.mapping import ALIAS
 from reg.search.os import OpenSearch
 
 

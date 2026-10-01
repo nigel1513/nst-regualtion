@@ -1,5 +1,4 @@
 """답변 생성과 코드 검증 (spec 8.2-6·7, 2026-10-02: 계산 가능한 판정은 코드로)."""
-import json
 import re
 
 from reg.llm import ProviderError
