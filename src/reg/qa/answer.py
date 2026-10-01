@@ -1,5 +1,4 @@
 """답변 생성과 코드 검증 (spec 8.2-6·7, 2026-10-02: 계산 가능한 판정은 코드로)."""
-import json
 import re
 
 from reg.llm import ProviderError
@@ -91,7 +90,7 @@ def _align(quote: str, text: str) -> str | None:
         return None
     span = nt[s:e]
     raw = text[pos[s]:pos[e - 1] + 1]
-    tail = re.match(r"[^\n]{0,30}?(?:다\.|$)", text[pos[e - 1] + 1:], re.M)
+    tail = re.match(r"[^\n]{0,30}?(?:다\.|$)", text[pos[e - 1] + 1:], re.MULTILINE)
     if ("\n" in raw and "\n" not in quote) or RE_NUM.findall(span) != RE_NUM.findall(nq) or \
             len(RE_NEG.findall(span + _n(tail[0] if tail else ""))) != len(RE_NEG.findall(nq)):
         return None

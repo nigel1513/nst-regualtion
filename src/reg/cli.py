@@ -247,3 +247,36 @@ def alerts_scan(no_sync: bool = typer.Option(False, "--no-sync", help="그래프
         while (st := scan_once(conn, drv))["claimed"]:
             total = {k: total[k] + st[k] for k in total}
         typer.echo(f"scan {total}")
+
+
+@alerts.command("notify")
+def alerts_notify() -> None:
+    """새 영향에 알림을 만들고, 보낼 때가 된 메일을 보낸다 (높음 즉시, 그 밖 매일 08시 이후 한 번)."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from reg.alerts.notify import SmtpMailer, build_notifications, send_due
+
+    s = get_settings()
+    conn = connect(s.database_url)
+    admins = yaml.safe_load((ROOT / "config/admins.yaml").read_text(encoding="utf-8")) or {}
+    typer.echo(f"notifications +{build_notifications(conn, admins)}")
+    now = datetime.now(ZoneInfo("Asia/Seoul")).replace(tzinfo=None)
+    typer.echo(f"send {send_due(conn, SmtpMailer(s.smtp_host, s.smtp_port, s.smtp_from), now, web=s.web_url)}")
+
+
+owners = typer.Typer(no_args_is_help=True, help="규정별 담당자")
+app.add_typer(owners, name="owners")
+
+
+@owners.command("import")
+def owners_import(path: str) -> None:
+    """CSV(work_id,email,name,org_unit,role)로 담당자를 등록·갱신한다."""
+    import csv
+
+    from reg.alerts.notify import import_owners
+
+    s = get_settings()
+    conn = connect(s.database_url)
+    with open(path, encoding="utf-8-sig", newline="") as f:
+        typer.echo(f"owners {import_owners(conn, list(csv.DictReader(f)))}")
