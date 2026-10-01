@@ -1,4 +1,5 @@
 """읽기 전용 규정 API (spec 10, NFR-02: LLM 없이 열람·검색)."""
+import threading
 from contextlib import asynccontextmanager
 from datetime import date
 from typing import Literal
@@ -13,6 +14,8 @@ from pydantic import BaseModel, Field
 from reg.api import queries as Q
 from reg.storage.blob import BlobStore
 
+QA_SLOTS = 3  # 동시에 생성하는 답변 수 (vLLM 한 대, DB 풀 8개 중 일부만 쓴다)
+
 
 class QaIn(BaseModel):
     question: str = Field(min_length=2, max_length=500)
@@ -23,7 +26,7 @@ class QaIn(BaseModel):
 
 class FeedbackIn(BaseModel):
     feedback: Literal["helpful", "not_helpful"]
-    reason: str | None = None
+    reason: str | None = Field(None, max_length=300)
 
 
 def create_app(dsn: str, blob: BlobStore, search_deps: dict | None = None) -> FastAPI:
@@ -37,6 +40,7 @@ def create_app(dsn: str, blob: BlobStore, search_deps: dict | None = None) -> Fa
 
     app = FastAPI(title="NST 규정·법령 API", version="0.3", lifespan=lifespan)
     app.state.pool = pool
+    app.state.qa_slots = threading.BoundedSemaphore(QA_SLOTS)
     app.state.blob = blob
     app.state.search = search_deps or {}
 
@@ -130,14 +134,20 @@ def create_app(dsn: str, blob: BlobStore, search_deps: dict | None = None) -> Fa
                       as_of.isoformat() if as_of else None, kind, rerank, size)
 
     @app.post("/api/v1/qa")
-    def qa(body: QaIn, c=Depends(conn)):
+    def qa(body: QaIn):
         from reg.qa.service import ask
 
         deps = app.state.search
         if not deps or deps["os"].alias_target() is None:
             raise HTTPException(503, "검색 색인이 아직 없습니다")
-        return ask(c, deps, body.question, body.institution, body.user_institution,
-                   body.as_of.isoformat() if body.as_of else None)
+        # 답변 생성은 GPU 한 대를 나눠 쓴다: 동시에 QA_SLOTS개까지만 받고, DB 연결은 단계마다 잠깐씩만 빌린다
+        if not app.state.qa_slots.acquire(blocking=False):
+            raise HTTPException(429, "질의가 몰려 있습니다. 잠시 후 다시 시도해 주세요")
+        try:
+            return ask(app.state.pool, deps, body.question, body.institution, body.user_institution,
+                       body.as_of.isoformat() if body.as_of else None)
+        finally:
+            app.state.qa_slots.release()
 
     @app.post("/api/v1/qa/{qa_id}/feedback")
     def qa_feedback(qa_id: int, body: FeedbackIn, c=Depends(conn)):

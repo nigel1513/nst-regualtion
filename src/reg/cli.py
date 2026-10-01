@@ -129,9 +129,10 @@ def api_cmd(host: str = "0.0.0.0", port: int = 21061) -> None:
     from reg.search.os import OpenSearch
 
     s = get_settings()
-    deps = {"os": OpenSearch(s.os_url), "embedder": EmbeddingProvider(s.embed_url, s.embed_model),
-            "reranker": RerankProvider(s.rerank_url, s.rerank_model),
-            "llm": LLMProvider(s.llm_url, s.llm_model), "llm_model": s.llm_model}
+    # 질의 시점: 임베딩이 안 되면 바로 BM25로 넘어가도록 짧게, 답변 생성은 프록시 제한(60초) 안에서 끝나도록
+    deps = {"os": OpenSearch(s.os_url), "embedder": EmbeddingProvider(s.embed_url, s.embed_model, timeout=5, tries=1),
+            "reranker": RerankProvider(s.rerank_url, s.rerank_model, timeout=10),
+            "llm": LLMProvider(s.llm_url, s.llm_model, timeout=25), "llm_model": s.llm_model}
     uvicorn.run(create_app(s.database_url, _blob(), deps), host=host, port=port, log_level="info")
 
 
@@ -189,7 +190,9 @@ def eval_qa(limit: int = typer.Option(None, help="앞에서 N문항만"),
     lines = [f"# 질의응답 평가 ({datetime.now():%Y-%m-%d %H:%M})", "",
              f"- 모델: {s.llm_model} · 임베딩 {s.embed_model} · 리랭커 {s.rerank_model} · 문항 {r['n']}개", "",
              "| 지표 | 값 | 목표 (spec 12) |", "|---|---|---|",
-             f"| 상태 일치율 | {r['status_acc']} | - |", f"| 근거 적중률 (기대 조문이 근거 1·2위) | {r['citation_hit']} | ≥ 0.90 |",
+             f"| 상태 일치율 | {r['status_acc']} | - |", f"| 인용 정확도 (답변이 인용한 조문이 기대 조문) | {r['citation_hit']} | ≥ 0.90 |",
+             f"| 검색 적중률 (기대 조문이 근거 1·2위) | {r['retrieval_hit']} | - |",
+             f"| 숫자 일치율 | {r['numbers_rate']} | 1.00 |", f"| 결론-설명 일관성 | {r['consistency_rate']} | 1.00 |",
              f"| 결론 정확도 | {r['verdict_acc']} | ≥ 0.85 |", f"| 기관 되묻기 정확도 | {r['need_institution_acc']} | 1.00 |",
              f"| p95 응답 시간(ms) | {r['p95_latency_ms']} | < 10000 |", "",
              "| 문항 | 기대 상태 | 실제 상태 | 근거 | 결론 | 근거 1위 |", "|---|---|---|---|---|---|"]

@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { QaEvidence, QaResult } from "@/lib/api";
 import { workHref } from "@/lib/api";
 import { fmtDate, REL_LABEL } from "@/lib/format";
 
-type Turn = { question: string; result?: QaResult; error?: string; pending?: boolean };
+type Turn = { id: number; question: string; result?: QaResult; error?: string; pending?: boolean };
 type Inst = { code: string; name: string };
 
 const VERDICT_CHIP: Record<string, string> = { 미충족: "chip-red", 조건부: "chip-amber", 충족: "chip-green", 판단불가: "" };
@@ -122,15 +122,21 @@ export function QaChat({ institutions }: { institutions: Inst[] }) {
   const [text, setText] = useState("");
   const [inst, setInst] = useState<string | null>(null);
 
-  const ask = async (question: string, institution: string | null) => {
-    setTurns((t) => [...t, { question, pending: true }]);
+  const nextId = useRef(0);
+  // 응답은 순서가 뒤바뀌어 올 수 있어 마지막 칸이 아니라 질문마다 붙인 id로 채운다.
+  // 기관을 골라 다시 물을 때(replace)는 되묻기 칸을 그 자리에서 답으로 바꾼다.
+  const ask = async (question: string, institution: string | null, replace?: number) => {
+    const id = replace ?? nextId.current++;
+    const fill = (patch: Omit<Turn, "id" | "question">) =>
+      setTurns((t) => t.map((x) => x.id === id ? { id, question, ...patch } : x));
+    setTurns((t) => replace === undefined ? [...t, { id, question, pending: true }] : t.map((x) => x.id === id ? { id, question, pending: true } : x));
     try {
       const res = await fetch("/api/v1/qa", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question, ...(institution ? { institution } : {}) }) });
-      const body = await res.json();
-      setTurns((t) => t.map((x, i) => i === t.length - 1 ? { question, ...(res.ok ? { result: body as QaResult } : { error: body.detail ?? "오류가 발생했습니다" }) } : x));
+      const body = await res.json().catch(() => ({}));
+      fill(res.ok ? { result: body as QaResult } : { error: body.detail ?? "오류가 발생했습니다" });
     } catch {
-      setTurns((t) => t.map((x, i) => i === t.length - 1 ? { question, error: "서버에 연결하지 못했습니다" } : x));
+      fill({ error: "서버에 연결하지 못했습니다" });
     }
   };
   const submit = (e: React.FormEvent) => {
@@ -142,12 +148,12 @@ export function QaChat({ institutions }: { institutions: Inst[] }) {
   };
   return (
     <div className="flex flex-col gap-4">
-      {turns.map((t, i) => (
-        <div key={i} className="flex flex-col gap-3">
+      {turns.map((t) => (
+        <div key={t.id} className="flex flex-col gap-3">
           <div className="max-w-[78%] self-end rounded-[14px_14px_4px_14px] bg-[var(--ink)] px-4 py-3 text-[15px] leading-relaxed text-white">{t.question}</div>
           {t.pending && <p className="text-sm text-[var(--muted)]" aria-live="polite">근거를 찾고 있습니다…</p>}
           {t.error && <p className="text-sm text-[var(--red)]">{t.error}</p>}
-          {t.result && <ResultView r={t.result} institutions={institutions} onPick={(code) => { setInst(code); void ask(t.question, code); }} />}
+          {t.result && <ResultView r={t.result} institutions={institutions} onPick={(code) => { setInst(code); void ask(t.question, code, t.id); }} />}
         </div>
       ))}
       <form onSubmit={submit} className="flex gap-2 rounded-[14px] border border-[var(--line-strong)] bg-white p-2">

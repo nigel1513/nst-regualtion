@@ -61,3 +61,34 @@ def test_answered_with_code_verdict_and_log(loaded, deps):
 def test_llm_down_gives_evidence_only(loaded, deps):
     r = ask(loaded, {**deps, "llm": SeqLLM(None, fail=True)}, "천문연 출장 증빙 제출 기한이 며칠인가요")
     assert r["status"] == "evidence_only" and r["evidence"] and r["answer"] is None
+
+
+class CountingPool:
+    """연결 대여 수를 센다: LLM 호출 중에는 DB 연결을 잡고 있지 않아야 한다 (API 풀 고갈 방지)."""
+    def __init__(self, conn):
+        self.conn, self.out = conn, 0
+
+    def connection(self):
+        from contextlib import contextmanager
+
+        @contextmanager
+        def cm():
+            self.out += 1
+            try:
+                yield self.conn
+            finally:
+                self.out -= 1
+        return cm()
+
+
+def test_db_connection_is_not_held_during_llm_calls(loaded, deps):
+    pool = CountingPool(loaded)
+    held = []
+
+    class Watch(SeqLLM):
+        def regex(self, messages, pattern, **kw):
+            held.append(pool.out)
+            return super().regex(messages, pattern, **kw)
+
+    r = ask(pool, {**deps, "llm": Watch(good(loaded))}, "천문연 출장 10일 지났어요")
+    assert r["status"] == "answered" and held and set(held) == {0}

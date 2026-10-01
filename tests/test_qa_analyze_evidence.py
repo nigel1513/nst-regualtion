@@ -66,3 +66,26 @@ def test_calendar_dates_are_not_elapsed_days():
     assert a.elapsed_days in (None, 5)
     assert analyze(None, "2024년 3월 15일이 지났는데 정산 기한은?").elapsed_days is None
     assert analyze(None, "출장 다녀온 지 10일 지났어요").elapsed_days == 10
+
+
+def test_cross_work_citation_uses_the_version_valid_at_as_of(conn, tmp_path):
+    from reg.collect.archive import store
+    from reg.collect.sniff import FileKind
+    from reg.load.loader import add_version, rebuild_work, upsert_work
+    from reg.qa.evidence import _version_at
+    from reg.structure.effective import Effective
+    from reg.structure.model import ParsedDoc, Prov
+
+    blob = LocalBlobStore(tmp_path)
+    upsert_work(conn, "kr/law/L9", "법률", "가상법", None, {})
+    vids = []
+    for d, tag in ((date(2020, 1, 1), b"a"), (date(2025, 1, 1), b"b")):
+        sid = store(conn, blob, source="alio", url="u", content=b"%PDF" + tag, kind=FileKind("application/pdf", "pdf"),
+                    meta={}).id
+        vids.append(add_version(conn, "kr/law/L9", sid, ParsedDoc("가상법", None, [], [Prov("a1", "article", "제1조", None, "x")]),
+                                Effective(d, "api", "CONFIRMED", d)))
+    rebuild_work(conn, "kr/law/L9", date(2026, 10, 2))
+    assert _version_at(conn, "kr/law/L9", None) == vids[1]
+    assert _version_at(conn, "kr/law/L9", "2023-06-01") == vids[0]
+    assert _version_at(conn, "kr/law/L9", "2019-01-01") is None
+    assert _version_at(conn, "kr/law/L9", None, release_id="99") is None  # 색인 release 밖의 버전은 쓰지 않는다

@@ -36,13 +36,21 @@ def _version_meta(conn, version_id: str) -> dict | None:
                         (version_id,)).fetchone()
 
 
-def _current_version(conn, work_id: str) -> str | None:
-    r = conn.execute("SELECT id FROM regulation.work_version WHERE work_id = %s AND version_state = 'CURRENT'",
-                     (work_id,)).fetchone()
+def _version_at(conn, work_id: str, as_of: str | None, release_id: int | str | None = None) -> str | None:
+    """참조 대상 규범문서의 버전: 기준일이 없으면 현행, 있으면 그날 시행 중이던 버전 (색인 release 안에서)."""
+    rel = (" AND id IN (SELECT work_version_id FROM regulation.release_item WHERE release_id = %(rel)s)"
+           if release_id is not None else "")
+    if as_of is None:
+        q = "SELECT id FROM regulation.work_version WHERE work_id = %(w)s AND version_state = 'CURRENT'" + rel
+    else:
+        q = ("SELECT id FROM regulation.work_version WHERE work_id = %(w)s AND effective_from <= %(d)s" + rel +
+             " ORDER BY effective_from DESC, id DESC LIMIT 1")
+    r = conn.execute(q, {"w": work_id, "d": as_of, "rel": int(release_id) if release_id is not None else None}).fetchone()
     return r["id"] if r else None
 
 
-def expand(conn, hits: list[dict], limit_articles: int = 4, budget: int = 8000) -> list[Evidence]:
+def expand(conn, hits: list[dict], limit_articles: int = 4, budget: int = 8000, as_of: str | None = None,
+           release_id: int | str | None = None) -> list[Evidence]:
     out: list[Evidence] = []
     seen: set[tuple[str, str]] = set()
     used = 0
@@ -84,7 +92,7 @@ def expand(conn, hits: list[dict], limit_articles: int = 4, budget: int = 8000) 
             " FROM regulation.reference r WHERE r.source_pv_id = ANY(%s) AND r.resolution = 'RESOLVED'"
             " AND r.target_kind = 'PROVISION' LIMIT 3", (pv_ids,)).fetchall()
         for c in cites:
-            vid = h["version_id"] if c["target_work_id"] == h["work_id"] else _current_version(conn, c["target_work_id"])
+            vid = h["version_id"] if c["target_work_id"] == h["work_id"] else _version_at(conn, c["target_work_id"], as_of, release_id)
             if vid and c["art"] != art:
                 add(vid, c["art"], "cited", c["rel_type"])
     return out

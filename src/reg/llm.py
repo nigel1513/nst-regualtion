@@ -25,15 +25,17 @@ def _post(url: str, body: dict, timeout: float, tries: int, wait: float) -> dict
 
 
 class EmbeddingProvider:
-    def __init__(self, url: str, model: str, timeout: float = 60.0, batch: int = 64, retry_wait: float = 2.0):
+    def __init__(self, url: str, model: str, timeout: float = 60.0, batch: int = 64, retry_wait: float = 2.0,
+                 tries: int = 3):
         self.url, self.model, self.timeout, self.batch, self.retry_wait = url.rstrip("/"), model, timeout, batch, retry_wait
+        self.tries = tries
         self.dim: int | None = None
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         out: list[list[float]] = []
         for i in range(0, len(texts), self.batch):
             part = texts[i:i + self.batch]
-            data = _post(f"{self.url}/v1/embeddings", {"model": self.model, "input": part}, self.timeout, 3,
+            data = _post(f"{self.url}/v1/embeddings", {"model": self.model, "input": part}, self.timeout, self.tries,
                          self.retry_wait)["data"]
             out.extend(d["embedding"] for d in sorted(data, key=lambda d: d["index"]))
         if out:

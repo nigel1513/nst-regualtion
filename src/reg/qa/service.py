@@ -1,6 +1,7 @@
 """질의응답 흐름 (spec 8.2): 마스킹 → 기관 → 분석 → 검색 → 근거 확장 → 생성·검증 → 로그."""
 import json
 import time
+from contextlib import nullcontext
 from dataclasses import asdict
 
 from reg.qa.analyze import analyze
@@ -11,6 +12,11 @@ from reg.qa.mask import mask_pii
 from reg.search.service import search
 
 MIN_SCORE = 0.3
+
+
+def _db(db):
+    """연결 또는 연결 풀. 풀이면 DB 단계마다 잠깐 빌리고, LLM·검색을 기다리는 동안에는 돌려준다."""
+    return nullcontext(db) if hasattr(db, "execute") else db.connection()
 
 
 def _institutions(conn) -> list[dict]:
@@ -32,7 +38,7 @@ def _log(conn, q: str, res: dict, user_inst, latency_ms: int, model: str | None,
     return row["id"]
 
 
-def ask(conn, deps: dict, question: str, institution: str | None = None, user_institution: str | None = None,
+def ask(db, deps: dict, question: str, institution: str | None = None, user_institution: str | None = None,
         as_of: str | None = None) -> dict:
     t0 = time.monotonic()
     q = mask_pii(question.strip())
@@ -41,11 +47,17 @@ def ask(conn, deps: dict, question: str, institution: str | None = None, user_in
                            else None) or (None if mention else user_institution)
     res = {"status": "", "institution": inst, "as_of": as_of, "question_type": None, "evidence": [], "answer": None,
            "verification": None, "verdict_source": None, "release_id": None, "note": None}
+
+    def ms() -> int:
+        return int((time.monotonic() - t0) * 1000)
+
     if not inst:
-        res.update(status="need_institution", options=[{"code": i["code"], "name": i["name"]} for i in _institutions(conn)],
-                   note="질문과 소속 기관이 달라 확인이 필요합니다" if mention and user_institution else
-                   "어느 기관 규정 기준으로 볼까요? 기관마다 기한이 다릅니다.")
-        res["id"] = _log(conn, q, res, user_institution, int((time.monotonic() - t0) * 1000), None, [])
+        with _db(db) as conn:
+            res.update(status="need_institution",
+                       options=[{"code": i["code"], "name": i["name"]} for i in _institutions(conn)],
+                       note="질문과 소속 기관이 달라 확인이 필요합니다" if mention and user_institution else
+                       "어느 기관 규정 기준으로 볼까요? 기관마다 기한이 다릅니다.")
+            res["id"] = _log(conn, q, res, user_institution, ms(), None, [])
         return res
     a = analyze(deps.get("llm"), q)
     res["question_type"] = a.question_type
@@ -59,11 +71,15 @@ def ask(conn, deps: dict, question: str, institution: str | None = None, user_in
                  for h in hits]
     top = hits[0].get("rerank_score", 1.0) if hits else 0.0
     if not hits or (found["reranked"] and top < MIN_SCORE):
-        res.update(status="not_found", note="관련 규정을 찾지 못했습니다. 아래는 가까운 후보입니다.",
-                   evidence=[asdict(e) for e in expand(conn, hits[:5], limit_articles=5)])
-        res["id"] = _log(conn, q, res, user_institution, int((time.monotonic() - t0) * 1000), None, retrieved)
+        with _db(db) as conn:
+            res.update(status="not_found", note="관련 규정을 찾지 못했습니다. 아래는 가까운 후보입니다.",
+                       evidence=[asdict(e) for e in expand(conn, hits[:5], limit_articles=5, as_of=as_of,
+                                                           release_id=found["release_id"])])
+            res["id"] = _log(conn, q, res, user_institution, ms(), None, retrieved)
         return res
-    evidence = expand(conn, hits)
+    with _db(db) as conn:
+        evidence = expand(conn, hits, as_of=as_of, release_id=found["release_id"])
+        conn.commit()  # 풀에 돌려줄 때 열린 트랜잭션이 남지 않게
     res["evidence"] = [asdict(e) for e in evidence]
     gen = generate(deps["llm"], q, a, evidence) if deps.get("llm") else \
         {"answer": None, "verification": {"ok": False, "problems": ["llm_unavailable"]}, "verdict_source": None}
@@ -71,6 +87,6 @@ def ask(conn, deps: dict, question: str, institution: str | None = None, user_in
                status="answered" if gen["answer"] else "evidence_only")
     if not gen["answer"]:
         res["note"] = "자동 설명을 만들지 못해 근거 조문만 보여드립니다."
-    res["id"] = _log(conn, q, res, user_institution, int((time.monotonic() - t0) * 1000), deps.get("llm_model"),
-                     retrieved)
+    with _db(db) as conn:
+        res["id"] = _log(conn, q, res, user_institution, ms(), deps.get("llm_model"), retrieved)
     return res
