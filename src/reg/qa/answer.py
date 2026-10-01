@@ -24,7 +24,6 @@ RE_NUM = re.compile(r"\d+(?:\.\d+)?")
 RE_QTY = re.compile(r"(\d+(?:\.\d+)?)\s*(주일|개월|만원|천원|원|일|주|월|년|회|시간|%|조|항|호)?")
 BAD_OK = re.compile(r"기한을\s*넘|기한이\s*지났|기한을\s*지나|초과하였|위반|늦었")
 QUOTE_MIN = 0.85  # 인용문 글자 중 원문 구간과 일치해야 하는 비율
-QUOTE_SPAN = 1.3  # 맞춘 원문 구간은 인용문 길이의 이 배수를 넘지 않는다 (여러 문장을 엮어 맞추지 않게)
 RE_NEG = re.compile(r"아니|않|없|못")
 BAD_NG = re.compile(r"문제없|문제가 없|충족합니다|기한\s*(?:내|안)에\s*있|기한\s*안입니다")
 
@@ -42,25 +41,32 @@ def _limits(text: str) -> set:
     return out
 
 
-def deadline_verdict(elapsed_days: int | None, quotes: list[str]) -> tuple[str, int] | None:
-    """기한이 하나뿐이고 일 단위일 때만 코드가 판정한다. 여러 기한(본문·단서)이나 개월 단위는 판정하지 않는다."""
+def deadline_verdict(elapsed_days: int | None, quotes: list[str]) -> tuple[str, int | str] | None:
+    """기한이 하나뿐일 때만 코드가 판정한다. 여러 기한(본문·단서)이 섞이면 판정하지 않는다.
+
+    N개월은 달력에 따라 28N~31N일이므로 그 범위 밖일 때만 충족/미충족이고, 범위 안이면 조건부다."""
     if elapsed_days is None:
         return None
     for q in quotes:
         lims = _limits(q)
         if not lims:
             continue
-        if len(lims) > 1 or not isinstance(next(iter(lims)), int):
+        if len(lims) > 1:
             return None
         limit = next(iter(lims))
-        return ("미충족" if elapsed_days > limit else "충족", limit)
+        if isinstance(limit, int):
+            return ("미충족" if elapsed_days > limit else "충족", limit)
+        n = limit[1]
+        verdict = "충족" if elapsed_days <= 28 * n else "미충족" if elapsed_days > 31 * n else "조건부"
+        return (verdict, f"{n}개월")
     return None
 
 
 def _align(quote: str, text: str) -> str | None:
     """공백을 무시하고 인용문과 가장 잘 맞는 원문 구간을 찾는다. 충분히 일치하면 원문 그대로의 구간을 돌려준다.
 
-    숫자와 부정 표현(아니·않·없·못)이 다르거나 구간이 지나치게 길면 뜻이 달라질 수 있어 받지 않는다."""
+    줄여 쓴 인용(중간 수식어 생략)은 받되, 문단을 넘거나 숫자·부정 표현(아니·않·없·못)이 달라지면 뜻이 바뀔 수
+    있어 받지 않는다. 부정 표현은 구간이 끝나는 문장 끝까지 본다 ('지급하' + '지 아니한다')."""
     from difflib import SequenceMatcher
 
     nq = _n(quote)
@@ -70,15 +76,26 @@ def _align(quote: str, text: str) -> str | None:
         return None
     if (at := nt.find(nq)) >= 0:
         return text[pos[at]:pos[at + len(nq) - 1] + 1]
-    blocks = [b for b in SequenceMatcher(None, nq, nt, autojunk=False).get_matching_blocks() if b.size >= 3]
-    if not blocks or sum(b.size for b in blocks) / len(nq) < QUOTE_MIN:
+    width = 2 * len(nq) + 40
+    best = (0.0, 0, 0)
+    starts = {max(0, b.b - b.a) for b in SequenceMatcher(None, nq, nt, autojunk=False).get_matching_blocks()
+              if b.size >= 3}
+    for st in starts:  # 인용문 첫머리에 맞춘 창마다 겹치는 정도를 재고 가장 잘 맞는 창을 고른다
+        win = nt[st:st + width]
+        blocks = [b for b in SequenceMatcher(None, nq, win, autojunk=False).get_matching_blocks() if b.size >= 3]
+        cov = sum(b.size for b in blocks) / len(nq)
+        if blocks and cov > best[0]:
+            best = (cov, st + blocks[0].b, st + blocks[-1].b + blocks[-1].size)
+    cov, s, e = best
+    if cov < QUOTE_MIN:
         return None
-    s, e = blocks[0].b, blocks[-1].b + blocks[-1].size
     span = nt[s:e]
-    if (len(span) > len(nq) * QUOTE_SPAN or RE_NUM.findall(span) != RE_NUM.findall(nq)
-            or len(RE_NEG.findall(span)) != len(RE_NEG.findall(nq))):
+    raw = text[pos[s]:pos[e - 1] + 1]
+    tail = re.match(r"[^\n]{0,30}?(?:다\.|$)", text[pos[e - 1] + 1:], re.M)
+    if ("\n" in raw and "\n" not in quote) or RE_NUM.findall(span) != RE_NUM.findall(nq) or \
+            len(RE_NEG.findall(span + _n(tail[0] if tail else ""))) != len(RE_NEG.findall(nq)):
         return None
-    return text[pos[s]:pos[e - 1] + 1]
+    return raw
 
 
 def _qty(text: str) -> set[tuple[str, str]]:
@@ -145,7 +162,7 @@ def _parse(text: str, pattern: str) -> dict:
     if m is None:
         raise ProviderError("LLM 응답이 형식에 맞지 않음")
     check = m[5].strip()
-    return {"결론": m[1], "근거": [{"id": m[2], "인용": m[3].strip().strip('"“”\'')}], "설명": m[4].strip(),
+    return {"결론": m[1], "근거": [{"id": m[2], "인용": re.sub(r"\s*\(?E\d+\)?$", "", m[3].strip()).strip('"“”\'')}], "설명": m[4].strip(),
             "확인_필요": [] if check in ("없음", "없음.") else [check], "문의처": m[6].strip()}
 
 
@@ -172,10 +189,16 @@ def _code_verdict(ans: dict, analysis, evidence: list[Evidence]) -> bool:
     verdict, limit = got
     quote = _deadline_sentence(target.text) or target.text[:160]  # 판정 근거 문장은 코드가 원문에서 뽑는다
     ans["근거"] = [{"id": target.id, "인용": quote}] + [c for c in ans["근거"] if c["id"] != target.id]
-    lead = (f"{target.title} {target.label}의 기한은 {limit}일 이내이고 질문 상황은 {analysis.elapsed_days}일이 지나 "
-            "기한을 넘겼습니다.")
-    if verdict == "충족":
-        lead = f"{target.title} {target.label}의 기한은 {limit}일 이내이며 질문 상황({analysis.elapsed_days}일째)은 기한 안입니다."
+    span = f"{limit}일" if isinstance(limit, int) else limit
+    head = f"{target.title} {target.label}의 기한은 {span} 이내"
+    if verdict == "미충족":
+        lead = f"{head}이고 질문 상황은 {analysis.elapsed_days}일이 지나 기한을 넘겼습니다."
+    elif verdict == "충족":
+        lead = f"{head}이며 질문 상황({analysis.elapsed_days}일째)은 기한 안입니다."
+    else:
+        n = int(span.removesuffix("개월"))
+        lead = (f"{head}입니다. {span}은 달에 따라 {28 * n}~{31 * n}일이어서 질문 상황({analysis.elapsed_days}일째)은 "
+                "기산일과 달력 날짜로 확인해야 합니다.")
     # LLM이 다른 결론을 냈다면 그 설명은 코드 판정과 어긋나므로 쓰지 않는다
     ans["설명"] = lead if ans["결론"] != verdict else lead + " " + ans["설명"]
     ans["결론"] = verdict
@@ -186,7 +209,8 @@ def _derived_numbers(analysis, evidence: list[Evidence]) -> set[str]:
     """계산으로 나온 숫자(경과 일수, 'N주일'의 일수 환산)는 설명에 써도 된다."""
     out = {str(analysis.elapsed_days)} if analysis.elapsed_days is not None else set()
     for e in evidence:
-        out |= {str(x) for x in _limits(e.text) if isinstance(x, int)}
+        for x in _limits(e.text):
+            out |= {str(x)} if isinstance(x, int) else {str(28 * x[1]), str(31 * x[1])}
     return out
 
 

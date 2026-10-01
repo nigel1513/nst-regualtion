@@ -1,6 +1,7 @@
 """질의 분석 (spec 8.2-1): 기관·기간·기준일은 규칙, 질문 유형·검색어 확장은 LLM."""
 import re
 from dataclasses import dataclass, field
+from datetime import date
 
 from reg.llm import ProviderError
 from reg.qa.institutions import resolve_mention
@@ -11,6 +12,7 @@ SCHEMA = {"type": "object", "required": ["question_type", "terms"], "properties"
     "terms": {"type": "array", "items": {"type": "string"}, "maxItems": 6}}}
 RE_DAYS = re.compile(r"(?<![\d월])(?<!월\s)(\d{1,3})\s*일\s*(?:이|가)?\s*(?:지났|경과|됐|되었|넘었|넘|지나)")
 RE_WEEKS = re.compile(r"(\d{1,2})\s*주\s*(?:일)?\s*(?:이|가)?\s*(?:지났|경과|됐|되었|넘었|넘|지나)")
+RE_MD = re.compile(r"(\d{1,2})\s*월\s*(\d{1,2})\s*일")
 RE_DATE = re.compile(r"(\d{4})\s*(?:년|\.)\s*(\d{1,2})\s*(?:월|\.)\s*(\d{1,2})\s*(?:일|\.)?")
 
 # 질문에 흔한 말 → 규정 본문에 쓰이는 말 (LLM 없이도 검색어를 넓힌다)
@@ -43,6 +45,13 @@ def analyze(llm, question: str) -> Analysis:
         days = int(m[1])
     elif m := RE_WEEKS.search(question):
         days = int(m[1]) * 7
+    elif len(md := RE_MD.findall(question)) >= 2:  # '9월 20일에 끝났고 오늘이 9월 25일' → 5일
+        try:
+            (m1, d1), (m2, d2) = md[0], md[-1]
+            diff = (date(2001, int(m2), int(d2)) - date(2001, int(m1), int(d1))).days
+            days = diff if 0 < diff <= 366 else None
+        except ValueError:
+            pass
     as_of = None
     if m := RE_DATE.search(question):
         as_of = f"{int(m[1]):04d}-{int(m[2]):02d}-{int(m[3]):02d}"

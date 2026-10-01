@@ -1,4 +1,5 @@
 from reg.qa.analyze import Analysis
+from reg.qa.analyze import analyze
 from reg.qa.answer import deadline_verdict, generate, verify
 from reg.qa.evidence import Evidence
 from tests.test_qa_analyze_evidence import FakeLLM
@@ -123,7 +124,7 @@ def test_fallback_never_uses_a_deadline_from_another_regulation():
     llm = FakeLLM({"결론": "충족", "근거": [{"id": "E1", "인용": "과제 종료 후 1개월 이내에 결과보고서를 제출하여야 한다"}],
                    "설명": "1개월 이내 제출이므로 20일째인 지금은 아직 기한 안입니다.", "확인_필요": [], "문의처": "연구기획부"})
     r = generate(llm, "결과보고서 20일 지났어요", Analysis("ETRI", None, "기한", 20, []), [month, other])
-    assert r["verdict_source"] == "llm" and r["answer"]["결론"] == "충족"
+    assert r["answer"]["결론"] == "충족"  # 1개월(≥28일) 안: 다른 규정의 '15일 이내'로 판정하지 않는다
     assert [c["id"] for c in r["answer"]["근거"]] == ["E1"]
 
 
@@ -160,3 +161,30 @@ def test_question_number_cannot_pose_as_a_rule_deadline():
     bad = verify({"결론": "조건부", "근거": [{"id": "E1", "인용": "보고서는 1개월 이내에 제출하며"}],
                   "설명": "보고서는 1주일 이내에 내야 합니다.", "확인_필요": [], "문의처": "x"}, [month], set())
     assert not bad["numbers_match"]
+
+
+def test_align_accepts_an_abridged_quote_within_one_sentence():
+    from reg.qa.answer import _align
+    text = ("① 출장자는 출장 종료일부터 10일 이내에 승인권자의 결재를 받은 출장복명서를 출장복명 담당부서에 제출하여야 하며, "
+            "출장복명 담당부서는 다음 각 호와 같다. 다만, 숙박이 없는 국내출장 시에는 구두복명으로 갈음하며, 당초의 사항에 "
+            "변경이 있는 경우에는 사유서를 첨부하여 출장승인권자의 결재를 받아야 한다.")
+    span = _align("출장자는 출장 종료일부터 10일 이내에 출장복명서를 제출하여야 한다.", text)
+    assert span and span.startswith("출장자는") and "10일 이내" in span and "숙박이 없는" not in span
+
+
+def test_parse_strips_evidence_id_suffix_from_quote():
+    from reg.qa.answer import _parse, _pattern
+    out = "결론: 판단불가\n근거: E1\n인용: 이 규정은 인권보호에 관한 사항을 정함 (E1)\n설명: 근거에 반려동물 관련 규정이 없습니다.\n확인: 없음\n문의처: 총무팀"
+    assert _parse(out, _pattern(["E1"]))["근거"][0]["인용"] == "이 규정은 인권보호에 관한 사항을 정함"
+
+
+def test_month_deadline_is_judged_only_when_certain():
+    t = ["연구개발과제 종료 후 1개월 이내에 결과보고서를 제출하여야 한다."]
+    assert deadline_verdict(20, t) == ("충족", "1개월")
+    assert deadline_verdict(40, t) == ("미충족", "1개월")
+    assert deadline_verdict(30, t) == ("조건부", "1개월")  # 달에 따라 28~31일
+
+
+def test_elapsed_days_from_two_calendar_dates():
+    a = analyze(None, "출장이 9월 20일에 끝났고 오늘이 9월 25일이에요")
+    assert a.elapsed_days == 5 and a.question_type == "기한"
