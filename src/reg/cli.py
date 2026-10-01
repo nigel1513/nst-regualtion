@@ -226,3 +226,24 @@ def graph_sync() -> None:
     conn = connect(s.database_url)
     with _neo4j(s) as drv:
         typer.echo(f"graph {sync_graph(conn, drv)}")
+
+
+alerts = typer.Typer(no_args_is_help=True, help="개정 영향 분석·담당자 알림")
+app.add_typer(alerts, name="alerts")
+
+
+@alerts.command("scan")
+def alerts_scan(no_sync: bool = typer.Option(False, "--no-sync", help="그래프 재투영 없이 스캔")) -> None:
+    """그래프를 현행 기준으로 다시 투영한 뒤 대기 중인 개정 이벤트의 영향을 분석한다."""
+    from reg.alerts.scan import scan_once
+    from reg.graph.sync import sync_graph
+
+    s = get_settings()
+    conn = connect(s.database_url)
+    with _neo4j(s) as drv:
+        if not no_sync:
+            typer.echo(f"graph {sync_graph(conn, drv)}")
+        total = {"claimed": 0, "ok": 0, "failed": 0, "impacts": 0}
+        while (st := scan_once(conn, drv))["claimed"]:
+            total = {k: total[k] + st[k] for k in total}
+        typer.echo(f"scan {total}")

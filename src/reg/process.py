@@ -3,6 +3,7 @@ import json
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
+from reg import outbox
 from reg.extract import extract
 from reg.extract.pdf import extract_pdf
 from reg.load.loader import add_version, rebuild_work, upsert_work, work_key_for_regulation
@@ -50,6 +51,25 @@ def rebuild_all(conn) -> int:
     n = conn.execute("UPDATE regulation.outbox SET processed_at = NULL, attempts = 0, last_error = NULL"
                      " WHERE topic = ANY(%s)", (list(TOPICS),)).rowcount
     conn.commit()
+    return n
+
+
+def emit_version_events(conn, work_id: str) -> int:
+    """이번 트랜잭션에서 더한 버전 중 기존 버전들보다 시행일이 늦은 것마다 regulation.version_loaded를 남긴다.
+
+    처음 적재(기존 버전 없음)나 과거 버전의 뒤늦은 수집은 개정이 아니므로 남기지 않는다. 묶음 처리는 한 트랜잭션이라
+    created_at = now()이면 이번 묶음에서 더한 버전이다."""
+    rows = conn.execute("SELECT id, effective_from, created_at = now() AS new FROM regulation.work_version"
+                        " WHERE work_id = %s", (work_id,)).fetchall()
+    old = [r["effective_from"] for r in rows if not r["new"]]
+    if not old:
+        return 0
+    latest = max((d for d in old if d), default=date.min)
+    n = 0
+    for r in sorted((r for r in rows if r["new"] and r["effective_from"] and r["effective_from"] > latest),
+                    key=lambda r: r["effective_from"]):
+        outbox.write(conn, "regulation.version_loaded", {"work_id": work_id, "version_id": r["id"]})
+        n += 1
     return n
 
 
@@ -153,6 +173,7 @@ def process_once(conn, blob: BlobStore, limit: int = 100, today: date | None = N
                         rebuild_work(conn, wid, today)
                         resolve_and_store(conn, wid)
                         record_reference_tasks(conn, wid)
+                        emit_version_events(conn, wid)
                     for ev, (wid, vid, doc, eff) in done:
                         record(conn, wid, vid, check(doc, eff))
                         conn.execute("UPDATE regulation.outbox SET processed_at = now(), claimed_at = now(),"
