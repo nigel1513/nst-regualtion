@@ -14,6 +14,7 @@ from reg.collect.runs import db_logger, finish_run, open_log_conn, start_run
 from reg.db.bootstrap import bootstrap
 from reg.db.conn import connect
 from reg.db.migrate import upgrade
+from reg.process import process_once
 from reg.settings import get_settings
 from reg.storage.blob import S3BlobStore
 
@@ -95,3 +96,17 @@ def collect_law() -> None:
         names = yaml.safe_load((ROOT / "config/laws.yaml").read_text(encoding="utf-8"))
         return sync_laws(conn, client, _blob(), names)
     _run("lawgo", None, body)
+
+
+@app.command("process")
+def process_cmd(limit: int = typer.Option(100, help="한 번에 처리할 이벤트 수"),
+                all_: bool = typer.Option(False, "--all", help="남은 이벤트가 없을 때까지 반복")) -> None:
+    def body(conn, log):
+        total = {"claimed": 0, "ok": 0, "failed": 0, "parked": 0}
+        while True:
+            st = process_once(conn, _blob(), limit=limit)
+            for k in total:
+                total[k] += st[k]
+            if not all_ or st["claimed"] == 0 or st["ok"] == 0:
+                return total
+    _run("process", None, body)

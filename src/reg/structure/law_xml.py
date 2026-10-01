@@ -65,10 +65,12 @@ def parse_law_xml(data: bytes) -> ParsedDoc:
                 parent = f"{key}.p{'①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳'.index(hno[0]) + 1}"
                 add(Prov(parent, "paragraph", hno[0], parent=key), _strip_marker(_txt(h, "항내용"), hno))
             for ho in h.findall("호"):
-                hono = _txt(ho, "호번호")
+                body = _txt(ho, "호내용")
+                head = re.match(r"(\d+)(?:의(\d+))?\.", body)  # 가지호(5의2)는 호번호가 아니라 본문 머리에만 있다
+                hono = head[0] if head else _txt(ho, "호번호")
                 m = re.match(r"(\d+)(?:의(\d+))?", hono)
                 ikey = f"{parent}.i{int(m[1])}" + (f"-{int(m[2])}" if m and m[2] else "") if m else f"{parent}.i?"
-                add(Prov(ikey, "item", hono, parent=parent), _strip_marker(_txt(ho, "호내용"), hono))
+                add(Prov(ikey, "item", hono, parent=parent), _strip_marker(body, hono))
                 for mo in ho.findall("목"):
                     mono = _txt(mo, "목번호")
                     add(Prov(f"{ikey}.s{mono[:1]}", "subitem", mono, parent=ikey),

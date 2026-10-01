@@ -31,3 +31,11 @@ def test_law_supplements_unique_paths():
     d = doc()
     paths = [s.path for s in d.supplements()]
     assert paths and len(paths) == len(set(paths)) and paths[0] == "supp@2020-06-09"
+
+
+def test_branch_item_number_comes_from_item_text():
+    d = doc()
+    i = d.get("a2.i5-2")
+    assert i.label == "5의2." and i.text.startswith('"연구개발성과소유기관"이란')
+    paths = [p.path for p in d.provisions]
+    assert len(paths) == len(set(paths))
