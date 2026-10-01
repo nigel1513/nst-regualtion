@@ -37,7 +37,7 @@ def test_code_verdict_overrides_llm_and_consistency():
 
 def test_regenerates_once_then_gives_up():
     llm = FakeLLM({**GOOD, "근거": [{"id": "E1", "인용": "원문에 없는 문장을 인용함"}]})  # id는 형식이 막으므로 인용 불일치로
-    r = generate(llm, "q", A, E)
+    r = generate(llm, "q", Analysis("KASI", None, "정의", None, []), E)  # 기한형이 아니면 코드가 인용을 고치지 않는다
     assert r["answer"] is None and r["attempts"] == 2 and len(llm.calls) == 2
 
 
@@ -104,3 +104,9 @@ def test_unmatched_extra_citation_is_dropped_when_a_good_one_remains():
            "설명": "10일이 지나 7일 기한을 넘겼습니다.", "확인_필요": [], "문의처": "x"}
     v = verify(ans, [E[0], e2], question_numbers={"10"})
     assert v["ok"] and [c["id"] for c in ans["근거"]] == ["E1"] and v["dropped_citations"] == 1
+
+
+def test_code_verdict_replaces_quote_of_the_deadline_clause_with_source_sentence():
+    llm = FakeLLM({**GOOD, "근거": [{"id": "E1", "인용": "출장 다녀오면 일주일 안에 서류 내면 된다고 적혀 있음"}]})
+    r = generate(llm, "천문연 출장 10일 지났어요", A, E)
+    assert r["verification"]["ok"] and r["answer"]["근거"][0]["인용"] in E[0].text and "7일 이내에" in r["answer"]["근거"][0]["인용"]

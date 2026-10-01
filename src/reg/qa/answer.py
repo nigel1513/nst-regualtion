@@ -131,8 +131,8 @@ def _code_verdict(ans: dict, analysis, evidence: list[Evidence]) -> bool:
     if target is None:
         return False
     verdict, limit = deadline_verdict(analysis.elapsed_days, [target.text])
-    if target.id not in {c["id"] for c in ans["근거"]}:
-        ans["근거"].insert(0, {"id": target.id, "인용": _deadline_sentence(target.text) or target.text[:160]})
+    quote = _deadline_sentence(target.text) or target.text[:160]  # 판정 근거 문장은 코드가 원문에서 뽑는다
+    ans["근거"] = [{"id": target.id, "인용": quote}] + [c for c in ans["근거"] if c["id"] != target.id]
     ans["결론"] = verdict
     lead = (f"{target.title} {target.label}의 기한은 {limit}일 이내이고 질문 상황은 {analysis.elapsed_days}일이 지나 "
             f"{'기한을 넘겼습니다' if verdict == '미충족' else '기한 안입니다'}.")
