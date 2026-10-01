@@ -127,7 +127,13 @@ def api_cmd(host: str = "0.0.0.0", port: int = 21061) -> None:
 
     from reg.api.app import create_app
 
-    uvicorn.run(create_app(get_settings().database_url, _blob()), host=host, port=port, log_level="info")
+    from reg.llm import EmbeddingProvider, RerankProvider
+    from reg.search.os import OpenSearch
+
+    s = get_settings()
+    deps = {"os": OpenSearch(s.os_url), "embedder": EmbeddingProvider(s.embed_url, s.embed_model),
+            "reranker": RerankProvider(s.rerank_url, s.rerank_model)}
+    uvicorn.run(create_app(s.database_url, _blob(), deps), host=host, port=port, log_level="info")
 
 
 index = typer.Typer(no_args_is_help=True, help="검색 색인(게시 버전)")

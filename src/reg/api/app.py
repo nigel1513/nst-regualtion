@@ -12,7 +12,7 @@ from reg.api import queries as Q
 from reg.storage.blob import BlobStore
 
 
-def create_app(dsn: str, blob: BlobStore) -> FastAPI:
+def create_app(dsn: str, blob: BlobStore, search_deps: dict | None = None) -> FastAPI:
     pool = ConnectionPool(dsn, min_size=1, max_size=8, kwargs={"row_factory": dict_row}, open=False)
 
     @asynccontextmanager
@@ -24,6 +24,7 @@ def create_app(dsn: str, blob: BlobStore) -> FastAPI:
     app = FastAPI(title="NST 규정·법령 API", version="0.3", lifespan=lifespan)
     app.state.pool = pool
     app.state.blob = blob
+    app.state.search = search_deps or {}
 
     def conn(request: Request):
         with request.app.state.pool.connection() as c:
@@ -102,5 +103,16 @@ def create_app(dsn: str, blob: BlobStore) -> FastAPI:
     def review_tasks(status: str = Query("OPEN", pattern="^(OPEN|RESOLVED|DISMISSED)$"), kind: str | None = None,
                      c=Depends(conn)):
         return Q.review_tasks(c, status, kind)
+
+    @app.get("/api/v1/hsearch")
+    def hsearch(q: str = Query(..., min_length=2), institution: str | None = None, as_of: date | None = None,
+                kind: str | None = Query(None, pattern="^(law|reg)$"), rerank: bool = True, size: int = Query(10, le=50)):
+        from reg.search.service import search as hybrid
+
+        deps = app.state.search
+        if not deps or deps["os"].alias_target() is None:
+            raise HTTPException(503, "검색 색인이 아직 없습니다")
+        return hybrid(deps["os"], deps["embedder"], deps.get("reranker"), q, institution,
+                      as_of.isoformat() if as_of else None, kind, rerank, size)
 
     return app
