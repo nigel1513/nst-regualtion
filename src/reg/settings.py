@@ -17,6 +17,13 @@ class Settings(BaseSettings):
     lawgo_oc: str = ""
     alio_min_interval: float = 1.5
     lawgo_min_interval: float = 1.0
+    os_url: str = "http://127.0.0.1:21067"
+    embed_url: str = "http://192.168.0.2:8002"
+    embed_model: str = "bge-m3"
+    rerank_url: str = "http://192.168.0.2:8003"
+    rerank_model: str = "bge-reranker"
+    llm_url: str = "http://192.168.0.2:8001"
+    llm_model: str = "llm"
 
 
 @lru_cache
