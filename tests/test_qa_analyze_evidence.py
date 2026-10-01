@@ -38,3 +38,10 @@ def test_expand_article_with_exception_and_citation(conn, tmp_path):
     cited = [e for e in ev if e.role == "cited"]
     assert any(e.path == "a13" for e in cited)  # ③항의 '제13조'
     assert sum(len(e.text) for e in ev) <= 8000
+
+
+def test_rule_synonyms_expand_terms_even_without_llm_and_days_force_deadline():
+    a = analyze(FakeLLM(fail=True), "천문연 출장 다녀온 지 10일 지났고 지출결의를 아직 안 했어요")
+    assert {"정산", "증빙서 제출", "여비"} <= set(a.terms)
+    b = analyze(FakeLLM({"question_type": "정의", "terms": []}), "NST 국외출장 다녀온 지 3주 지났어요")
+    assert b.question_type == "기한" and b.elapsed_days == 21

@@ -44,3 +44,25 @@ def test_regenerates_once_then_gives_up():
 def test_llm_down():
     r = generate(FakeLLM(fail=True), "q", A, E)
     assert r["answer"] is None and r["verification"]["problems"] == ["llm_unavailable"]
+
+
+class SchemaSpy(FakeLLM):
+    def json(self, messages, schema, **kw):
+        self.schema = schema
+        return super().json(messages, schema, **kw)
+
+
+def test_answer_schema_restricts_citation_ids_to_given_evidence():
+    llm = SchemaSpy(GOOD)
+    generate(llm, "천문연 출장 10일 지났어요", A, E)
+    assert llm.schema["properties"]["근거"]["items"]["properties"]["id"]["enum"] == ["E1"]
+
+
+def test_invalid_json_is_reported_as_invalid_output():
+    from reg.llm import ProviderError
+
+    class Bad(FakeLLM):
+        def json(self, *a, **k):
+            raise ProviderError("LLM 응답이 JSON이 아님")
+    r = generate(Bad(), "q", A, E)
+    assert r["verification"]["problems"] == ["llm_invalid_output"]

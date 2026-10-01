@@ -1,4 +1,5 @@
 """답변 생성과 코드 검증 (spec 8.2-6·7, 2026-10-02: 계산 가능한 판정은 코드로)."""
+import json
 import re
 
 from reg.llm import ProviderError
@@ -9,12 +10,12 @@ ANSWER_SCHEMA = {"type": "object", "required": ["결론", "근거", "설명", "�
     "결론": {"type": "string", "enum": VERDICTS},
     "근거": {"type": "array", "minItems": 1, "maxItems": 4, "items": {
         "type": "object", "required": ["id", "인용"],
-        "properties": {"id": {"type": "string"}, "인용": {"type": "string", "maxLength": 300}}}},
+        "properties": {"id": {"type": "string"}, "인용": {"type": "string", "maxLength": 160}}}},
     "설명": {"type": "string", "maxLength": 600},
     "확인_필요": {"type": "array", "items": {"type": "string", "maxLength": 200}, "maxItems": 3},
     "문의처": {"type": "string", "maxLength": 60}}}
 SYSTEM = ("너는 공공연구기관 내부규정 안내자다. 반드시 주어진 근거(E1, E2…)의 문장만 사용해 한국어로 답한다.\n"
-          "규칙: 1) 근거.인용에는 근거 본문을 글자 그대로 옮긴다. 2) 설명의 숫자는 근거에 있는 숫자만 쓴다.\n"
+          "규칙: 1) 근거.인용에는 근거 본문에서 핵심 구절(80자 이내)을 글자 그대로 옮긴다. 2) 설명의 숫자는 근거에 있는 숫자만 쓴다.\n"
           "3) 결론은 질문자의 상황이 규정의 요건·기한을 충족하는지로 정한다(미충족/충족/조건부/판단불가).\n"
           "4) 근거만으로 판단할 수 없으면 판단불가. 5) 규정에 없는 용어(예: 지출결의)는 확인_필요에 적는다.\n"
           "6) 법적 판단이 아니라 규정 안내다.")
@@ -65,13 +66,16 @@ def _prompt(question: str, analysis, evidence: list[Evidence], problems: list[st
 
 def generate(llm, question: str, analysis, evidence: list[Evidence]) -> dict:
     qnums = set(RE_NUM.findall(question))
+    schema = json.loads(json.dumps(ANSWER_SCHEMA))  # 이번 근거 id만 고를 수 있게 (id를 지어내지 못하게)
+    schema["properties"]["근거"]["items"]["properties"]["id"]["enum"] = [e.id for e in evidence]
     problems = None
     last_v = {"ok": False, "problems": []}
     for attempt in (1, 2):
         try:
-            ans = llm.json(_prompt(question, analysis, evidence, problems), ANSWER_SCHEMA, max_tokens=900)
-        except ProviderError:
-            return {"answer": None, "verification": {"ok": False, "problems": ["llm_unavailable"]}, "attempts": attempt,
+            ans = llm.json(_prompt(question, analysis, evidence, problems), schema, max_tokens=1500)
+        except ProviderError as e:
+            kind = "llm_invalid_output" if "JSON" in str(e) else "llm_unavailable"
+            return {"answer": None, "verification": {"ok": False, "problems": [kind]}, "attempts": attempt,
                     "verdict_source": None}
         source = "llm"
         if analysis.question_type == "기한":

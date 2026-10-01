@@ -161,3 +161,45 @@ def index_status() -> None:
     for r in conn.execute("SELECT id, state, os_index, stats, created_at FROM regulation.release ORDER BY id DESC LIMIT 5"):
         typer.echo(f"{r['id']} {r['state']} {r['os_index']} {r['stats']}")
     typer.echo(f"alias → {OpenSearch(s.os_url).alias_target()}")
+
+
+evalc = typer.Typer(no_args_is_help=True, help="평가")
+app.add_typer(evalc, name="eval")
+
+
+@evalc.command("qa")
+def eval_qa(limit: int = typer.Option(None, help="앞에서 N문항만"),
+            out: Path = typer.Option(ROOT / "docs/reports/2026-10-02-qa-eval.md")) -> None:
+    from datetime import datetime
+
+    from reg.evaluate import run_eval
+    from reg.llm import EmbeddingProvider, LLMProvider, RerankProvider
+    from reg.search.os import OpenSearch
+
+    s = get_settings()
+    conn = connect(s.database_url)
+    deps = {"os": OpenSearch(s.os_url), "embedder": EmbeddingProvider(s.embed_url, s.embed_model),
+            "reranker": RerankProvider(s.rerank_url, s.rerank_model), "llm": LLMProvider(s.llm_url, s.llm_model),
+            "llm_model": s.llm_model}
+    cases = yaml.safe_load((ROOT / "eval/qa_cases.yaml").read_text(encoding="utf-8"))[:limit]
+    r = run_eval(conn, deps, cases)
+    detail = {row["qa_id"]: row for row in r["cases"]}
+    logs = {x["id"]: x for x in conn.execute(
+        "SELECT id, status, verdict, retrieved FROM regulation.qa_log WHERE id = ANY(%s)", (list(detail),)).fetchall()}
+    lines = [f"# 질의응답 평가 ({datetime.now():%Y-%m-%d %H:%M})", "",
+             f"- 모델: {s.llm_model} · 임베딩 {s.embed_model} · 리랭커 {s.rerank_model} · 문항 {r['n']}개", "",
+             "| 지표 | 값 | 목표 (spec 12) |", "|---|---|---|",
+             f"| 상태 일치율 | {r['status_acc']} | - |", f"| 근거 적중률 (기대 조문이 근거 1·2위) | {r['citation_hit']} | ≥ 0.90 |",
+             f"| 결론 정확도 | {r['verdict_acc']} | ≥ 0.85 |", f"| 기관 되묻기 정확도 | {r['need_institution_acc']} | 1.00 |",
+             f"| p95 응답 시간(ms) | {r['p95_latency_ms']} | < 10000 |", "",
+             "| 문항 | 기대 상태 | 실제 상태 | 근거 | 결론 | 근거 1위 |", "|---|---|---|---|---|---|"]
+    for c, row in zip(cases, r["cases"]):
+        lg = logs.get(row["qa_id"]) or {}
+        top = (lg.get("retrieved") or [{}])[0]
+        mark = lambda v: "-" if v is None else ("O" if v else "X")  # noqa: E731
+        lines.append(f"| {c['id']} | {c['expect']['status']} | {row['status']} | {mark(row['citation_ok'])} | "
+                     f"{mark(row['verdict_ok'])} {lg.get('verdict') or ''} | {top.get('version_id', '')} {top.get('path', '')} |")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    typer.echo({k: v for k, v in r.items() if k != "cases"})
+    typer.echo(f"보고서: {out}")
