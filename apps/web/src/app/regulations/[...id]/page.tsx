@@ -32,6 +32,7 @@ export default async function ViewerPage({ params, searchParams }: {
   const kids = (path: string): Provision[] => provisions.filter((p) => p.parent === path);
   const subtree = (path: string): Provision[] => kids(path).flatMap((k) => [k, ...subtree(k.path)]);
   const isLaw = work.id.startsWith("kr/law/");
+  const title = (p: Provision) => p.unit === "supplement" ? `부칙 ${fmtDate(p.path.split("@")[1]?.slice(0, 10) ?? null)}` : `${p.label}${p.heading ? ` ${p.heading}` : ""}`;
 
   return (
     <main className="pb-8">
@@ -75,7 +76,7 @@ export default async function ViewerPage({ params, searchParams }: {
           {tops.map((p) => (
             <a key={p.path} href={`?${new URLSearchParams({ ...(as_of ? { as_of } : {}), ...(p.unit === "article" ? { a: p.path } : {}) })}#${p.path}`}
               className={`block rounded-md px-2.5 py-1 text-[var(--ink-2)] hover:bg-[#ebeef2] hover:no-underline ${p.unit === "article" ? "pl-5" : "font-semibold"} ${p.path === selected?.path ? "bg-[var(--accent-soft)] text-[var(--accent)]" : ""}`}>
-              {p.label}{p.heading ? ` ${p.heading}` : ""}
+              {title(p)}
             </a>
           ))}
         </nav>
@@ -89,7 +90,7 @@ export default async function ViewerPage({ params, searchParams }: {
             return (
               <section key={p.path} id={p.path} className={`scroll-mt-4 py-3 ${on ? "-mx-4 rounded-xl bg-[#f5f8fe] px-4 outline outline-1 outline-[var(--accent-line)]" : ""}`}>
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <div className="font-semibold">{p.label}{p.heading ? `(${p.heading})` : ""}</div>
+                  <div className="font-semibold">{p.unit === "supplement" ? title(p) : `${p.label}${p.heading ? `(${p.heading})` : ""}`}</div>
                   {p.unit === "article" && !on && (
                     <a className="font-sans text-xs" href={`?${new URLSearchParams({ ...(as_of ? { as_of } : {}), a: p.path })}#${p.path}`}>관계 보기</a>
                   )}
@@ -108,8 +109,8 @@ export default async function ViewerPage({ params, searchParams }: {
           })}
         </article>
 
-        <aside className="flex flex-col gap-4 self-start">
-          {selected && <Relations pvId={selected.id} label={`${selected.label}`} workId={work.id} />}
+        <aside className="flex flex-col gap-4 self-start lg:sticky lg:top-4">
+          {selected && <Relations pvIds={[selected.id, ...subtree(selected.path).map((c) => c.id)]} label={selected.label} workId={work.id} />}
           <section className="card p-4">
             <div className="mb-3 flex items-baseline justify-between">
               <h2 className="text-[13px] font-semibold">연혁</h2>

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { PdfPane } from "@/components/PdfPane";
+import { PdfPaneLazy as PdfPane } from "@/components/PdfPaneLazy";
 import { apiGet, decodeSegments, type ViewData, workHref } from "@/lib/api";
 import { fmtDate } from "@/lib/format";
 

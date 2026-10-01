@@ -11,9 +11,11 @@
   --color-muted: var(--muted); --color-line: var(--line); --color-accent: var(--accent); --color-accent-soft: var(--accent-soft);
   --font-sans: var(--font-ui), system-ui, sans-serif; --font-serif: var(--font-law), serif;
 }
-body { background: var(--ground); color: var(--ink); }
-a { color: var(--accent); }
-a:hover { text-decoration: underline; }
+@layer base {
+  body { background: var(--ground); color: var(--ink); }
+  a { color: var(--accent); }
+  a:hover { text-decoration: underline; }
+}
 .chip { display: inline-flex; align-items: center; height: 24px; padding: 0 9px; border-radius: 999px; font-size: 12px; font-weight: 500; background: #eef1f5; color: var(--ink-2); }
 .chip-green { background: var(--green-soft); color: var(--green); }
 .chip-blue { background: var(--accent-soft); color: var(--accent); }

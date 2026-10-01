@@ -104,3 +104,11 @@ def test_search_escapes_wildcards(api):
 def test_review_tasks_list(api):
     rows = api.get("/api/v1/review-tasks", params={"status": "OPEN"}).json()
     assert isinstance(rows, list) and all(r["status"] == "OPEN" for r in rows)
+
+
+def test_references_for_article_subtree(api):
+    v = api.get("/api/v1/work/view", params={"id": WID}).json()
+    ids = sorted((x["id"] for x in v["provisions"] if x["path"] == "a27" or x["path"].startswith("a27.")),
+                 key=lambda i: next(x["path"] for x in v["provisions"] if x["id"] == i) != "a27.p3")  # ③항을 맨 앞에
+    r = api.get("/api/v1/references", params=[("pv", i) for i in ids]).json()
+    assert any(x["target_path"] == "a13" for x in r["outgoing"])  # ③항의 '제13조'가 조 단위 패널에 보인다

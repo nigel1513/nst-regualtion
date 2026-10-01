@@ -18,7 +18,7 @@ RE_ITEM = re.compile(r"^(\d{1,3})(?:\s*의\s*(\d+))?\.(?!\d)\s*(.*)$")  # 날짜
 RE_SUB = re.compile(r"^([가-하])\.\s*(.*)$")
 RE_HIST = re.compile(r"^(제\s*정|전\s*부\s*개\s*정|일\s*부\s*개\s*정|개\s*정|폐\s*지)\s*"
                      r"(\d{4}\s*\.\s*\d{1,2}\s*\.\s*\d{1,2})\s*\.?\s*(?:(?:규|훈령|예규|규정)?\s*제?\s*(\d+)\s*호)?")
-RE_CLASS = re.compile(r"원규\s*분류\s*(?:기호)?\s*[:：]\s*([\w-]+)")
+RE_CLASS = re.compile(r"원규\s*분류\s*(?:기\s*호)?\s*[:：]\s*([^)）]+?)\s*[)）]?\s*$")
 RE_LEADER = re.compile(r"[·.…]{2,}|·\s*·|^[·\s]+$|\s·$")
 PARTICLE = re.compile(r"^(?:에서|에|의|을|를|과|와|및|으로|로)(?:\s|$)")
 RE_LAWNO = re.compile(r"^[<(〈]?\s*제\s*\d+\s*호")
@@ -83,7 +83,7 @@ def _header(blocks: list[Block]) -> tuple[str, str | None, list[HistEntry]]:
     for b in blocks:
         t = b.text
         if m := RE_CLASS.search(t):
-            code = m[1]
+            code = re.sub(r"\s+", "", m[1])
             continue
         if m := RE_HIST.match(t):
             hist.append(HistEntry(re.sub(r"\s+", "", m[1]), parse_dot_date(m[2]), m[3]))

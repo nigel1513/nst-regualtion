@@ -5,23 +5,28 @@ import { useEffect, useState } from "react";
 import { workHref } from "@/lib/api";
 import { REL_LABEL } from "@/lib/format";
 
-type Out = { evidence_text: string; rel_type: string; target_work_id: string | null; target_path: string | null;
+type Out = { source_path: string; evidence_text: string; rel_type: string; target_work_id: string | null; target_path: string | null;
   target_name: string | null; target_title: string | null; resolution: string };
 type In = { evidence_text: string; rel_type: string; source_work_id: string; source_title: string; source_path: string;
   source_label: string };
 
+const CIRCLED = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳";
+const subLabel = (path: string) => path.split(".").slice(1)
+  .map((seg) => seg.startsWith("p") ? CIRCLED[Number(seg.slice(1)) - 1] ?? seg : seg.startsWith("i") ? `${seg.slice(1)}호` : seg.slice(1))
+  .join(" ");
+
 const CHIP: Record<string, string> = { EXCEPTION: "chip-amber", MUTATIS: "chip-blue", BASIS: "chip-blue", DELEGATION: "chip-blue" };
 
-export function Relations({ pvId, label, workId }: { pvId: number; label: string; workId: string }) {
+export function Relations({ pvIds, label, workId }: { pvIds: number[]; label: string; workId: string }) {
   const [data, setData] = useState<{ outgoing: Out[]; incoming: In[] } | null>(null);
   const [error, setError] = useState(false);
   useEffect(() => {
     let alive = true;
     setData(null);
-    fetch(`/api/v1/references?pv=${pvId}`).then((r) => (r.ok ? r.json() : Promise.reject()))
+    fetch(`/api/v1/references?${pvIds.map((i) => `pv=${i}`).join("&")}`).then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((d) => alive && setData(d)).catch(() => alive && setError(true));
     return () => { alive = false; };
-  }, [pvId]);
+  }, [pvIds.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <section className="card p-4" aria-live="polite">
       <h2 className="mb-3 text-[13px] font-semibold">{label}의 관계</h2>
@@ -34,6 +39,7 @@ export function Relations({ pvId, label, workId }: { pvId: number; label: string
             <li key={`o${i}`} className="flex items-start gap-2.5">
               <span className={`chip shrink-0 ${CHIP[r.rel_type] ?? ""}`}>{REL_LABEL[r.rel_type] ?? r.rel_type}</span>
               <div>
+                {r.source_path.includes(".") && <span className="mr-1 text-xs text-[var(--muted)]">{subLabel(r.source_path)} →</span>}
                 {r.target_work_id ? (
                   <Link href={r.target_work_id === workId ? `#${r.target_path ?? ""}` : workHref(r.target_work_id, r.target_path ? `#${r.target_path}` : "")}>
                     {r.target_work_id === workId ? r.evidence_text : `${r.target_title ?? r.target_name} ${r.target_path ?? ""}`}

@@ -107,3 +107,8 @@ def test_review_toc_with_headings_does_not_displace_body():
                       Block("제1조(목적) 이 규정은 목적을 정한다."), Block("제2조(정의) 정의는 다음과 같다."), Block("제3조(적용) 적용한다.")])
     assert _arts(d) == ["a1", "a2", "a3"] and d.get("a1").text == "이 규정은 목적을 정한다."
     assert d.meta["toc"] == ["a1", "a2", "a3"]
+
+
+def test_class_code_with_spaces_and_hyphen():
+    d = parse_blocks([Block("초빙연구원 운영기준"), Block("( 원규분류기호 : 기 - 21 )"), Block("제1조(목적) 목적.")])
+    assert d.class_code == "기-21"

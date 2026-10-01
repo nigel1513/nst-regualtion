@@ -95,16 +95,19 @@ def open_tasks(conn, version_id: str) -> list[dict]:
                         (version_id,)).fetchall()
 
 
-def references(conn, pv_id: int) -> dict:
+def references(conn, pv_ids: list[int]) -> dict:
+    """나가는 참조는 넘겨받은 조항들(보통 조와 그 아래 항·호) 전체, 들어오는 참조는 첫 조항(조) 기준."""
     pv = conn.execute("SELECT pv.path, p.work_id FROM regulation.provision_version pv JOIN regulation.provision p"
-                      " ON p.id = pv.provision_id WHERE pv.id = %s", (pv_id,)).fetchone()
+                      " ON p.id = pv.provision_id WHERE pv.id = %s", (pv_ids[0],)).fetchone()
     if not pv:
         return {"outgoing": [], "incoming": []}
     out = conn.execute(
         "SELECT r.span_start AS start, r.span_end AS end, r.evidence_text, r.rel_type, r.target_kind,"
-        " r.target_work_id, r.target_path, r.target_name, r.resolution, tw.title AS target_title"
-        " FROM regulation.reference r LEFT JOIN regulation.work tw ON tw.id = r.target_work_id"
-        " WHERE r.source_pv_id = %s ORDER BY r.span_start", (pv_id,)).fetchall()
+        " r.target_work_id, r.target_path, r.target_name, r.resolution, tw.title AS target_title,"
+        " spv.path AS source_path FROM regulation.reference r"
+        " JOIN regulation.provision_version spv ON spv.id = r.source_pv_id"
+        " LEFT JOIN regulation.work tw ON tw.id = r.target_work_id"
+        " WHERE r.source_pv_id = ANY(%s) ORDER BY spv.path, r.span_start", (pv_ids,)).fetchall()
     article = pv["path"].split(".")[0]
     inc = conn.execute(
         "SELECT DISTINCT r.evidence_text, r.rel_type, r.target_path, r.resolution, r.work_id AS source_work_id,"

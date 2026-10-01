@@ -78,7 +78,7 @@ def create_app(dsn: str, blob: BlobStore) -> FastAPI:
                         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}"})
 
     @app.get("/api/v1/references")
-    def references(pv: int, c=Depends(conn)):
+    def references(pv: list[int] = Query(...), c=Depends(conn)):
         return Q.references(c, pv)
 
     @app.get("/api/v1/diff")
