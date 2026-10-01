@@ -94,6 +94,8 @@ def collect_law() -> None:
         s = get_settings()
         client = LawGoClient(PoliteClient("lawgo", s.lawgo_min_interval, log=log), oc=s.lawgo_oc)
         names = yaml.safe_load((ROOT / "config/laws.yaml").read_text(encoding="utf-8"))
+        names += [r["name"] for r in conn.execute("SELECT name FROM regulation.law_seed ORDER BY name").fetchall()
+                  if r["name"] not in names]  # 참조에서 발견된 법령 (spec 6.1)
         return sync_laws(conn, client, _blob(), names)
     _run("lawgo", None, body)
 
