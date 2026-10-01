@@ -26,3 +26,4 @@ def test_s3_roundtrip_live():
     s.ensure_bucket()
     s.put("test/hello.txt", b"hi", "text/plain")
     assert s.exists("test/hello.txt") and s.get("test/hello.txt") == b"hi"
+

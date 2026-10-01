@@ -103,7 +103,7 @@
 |  |  | · nori `ko_en` 분석기 설정을 따른다. |
 |  |  | · k-NN과 neural-search(하이브리드 정규화) 플러그인이 있는지 **착수 전에 확인한다**. |
 |  |  | · 접근 경로: compose 네트워크에 참여하거나 별도 노출 |
-| SeaweedFS S3 | 21053 / 21054 | 전용 버킷 **`regulation`**. 원본(`raw/`)과 보기용 PDF(`view/`) |
+| SeaweedFS S3 | 21053 / 21054 | **공유하지 않음.** 2026-10-02 확인 결과, 공유 storage-a·b는 볼륨 슬롯이 8/8로 꽉 차서 새 쓰기를 받지 못함. 이 프로젝트 전용 SeaweedFS(`infra/docker-compose.yml`, `127.0.0.1:21066`)에 버킷 **`regulation`**을 둔다. 원본(`raw/`)과 보기용 PDF(`view/`) |
 | Keycloak 26 | realm `nais` | 새 클라이언트 `regulation-web`, `regulation-api` |
 | Redis 7 | 21058 | 작업 큐. 전용 DB 번호 또는 키 접두어 `reg:` |
 | Mailpit | SMTP (UI 21052) | 알림 메일 발송 (개발) |
@@ -117,9 +117,10 @@
 | 이 프로젝트 | 웹 (Next.js) | `:21060` |
 |  | API (FastAPI) | `:21061` |
 |  | Neo4j bolt / http | `:21064` / `:21065` |
-|  | 예비 (워커 모니터링 등) | `:21062`, `:21063`, `:21066`~`:21069` |
+|  | 원본 보관 S3 (전용 SeaweedFS) | `127.0.0.1:21066` |
+|  | 예비 (워커 모니터링 등) | `:21062`, `:21063`, `:21067`~`:21069` |
 | nst-nexus 공유 (호스트 포트) | PostgreSQL | `127.0.0.1:21055` |
-|  | SeaweedFS S3 | `:21053` |
+|  | SeaweedFS S3 (전용, 공유 아님) | `127.0.0.1:21066` |
 |  | Redis | `:21058` |
 |  | Keycloak | 게이트웨이 `:21051/auth` |
 | nst-nexus 공유 (내부 전용) | OpenSearch | `opensearch:9200` |

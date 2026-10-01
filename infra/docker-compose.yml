@@ -1,0 +1,13 @@
+# 이 프로젝트 전용 인프라. 공유 nst-nexus SeaweedFS는 볼륨 슬롯이 꽉 차(8/8) 새 쓰기를 받지 못해 원본 보관소를 따로 둔다.
+name: nst-regulation
+services:
+  storage:
+    image: chrislusf/seaweedfs:4.48
+    command: server -dir=/data -volume.max=0 -s3 -s3.port=8333 -s3.config=/etc/seaweedfs/s3.json -ip.bind=0.0.0.0
+    ports: ["127.0.0.1:21066:8333"]
+    volumes:
+      - storage-data:/data
+      - ./storage/s3.json:/etc/seaweedfs/s3.json:ro
+    restart: unless-stopped
+volumes:
+  storage-data:
