@@ -41,12 +41,22 @@ export type ReviewTask = {
   detail: Record<string, unknown>; status: string; created_at: string;
 };
 
+export type HHit = {
+  chunk_id: string; work_id: string; version_id: string; path: string; path_label: string; title: string;
+  institution: string | null; text: string; score: number; rerank_score?: number;
+};
+export type HSearch = { mode: "hybrid" | "bm25"; reranked: boolean; release_id: string | null; hits: HHit[] };
+
+export class ApiError extends Error {
+  constructor(public status: number, message: string) { super(message); }
+}
+
 export async function apiGet<T>(path: string, params: Record<string, string | undefined> = {}): Promise<T | null> {
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) if (v) qs.set(k, v);
   const res = await fetch(`${BASE}${path}${qs.size ? `?${qs}` : ""}`, { cache: "no-store" });
   if (res.status === 404) return null;
-  if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`);
+  if (!res.ok) throw new ApiError(res.status, `API ${res.status}: ${await res.text()}`);
   return (await res.json()) as T;
 }
 
