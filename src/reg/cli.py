@@ -206,3 +206,23 @@ def eval_qa(limit: int = typer.Option(None, help="앞에서 N문항만"),
     out.write_text("\n".join(lines) + "\n", encoding="utf-8")
     typer.echo({k: v for k, v in r.items() if k != "cases"})
     typer.echo(f"보고서: {out}")
+
+
+graph = typer.Typer(no_args_is_help=True, help="Neo4j 참조 그래프 (PostgreSQL에서 파생)")
+app.add_typer(graph, name="graph")
+
+
+def _neo4j(s):
+    from neo4j import GraphDatabase
+
+    return GraphDatabase.driver(s.neo4j_url, auth=(s.neo4j_user, s.neo4j_password))
+
+
+@graph.command("sync")
+def graph_sync() -> None:
+    from reg.graph.sync import sync_graph
+
+    s = get_settings()
+    conn = connect(s.database_url)
+    with _neo4j(s) as drv:
+        typer.echo(f"graph {sync_graph(conn, drv)}")
