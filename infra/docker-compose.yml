@@ -9,5 +9,16 @@ services:
       - storage-data:/data
       - ./storage/s3.json:/etc/seaweedfs/s3.json:ro
     restart: unless-stopped
+  # 공유 nst-nexus OpenSearch(내부 전용)를 이 서버의 프로세스에서 쓰기 위한 중계: 127.0.0.1:21067 → opensearch:9200
+  opensearch-proxy:
+    image: alpine/socat:1.8.0.0
+    command: TCP-LISTEN:9200,fork,reuseaddr TCP:opensearch:9200
+    ports: ["127.0.0.1:21067:9200"]
+    networks: [default, nais]
+    restart: unless-stopped
 volumes:
   storage-data:
+networks:
+  nais:
+    name: nais_default
+    external: true
