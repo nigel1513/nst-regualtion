@@ -57,3 +57,19 @@ def test_rebuild_all_reprocesses_from_outbox(conn, tmp_path):
     process_once(conn, blob, today=TODAY)
     assert conn.execute("SELECT count(*) AS n FROM regulation.provision_version").fetchone()["n"] == n_pv
     assert conn.execute("SELECT view_status FROM regulation.source_document").fetchone()["view_status"] == "not_needed"
+
+
+def test_existing_view_pdf_is_reused_without_conversion(conn, tmp_path):
+    blob = LocalBlobStore(tmp_path)
+    seed_alio(conn, blob, (S / "nst-yeobi-18.hwp").read_bytes(), file_name="여비규정.hwp")
+    conn.execute("UPDATE regulation.source_document SET mime='application/x-hwp'")
+    conn.commit()
+    first = FakeConverter((S / "nst-yeobi-18.view.pdf").read_bytes())
+    process_once(conn, blob, today=TODAY, converter=first)
+    rebuild_all(conn)
+    second = FakeConverter((S / "nst-yeobi-18.view.pdf").read_bytes())
+    process_once(conn, blob, today=TODAY, converter=second)
+    assert first.calls == 1 and second.calls == 0
+    a = conn.execute("SELECT vp.anchor FROM regulation.version_provision vp JOIN regulation.provision_version pv"
+                     " ON pv.id = vp.provision_version_id WHERE pv.path = 'a9-2'").fetchone()
+    assert a["anchor"]["page"] == 5

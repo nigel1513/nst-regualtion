@@ -27,6 +27,9 @@ def _view(conn, blob, sd, doc, converter) -> None:
         conn.execute("UPDATE regulation.source_document SET view_blob_key = blob_key, view_status = 'not_needed'"
                      " WHERE id = %s", (sd["id"],))
         return
+    if sd["mime"] in HWP_MIMES and sd["view_status"] == "ready" and sd["view_blob_key"]:
+        locate(doc, extract_pdf(blob.get(sd["view_blob_key"])))  # 이미 만든 보기용 PDF 재사용 (재처리 시 변환 생략)
+        return
     if converter is None or sd["mime"] not in HWP_MIMES:
         return
     try:
