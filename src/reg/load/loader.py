@@ -46,6 +46,11 @@ def add_version(conn, work_id: str, source_document_id: int, doc: ParsedDoc, eff
     while conn.execute("SELECT 1 FROM regulation.work_version WHERE id = %s", (vid,)).fetchone():
         n += 1
         vid = f"{base}.{n}"
+    seen: dict[str, int] = {}
+    for p in doc.provisions:  # 원문 서식이 불규칙해 같은 경로가 또 나오면 ~n을 붙여 구분한다
+        seen[p.path] = seen.get(p.path, 0) + 1
+        if seen[p.path] > 1:
+            p.path = f"{p.path}~{seen[p.path]}"
     for p in doc.provisions:
         if p.unit == "article" and p.path in eff.overrides and p.effective_override is None:
             p.effective_override = eff.overrides[p.path]

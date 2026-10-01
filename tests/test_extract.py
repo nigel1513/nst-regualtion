@@ -38,3 +38,14 @@ def test_hwpx_paragraphs():
 def test_unknown_mime_rejected():
     with pytest.raises(ValueError):
         extract(b"x", "text/html", "a.html")
+
+
+def test_hwp_surrogate_pairs_are_combined():
+    import struct
+
+    from reg.extract.hwp import _para_text
+
+    raw = "제1조 ".encode("utf-16-le") + "𠀀".encode("utf-16-le") + struct.pack("<H", 13)
+    t = _para_text(raw)
+    assert "𠀀" in t
+    t.encode("utf-8")  # 서로게이트 조각이 남으면 UnicodeEncodeError

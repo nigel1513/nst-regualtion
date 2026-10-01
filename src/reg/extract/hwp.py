@@ -26,7 +26,8 @@ def _para_text(raw: bytes) -> str:
         elif c in (10, 13):
             out.append(" ")
         i += 1
-    return "".join(out)
+    # 확장 한자 등은 UTF-16 서로게이트 쌍으로 들어온다: 쌍을 합쳐 실제 문자로 만든다
+    return "".join(out).encode("utf-16-le", "surrogatepass").decode("utf-16-le", "replace")
 
 
 def extract_hwp(data: bytes) -> list[Block]:

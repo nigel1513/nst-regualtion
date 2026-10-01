@@ -86,3 +86,15 @@ def test_add_version_is_idempotent(conn, tmp_path):
     sid = src(conn, tmp_path, b"x")
     d = doc(("a1", "목적", "x"))
     assert add_version(conn, wid, sid, d, eff(date(2020, 1, 1))) == add_version(conn, wid, sid, d, eff(date(2020, 1, 1)))
+
+
+def test_duplicate_paths_in_one_document_are_kept_distinct(conn, tmp_path):
+    wid = setup(conn, tmp_path)
+    d = doc(("a1", "목적", "첫째."), ("a1", "목적", "같은 번호가 또 나온 조문."))
+    vid = add_version(conn, wid, src(conn, tmp_path, b"d"), d, eff(date(2020, 1, 1)))
+    rebuild_work(conn, wid, today=date(2026, 10, 2))
+    rebuild_work(conn, wid, today=date(2026, 10, 2))
+    paths = [r["path"] for r in conn.execute(
+        "SELECT pv.path FROM regulation.version_provision vp JOIN regulation.provision_version pv"
+        " ON pv.id = vp.provision_version_id WHERE vp.work_version_id = %s ORDER BY vp.ord", (vid,)).fetchall()]
+    assert paths == ["a1", "a1~2"]
