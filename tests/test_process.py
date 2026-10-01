@@ -92,3 +92,17 @@ def test_review_each_event_commits_independently(conn, tmp_path, monkeypatch):
     other.close()
     monkeypatch.setitem(P.HANDLERS, "regulation.law_fetched", real)
     assert n == 1
+
+
+def test_events_of_one_work_are_rebuilt_once(conn, tmp_path, monkeypatch):
+    from reg import process as P
+
+    blob = LocalBlobStore(tmp_path)
+    seed_alio(conn, blob, (FX / "samples" / "kasi-yeobi-339.pdf").read_bytes(), ord_=1)
+    seed_alio(conn, blob, (FX / "samples" / "kasi-yeobi-339.pdf").read_bytes()[:-10] + b"%%EOF\n" + b" " * 10,
+              file_name="여비규정(2023년도 4월 개정).pdf", ord_=0)
+    calls = []
+    real = P.rebuild_work
+    monkeypatch.setattr(P, "rebuild_work", lambda c, w, t: calls.append(w) or real(c, w, t))
+    st = process_once(conn, blob, today=TODAY)
+    assert st["claimed"] == 2 and st["ok"] == 2 and calls == ["kr/reg/KASI/여비규정"]
