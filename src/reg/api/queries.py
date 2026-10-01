@@ -93,3 +93,86 @@ def history(conn, version_id: str) -> list[dict]:
 def open_tasks(conn, version_id: str) -> list[dict]:
     return conn.execute("SELECT kind, detail FROM regulation.review_task WHERE target = %s AND status = 'OPEN'",
                         (version_id,)).fetchall()
+
+
+def references(conn, pv_id: int) -> dict:
+    pv = conn.execute("SELECT pv.path, p.work_id FROM regulation.provision_version pv JOIN regulation.provision p"
+                      " ON p.id = pv.provision_id WHERE pv.id = %s", (pv_id,)).fetchone()
+    if not pv:
+        return {"outgoing": [], "incoming": []}
+    out = conn.execute(
+        "SELECT r.span_start AS start, r.span_end AS end, r.evidence_text, r.rel_type, r.target_kind,"
+        " r.target_work_id, r.target_path, r.target_name, r.resolution, tw.title AS target_title"
+        " FROM regulation.reference r LEFT JOIN regulation.work tw ON tw.id = r.target_work_id"
+        " WHERE r.source_pv_id = %s ORDER BY r.span_start", (pv_id,)).fetchall()
+    article = pv["path"].split(".")[0]
+    inc = conn.execute(
+        "SELECT DISTINCT r.evidence_text, r.rel_type, r.target_path, r.resolution, r.work_id AS source_work_id,"
+        " sw.title AS source_title, spv.path AS source_path, spv.number_label AS source_label, spv.id AS source_pv_id"
+        " FROM regulation.reference r"
+        " JOIN regulation.provision_version spv ON spv.id = r.source_pv_id"
+        " JOIN regulation.version_provision vp ON vp.provision_version_id = spv.id"
+        " JOIN regulation.work_version sv ON sv.id = vp.work_version_id AND sv.version_state = 'CURRENT'"
+        " JOIN regulation.work sw ON sw.id = r.work_id"
+        " WHERE r.target_work_id = %(w)s AND (r.target_path = %(p)s OR r.target_path = %(a)s"
+        "   OR r.target_path LIKE %(p)s || '.%%' OR (r.target_kind = 'WORK' AND %(p)s = %(a)s))"
+        " ORDER BY sw.title, spv.path", {"w": pv["work_id"], "p": pv["path"], "a": article}).fetchall()
+    return {"outgoing": out, "incoming": inc}
+
+
+def _pv_map(conn, version_id: str) -> dict[int, dict]:
+    return {r["provision_id"]: r for r in conn.execute(
+        "SELECT pv.id, pv.provision_id, pv.path, pv.unit, pv.number_label AS label, pv.heading, pv.text,"
+        " pv.text_norm_hash, pv.annotations, vp.ord FROM regulation.version_provision vp"
+        " JOIN regulation.provision_version pv ON pv.id = vp.provision_version_id WHERE vp.work_version_id = %s",
+        (version_id,)).fetchall()}
+
+
+def diff(conn, from_id: str, to_id: str) -> list[dict]:
+    a, b = _pv_map(conn, from_id), _pv_map(conn, to_id)
+
+    def side(x):
+        return {k: x[k] for k in ("label", "heading", "text", "annotations")} if x else None
+
+    out = []
+    for pid in sorted(a.keys() | b.keys(), key=lambda k: (b[k]["ord"] if k in b else a[k]["ord"] + 0.5)):
+        x, y = a.get(pid), b.get(pid)
+        if x and y and x["id"] == y["id"]:
+            continue
+        if x and y:
+            same = x["text_norm_hash"] == y["text_norm_hash"] and x["heading"] == y["heading"]
+            kind = "RENUMBERED" if x["path"] != y["path"] else ("ANNOTATION_ONLY" if same else "MODIFIED")
+        else:
+            kind = "ADDED" if y else "DELETED"
+        if kind == "ANNOTATION_ONLY" and x["annotations"] == y["annotations"]:
+            continue
+        ref = y or x
+        out.append({"kind": kind, "provision_id": pid, "path": ref["path"], "unit": ref["unit"],
+                    "from": side(x), "to": side(y)})
+    return out
+
+
+def search(conn, q: str, institution: str | None) -> list[dict]:
+    rows = conn.execute(
+        "SELECT w.id AS work_id, w.title, i.code AS institution, v.id AS version_id, pv.path,"
+        " pv.number_label AS label, pv.heading, pv.text"
+        " FROM regulation.provision_version pv"
+        " JOIN regulation.version_provision vp ON vp.provision_version_id = pv.id"
+        " JOIN regulation.work_version v ON v.id = vp.work_version_id AND v.version_state = 'CURRENT'"
+        " JOIN regulation.work w ON w.id = v.work_id LEFT JOIN regulation.institution i ON i.id = w.institution_id"
+        " WHERE pv.text ILIKE %(q)s ESCAPE '\\' AND (%(inst)s::text IS NULL OR i.code = %(inst)s)"
+        " ORDER BY w.title, vp.ord LIMIT 50", {"q": _like(q), "inst": institution}).fetchall()
+    for r in rows:
+        t = r.pop("text")
+        pos = t.lower().find(q.lower())
+        s = max(pos - 40, 0)
+        r["snippet"] = ("…" if s else "") + t[s:pos + len(q) + 40] + ("…" if pos + len(q) + 40 < len(t) else "")
+    return rows
+
+
+def review_tasks(conn, status: str, kind: str | None) -> list[dict]:
+    return conn.execute(
+        "SELECT t.id, t.kind, t.target, t.work_id, w.title AS work_title, t.detail, t.status, t.created_at"
+        " FROM regulation.review_task t LEFT JOIN regulation.work w ON w.id = t.work_id"
+        " WHERE t.status = %s AND (%s::text IS NULL OR t.kind = %s) ORDER BY t.created_at DESC, t.id DESC LIMIT 300",
+        (status, kind, kind)).fetchall()

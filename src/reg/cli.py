@@ -119,3 +119,12 @@ def process_cmd(limit: int = typer.Option(100, help="한 번에 처리할 이벤
             if not loop or st["claimed"] == 0 or st["ok"] == 0:
                 return total
     _run("process", None, body)
+
+
+@app.command("api")
+def api_cmd(host: str = "0.0.0.0", port: int = 21061) -> None:
+    import uvicorn
+
+    from reg.api.app import create_app
+
+    uvicorn.run(create_app(get_settings().database_url, _blob()), host=host, port=port, log_level="info")

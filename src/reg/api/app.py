@@ -77,4 +77,28 @@ def create_app(dsn: str, blob: BlobStore) -> FastAPI:
         return Response(app.state.blob.get(sd["blob_key"]), media_type=sd["mime"],
                         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}"})
 
+    @app.get("/api/v1/references")
+    def references(pv: int, c=Depends(conn)):
+        return Q.references(c, pv)
+
+    @app.get("/api/v1/diff")
+    def diff(from_: str = Query(..., alias="from"), to: str = Query(...), c=Depends(conn)):
+        a, b = Q.version_by_id(c, from_), Q.version_by_id(c, to)
+        if not a or not b:
+            raise HTTPException(404, "버전을 찾을 수 없습니다")
+        if a["work_id"] != b["work_id"]:
+            raise HTTPException(400, "같은 규정의 버전끼리만 비교할 수 있습니다")
+        for v in (a, b):
+            v.pop("source_document_id")
+        return {"from": a, "to": b, "changes": Q.diff(c, from_, to)}
+
+    @app.get("/api/v1/search")
+    def search(q: str = Query(..., min_length=2), institution: str | None = None, c=Depends(conn)):
+        return Q.search(c, q, institution)
+
+    @app.get("/api/v1/review-tasks")
+    def review_tasks(status: str = Query("OPEN", pattern="^(OPEN|RESOLVED|DISMISSED)$"), kind: str | None = None,
+                     c=Depends(conn)):
+        return Q.review_tasks(c, status, kind)
+
     return app

@@ -9,6 +9,11 @@ from reg.api.app import create_app
 from reg.process import process_once
 from reg.storage.blob import LocalBlobStore
 from tests.test_process import seed_alio
+from reg.collect.archive import store as _store
+from reg.collect.sniff import FileKind
+from reg.load.loader import add_version, rebuild_work, upsert_work
+from reg.structure.effective import Effective
+from reg.structure.model import ParsedDoc, Prov
 
 S = Path(__file__).parent / "fixtures" / "samples"
 WID = "kr/reg/KASI/여비규정"
@@ -59,3 +64,43 @@ def test_versions_and_files(api):
 
 def test_unknown_work_404(api):
     assert api.get("/api/v1/work/view", params={"id": "kr/reg/NONE/x"}).status_code == 404
+
+
+def test_references_incoming_and_outgoing(api):
+    v = api.get("/api/v1/work/view", params={"id": WID}).json()
+    p = {x["path"]: x for x in v["provisions"]}
+    r = api.get("/api/v1/references", params={"pv": p["a27.p1"]["id"]}).json()
+    assert any(x["source_path"] == "a27.p3" and x["rel_type"] == "EXCEPTION" for x in r["incoming"])
+    out = api.get("/api/v1/references", params={"pv": p["a29"]["id"]}).json()["outgoing"]
+    assert {x["target_name"] for x in out} >= {"공무원 여비규정"}
+
+
+def test_diff_between_versions(conn, migrated, tmp_path):
+    blob = LocalBlobStore(tmp_path)
+    upsert_work(conn, "kr/reg/T/규정", "INTERNAL_REG", "규정", None, {})
+    ids = []
+    for i, (d, provs) in enumerate([(date(2020, 1, 1), [Prov("a1", "article", "제1조", "목적", "옛 본문입니다")]),
+                                    (date(2024, 1, 1), [Prov("a1", "article", "제1조", "목적", "새 본문입니다"),
+                                                        Prov("a2", "article", "제2조", "정의", "추가된 조문")])]):
+        sid = _store(conn, blob, source="alio", url="u", content=b"%PDF" + bytes([i]),
+                     kind=FileKind("application/pdf", "pdf"), meta={}).id
+        ids.append(add_version(conn, "kr/reg/T/규정", sid, ParsedDoc("규정", None, [], provs),
+                               Effective(d, "supplement", "CONFIRMED", d)))
+    rebuild_work(conn, "kr/reg/T/규정", date(2026, 10, 2))
+    conn.commit()
+    with TestClient(create_app(migrated[0], blob)) as c:
+        d = c.get("/api/v1/diff", params={"from": ids[0], "to": ids[1]}).json()
+        assert sorted((x["kind"], x["path"]) for x in d["changes"]) == [("ADDED", "a2"), ("MODIFIED", "a1")]
+        assert c.get("/api/v1/diff", params={"from": ids[0], "to": "nope"}).status_code == 404
+
+
+def test_search_escapes_wildcards(api):
+    hits = api.get("/api/v1/search", params={"q": "7일 이내"}).json()
+    assert any(h["path"] == "a27.p1" and "7일 이내" in h["snippet"] for h in hits)
+    assert api.get("/api/v1/search", params={"q": "%%"}).json() == []
+    assert api.get("/api/v1/search", params={"q": "a"}).status_code == 422
+
+
+def test_review_tasks_list(api):
+    rows = api.get("/api/v1/review-tasks", params={"status": "OPEN"}).json()
+    assert isinstance(rows, list) and all(r["status"] == "OPEN" for r in rows)
