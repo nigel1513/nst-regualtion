@@ -17,3 +17,12 @@ def test_mask_pii():
 
 def test_qa_log_table(conn):
     conn.execute("INSERT INTO regulation.qa_log (question, status) VALUES ('q', 'answered')")
+
+
+def test_mention_needs_a_word_boundary():
+    from reg.qa.institutions import resolve_mention
+    assert resolve_mention("KISTI 출장 규정") is None
+    assert resolve_mention("한국과학기술정보연구원 출장") is None
+    assert resolve_mention("학술연구회 회의") is None
+    assert resolve_mention("KIST 출장비") == "KIST" and resolve_mention("키스트에서 출장") == "KIST"
+    assert resolve_mention("연구회 규정") == "NST"

@@ -9,7 +9,7 @@ TYPES = ["기한", "금액", "가능여부", "절차", "정의", "기타"]
 SCHEMA = {"type": "object", "required": ["question_type", "terms"], "properties": {
     "question_type": {"type": "string", "enum": TYPES},
     "terms": {"type": "array", "items": {"type": "string"}, "maxItems": 6}}}
-RE_DAYS = re.compile(r"(\d{1,3})\s*일\s*(?:이|가)?\s*(?:지났|경과|됐|되었|넘었|넘|지나)")
+RE_DAYS = re.compile(r"(?<![\d월])(?<!월\s)(\d{1,3})\s*일\s*(?:이|가)?\s*(?:지났|경과|됐|되었|넘었|넘|지나)")
 RE_WEEKS = re.compile(r"(\d{1,2})\s*주\s*(?:일)?\s*(?:이|가)?\s*(?:지났|경과|됐|되었|넘었|넘|지나)")
 RE_DATE = re.compile(r"(\d{4})\s*(?:년|\.)\s*(\d{1,2})\s*(?:월|\.)\s*(\d{1,2})\s*(?:일|\.)?")
 

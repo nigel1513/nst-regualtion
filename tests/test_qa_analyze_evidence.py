@@ -59,3 +59,10 @@ def test_rule_synonyms_expand_terms_even_without_llm_and_days_force_deadline():
     assert {"정산", "증빙서 제출", "여비"} <= set(a.terms)
     b = analyze(FakeLLM({"question_type": "정의", "terms": []}), "NST 국외출장 다녀온 지 3주 지났어요")
     assert b.question_type == "기한" and b.elapsed_days == 21
+
+
+def test_calendar_dates_are_not_elapsed_days():
+    a = analyze(None, "출장이 9월 20일에 끝났고 오늘이 9월 25일이 지났어요")
+    assert a.elapsed_days in (None, 5)
+    assert analyze(None, "2024년 3월 15일이 지났는데 정산 기한은?").elapsed_days is None
+    assert analyze(None, "출장 다녀온 지 10일 지났어요").elapsed_days == 10

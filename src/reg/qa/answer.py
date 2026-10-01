@@ -19,29 +19,48 @@ SYSTEM = ("너는 공공연구기관 내부규정 안내자다. 반드시 주어
           "3) 결론은 질문자의 상황이 규정의 요건·기한을 충족하는지로 정한다(미충족/충족/조건부/판단불가).\n"
           "4) 근거만으로 판단할 수 없으면 판단불가. 5) 규정에 없는 용어(예: 지출결의)는 확인_필요에 적는다.\n"
           "6) 법적 판단이 아니라 규정 안내다.")
-RE_DEADLINE = re.compile(r"(\d+)\s*(일|주일|주)\s*이내")
+RE_DEADLINE = re.compile(r"(\d+)\s*(일|주일|주|개월|월)\s*이내")
 RE_NUM = re.compile(r"\d+(?:\.\d+)?")
+RE_QTY = re.compile(r"(\d+(?:\.\d+)?)\s*(주일|개월|만원|천원|원|일|주|월|년|회|시간|%|조|항|호)?")
 BAD_OK = re.compile(r"기한을\s*넘|기한이\s*지났|기한을\s*지나|초과하였|위반|늦었")
 QUOTE_MIN = 0.85  # 인용문 글자 중 원문 구간과 일치해야 하는 비율
-BAD_NG = re.compile(r"문제없|문제가 없|충족합니다")
+QUOTE_SPAN = 1.3  # 맞춘 원문 구간은 인용문 길이의 이 배수를 넘지 않는다 (여러 문장을 엮어 맞추지 않게)
+RE_NEG = re.compile(r"아니|않|없|못")
+BAD_NG = re.compile(r"문제없|문제가 없|충족합니다|기한\s*(?:내|안)에\s*있|기한\s*안입니다")
 
 
 def _n(s: str) -> str:
     return re.sub(r"\s+", "", s or "")
 
 
+def _limits(text: str) -> set:
+    """본문의 'N일/주일/개월 이내' 기한. 일 단위로 바꾸고, 개월은 날짜 계산 없이는 비교할 수 없어 ('월', N)으로 둔다."""
+    out = set()
+    for m in RE_DEADLINE.finditer(text):
+        n, unit = int(m[1]), m[2]
+        out.add(("월", n) if unit in ("개월", "월") else n * (7 if unit.startswith("주") else 1))
+    return out
+
+
 def deadline_verdict(elapsed_days: int | None, quotes: list[str]) -> tuple[str, int] | None:
+    """기한이 하나뿐이고 일 단위일 때만 코드가 판정한다. 여러 기한(본문·단서)이나 개월 단위는 판정하지 않는다."""
     if elapsed_days is None:
         return None
     for q in quotes:
-        if m := RE_DEADLINE.search(q):
-            limit = int(m[1]) * (7 if m[2].startswith("주") else 1)
-            return ("미충족" if elapsed_days > limit else "충족", limit)
+        lims = _limits(q)
+        if not lims:
+            continue
+        if len(lims) > 1 or not isinstance(next(iter(lims)), int):
+            return None
+        limit = next(iter(lims))
+        return ("미충족" if elapsed_days > limit else "충족", limit)
     return None
 
 
 def _align(quote: str, text: str) -> str | None:
-    """공백을 무시하고 인용문과 가장 잘 맞는 원문 구간을 찾는다. 충분히 일치하면 원문 그대로의 구간을 돌려준다."""
+    """공백을 무시하고 인용문과 가장 잘 맞는 원문 구간을 찾는다. 충분히 일치하면 원문 그대로의 구간을 돌려준다.
+
+    숫자와 부정 표현(아니·않·없·못)이 다르거나 구간이 지나치게 길면 뜻이 달라질 수 있어 받지 않는다."""
     from difflib import SequenceMatcher
 
     nq = _n(quote)
@@ -55,7 +74,15 @@ def _align(quote: str, text: str) -> str | None:
     if not blocks or sum(b.size for b in blocks) / len(nq) < QUOTE_MIN:
         return None
     s, e = blocks[0].b, blocks[-1].b + blocks[-1].size
+    span = nt[s:e]
+    if (len(span) > len(nq) * QUOTE_SPAN or RE_NUM.findall(span) != RE_NUM.findall(nq)
+            or len(RE_NEG.findall(span)) != len(RE_NEG.findall(nq))):
+        return None
     return text[pos[s]:pos[e - 1] + 1]
+
+
+def _qty(text: str) -> set[tuple[str, str]]:
+    return {(m[1], "주" if m[2] == "주일" else (m[2] or "")) for m in RE_QTY.finditer(text)}
 
 
 def verify(answer: dict, evidence: list[Evidence], question_numbers: set[str],
@@ -73,10 +100,19 @@ def verify(answer: dict, evidence: list[Evidence], question_numbers: set[str],
     quotes = exist and bool(kept)
     if kept:  # 원문과 맞는 인용이 하나라도 있으면 맞지 않는 인용만 뺀다
         answer["근거"] = cites = kept
-    cited_nums = set(RE_NUM.findall(" ".join(f"{by_id[c['id']].title} {by_id[c['id']].label} {by_id[c['id']].text}"
-                                             for c in cites if c.get("id") in by_id)))  # 조문 라벨(제27조)의 숫자도 근거
-    nums = set(RE_NUM.findall(answer.get("설명", ""))) - question_numbers - (allowed_numbers or set())
-    numbers = nums <= cited_nums
+    cited_text = " ".join(f"{by_id[c['id']].title} {by_id[c['id']].label} {by_id[c['id']].text}"
+                          for c in cites if c.get("id") in by_id)  # 조문 라벨(제27조)의 숫자도 근거
+    cited_qty = _qty(cited_text)
+    cited_nums = {n for n, _ in cited_qty}
+    expl_text = answer.get("설명", "")
+    free = question_numbers | (allowed_numbers or set())
+    # 'N일 이내' 같은 기한은 질문 속 숫자로 대신할 수 없다: 근거 본문(또는 주→일 환산)에 있어야 한다
+    lims = {f"{x}일" for x in _limits(cited_text) if isinstance(x, int)} | \
+        {f"{n}{'주' if u.startswith('주') else u}" for n, u in RE_DEADLINE.findall(cited_text)}
+    deadlines_ok = all(f"{n}{'주' if u.startswith('주') else u}" in lims for n, u in RE_DEADLINE.findall(expl_text))
+    plain_ok = all(n in free or (n, u) in cited_qty or (not u and n in cited_nums) or (u in ("조", "항", "호") and n in cited_nums)
+                   for n, u in _qty(expl_text))
+    numbers = deadlines_ok and plain_ok
     verdict, expl = answer.get("결론"), answer.get("설명", "")
     consistent = not ((verdict == "충족" and BAD_OK.search(expl)) or (verdict == "미충족" and BAD_NG.search(expl)))
     problems = [k for k, ok in [("citation", exist), ("quote", quotes), ("number", numbers), ("consistency", consistent)]
@@ -121,24 +157,28 @@ def _deadline_sentence(text: str) -> str | None:
 
 
 def _code_verdict(ans: dict, analysis, evidence: list[Evidence]) -> bool:
-    """기한형 질문: 인용 근거에 기한이 없으면 리랭크 순위가 가장 높은 기한 조문으로 코드가 판정한다."""
+    """기한형 질문: 인용한 근거의 기한으로 코드가 판정한다. 인용 근거에 기한이 없으면 같은 규정의 주 근거 중
+    순위가 가장 높은 기한 조문을 쓴다. 기한이 여럿이거나 개월 단위면 판정하지 않는다 (LLM 판정 유지)."""
     if analysis.question_type != "기한" or analysis.elapsed_days is None:
         return False
     by_id = {e.id: e for e in evidence}
     cited = [by_id[c["id"]] for c in ans["근거"] if c["id"] in by_id]
-    target = next((e for e in cited if deadline_verdict(analysis.elapsed_days, [e.text])), None) or \
-        next((e for e in evidence if e.role == "primary" and deadline_verdict(analysis.elapsed_days, [e.text])), None)
+    target = next((e for e in cited if _limits(e.text)), None)
     if target is None:
+        works = {e.work_id for e in cited}
+        target = next((e for e in evidence if e.role == "primary" and e.work_id in works and _limits(e.text)), None)
+    if target is None or (got := deadline_verdict(analysis.elapsed_days, [target.text])) is None:
         return False
-    verdict, limit = deadline_verdict(analysis.elapsed_days, [target.text])
+    verdict, limit = got
     quote = _deadline_sentence(target.text) or target.text[:160]  # 판정 근거 문장은 코드가 원문에서 뽑는다
     ans["근거"] = [{"id": target.id, "인용": quote}] + [c for c in ans["근거"] if c["id"] != target.id]
-    ans["결론"] = verdict
     lead = (f"{target.title} {target.label}의 기한은 {limit}일 이내이고 질문 상황은 {analysis.elapsed_days}일이 지나 "
-            f"{'기한을 넘겼습니다' if verdict == '미충족' else '기한 안입니다'}.")
+            "기한을 넘겼습니다.")
     if verdict == "충족":
         lead = f"{target.title} {target.label}의 기한은 {limit}일 이내이며 질문 상황({analysis.elapsed_days}일째)은 기한 안입니다."
-    ans["설명"] = lead + " " + ans["설명"]
+    # LLM이 다른 결론을 냈다면 그 설명은 코드 판정과 어긋나므로 쓰지 않는다
+    ans["설명"] = lead if ans["결론"] != verdict else lead + " " + ans["설명"]
+    ans["결론"] = verdict
     return True
 
 
@@ -146,9 +186,7 @@ def _derived_numbers(analysis, evidence: list[Evidence]) -> set[str]:
     """계산으로 나온 숫자(경과 일수, 'N주일'의 일수 환산)는 설명에 써도 된다."""
     out = {str(analysis.elapsed_days)} if analysis.elapsed_days is not None else set()
     for e in evidence:
-        for m in RE_DEADLINE.finditer(e.text):
-            if m[2].startswith("주"):
-                out.add(str(int(m[1]) * 7))
+        out |= {str(x) for x in _limits(e.text) if isinstance(x, int)}
     return out
 
 
