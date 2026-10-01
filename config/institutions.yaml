@@ -1,0 +1,5 @@
+# M2 파일럿 4개 기관. 나머지 출연연은 M6에서 추가 (ALIO 기관명·apbaId 확인 후)
+- {code: NST,  name: 국가과학기술연구회, kind: NST, alio_apba_id: C0909, alio_name: 국가과학기술연구회}
+- {code: KASI, name: 한국천문연구원,     kind: GRI, alio_apba_id: C0266, alio_name: 한국천문연구원}
+- {code: KIST, name: 한국과학기술연구원, kind: GRI, alio_apba_id: C0159, alio_name: 한국과학기술연구원}
+- {code: ETRI, name: 한국전자통신연구원, kind: GRI, alio_apba_id: C0251, alio_name: 한국전자통신연구원}
