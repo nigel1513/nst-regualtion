@@ -15,3 +15,5 @@ psycopg-pool>=3.3.3
 neo4j>=5.20
 # zoneinfo("Asia/Seoul")용 시간대 데이터 (slim 기반 이미지에 시스템 tzdata가 없을 수 있다)
 tzdata
+pypdfium2>=4.30
+pillow>=10
