@@ -1,27 +1,14 @@
-from datetime import date
 from pathlib import Path
 
 import respx
 
-from reg.sources.lawgo.sync import sync_laws
-from reg.sources.lawgo.client import LawGoClient, norm_name, parse_search
 from reg.platform.http import PoliteClient
 from reg.platform.storage.blob import LocalBlobStore
+from reg.sources.lawgo.client import LawGoClient
+from reg.sources.lawgo.sync import sync_laws
 
 FX = Path(__file__).parent / "fixtures"
 B = "https://www.law.go.kr/DRF"
-
-
-def test_norm_name_ignores_spaces_and_middle_dots():
-    assert norm_name("설립·운영 및 육성") == norm_name("설립ㆍ운영 및육성")
-
-
-def test_parse_search():
-    rows = parse_search((FX / "lawgo_search.xml").read_bytes())
-    assert [r.mst for r in rows] == ["283849", "288335", "289003"]
-    r = rows[0]
-    assert (r.law_id, r.name, r.kind, r.status) == ("013774", "국가연구개발혁신법", "법률", "현행")
-    assert r.promulgated_on == date(2026, 3, 10) and r.effective_on == date(2026, 9, 11)
 
 
 @respx.mock

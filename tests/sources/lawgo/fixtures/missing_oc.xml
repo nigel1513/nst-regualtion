@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+    <Response>
+        <result>필수입력요소 검증에 실패하였습니다.</result>
+        <msg>필수 입력값이 존재하지 않습니다. 요청 URL을 확인해 주세요.</msg>
+    </Response>

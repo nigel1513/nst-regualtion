@@ -1,12 +1,151 @@
 """law.go.kr lawService XML → ParsedDoc. 조문·항·호·목·부칙이 태그로 나뉘어 있어 그대로 옮긴다."""
 import re
 import xml.etree.ElementTree as ET
+from dataclasses import dataclass
+from datetime import date
 
 from reg.core.model import ParsedDoc, Prov
 from reg.core.text import clean, parse_dot_date, split_notes
+from reg.sources.lawgo.errors import ResponseChanged
 
 RE_HEAD = re.compile(r"^제\s*\d+\s*조(?:\s*의\s*\d+)?\s*(?:\([^()]*\))?\s*")
 RE_CH = re.compile(r"제\s*(\d+)\s*(장|절)\s*(.*)")
+
+
+def _t(e, tag: str) -> str:
+    return clean(e.findtext(tag) or "")
+
+
+def _o(e, tag: str) -> str | None:
+    return _t(e, tag) or None
+
+
+def _d(e, tag: str) -> date | None:
+    s = _t(e, tag)
+    return date(int(s[:4]), int(s[4:6]), int(s[6:8])) if len(s) == 8 and s.isdigit() else None
+
+
+@dataclass
+class LawRow:
+    mst: str
+    law_id: str
+    name: str
+    abbr: str | None
+    kind: str | None
+    ministry: str | None
+    promulgated_on: date | None
+    promulgation_no: str | None
+    effective_on: date | None
+    revision_kind: str | None
+    status: str
+
+    @property
+    def master_id(self) -> str:
+        return self.law_id
+
+
+@dataclass
+class AdmrulRow:
+    seq: str
+    admrul_id: str
+    name: str
+    kind: str | None
+    ministry: str | None
+    issued_on: date | None
+    issue_no: str | None
+    effective_on: date | None
+    revision_kind: str | None
+    status: str
+
+    @property
+    def master_id(self) -> str:
+        return f"admrul:{self.admrul_id}"
+
+
+@dataclass
+class AnnexRow:
+    seq: str
+    family: str             # law | admrul
+    owner_key: str          # 관련법령일련번호 / 관련행정규칙일련번호
+    owner_source_id: str    # 관련법령ID (admbyl에서도 태그 이름은 같고 값은 행정규칙ID)
+    owner_name: str
+    number: str | None      # 6자리: 앞 4자리 번호 + 뒤 2자리 가지번호
+    kind: str | None        # 별표 | 서식 | 별지 …
+    title: str
+    promulgated_on: date | None
+    file_path: str | None
+    pdf_path: str | None
+
+    @property
+    def master_id(self) -> str:
+        return self.owner_source_id if self.family == "law" else f"admrul:{self.owner_source_id}"
+
+
+@dataclass
+class ListPage:
+    target: str
+    total: int
+    page: int
+    rows: list
+
+
+def _law_row(e) -> LawRow:
+    return LawRow(_t(e, "법령일련번호"), _t(e, "법령ID"), _t(e, "법령명한글"), _o(e, "법령약칭명"), _o(e, "법령구분명"),
+                  _o(e, "소관부처명"), _d(e, "공포일자"), _o(e, "공포번호"), _d(e, "시행일자"), _o(e, "제개정구분명"),
+                  _t(e, "현행연혁코드"))
+
+
+def _admrul_row(e) -> AdmrulRow:
+    return AdmrulRow(_t(e, "행정규칙일련번호"), _t(e, "행정규칙ID"), _t(e, "행정규칙명"), _o(e, "행정규칙종류"),
+                     _o(e, "소관부처명"), _d(e, "발령일자"), _o(e, "발령번호"), _d(e, "시행일자"), _o(e, "제개정구분명"),
+                     _t(e, "현행연혁구분"))
+
+
+def _licbyl_row(e) -> AnnexRow:
+    return AnnexRow(_t(e, "별표일련번호"), "law", _t(e, "관련법령일련번호"), _t(e, "관련법령ID"), _t(e, "관련법령명"),
+                    _o(e, "별표번호"), _o(e, "별표종류"), _t(e, "별표명"), _d(e, "공포일자"), _o(e, "별표서식파일링크"),
+                    _o(e, "별표서식PDF파일링크"))
+
+
+def _admbyl_row(e) -> AnnexRow:
+    return AnnexRow(_t(e, "별표일련번호"), "admrul", _t(e, "관련행정규칙일련번호"), _t(e, "관련법령ID"),
+                    _t(e, "관련행정규칙명"), _o(e, "별표번호"), _o(e, "별표종류"), _t(e, "별표명"), _d(e, "발령일자"),
+                    _o(e, "별표서식파일링크"), None)
+
+
+LIST_SPEC = {  # target: (최상위 태그, 행 태그, 필수 태그, 행 생성)
+    "law": ("LawSearch", "law", ("법령일련번호", "법령ID", "법령명한글", "공포일자", "현행연혁코드"), _law_row),
+    "admrul": ("AdmRulSearch", "admrul", ("행정규칙일련번호", "행정규칙ID", "행정규칙명", "발령일자", "현행연혁구분"),
+               _admrul_row),
+    "licbyl": ("licBylSearch", "licbyl", ("별표일련번호", "관련법령일련번호", "관련법령ID", "별표명"), _licbyl_row),
+    "admbyl": ("admRulBylSearch", "admrulbyl", ("별표일련번호", "관련행정규칙일련번호", "관련법령ID", "별표명"),
+               _admbyl_row),
+}
+
+
+def parse_list(target: str, data: bytes) -> ListPage:
+    root_tag, row_tag, required, make = LIST_SPEC[target]
+    try:
+        root = ET.fromstring(data)
+    except ET.ParseError as e:
+        raise ResponseChanged(f"{target} 목록: XML 해석 실패 ({e})") from e
+    if root.tag != root_tag:
+        raise ResponseChanged(f"{target} 목록 응답 구조 변경: 최상위 <{root.tag}> (기대 <{root_tag}>)")
+    total = (root.findtext("totalCnt") or "").strip()
+    if not total.isdigit():
+        raise ResponseChanged(f"{target} 목록 응답 구조 변경: <totalCnt> 없음")
+    rows = []
+    for e in root.findall(row_tag):
+        for tag in required:
+            if e.find(tag) is None:
+                raise ResponseChanged(f"{target} 목록 응답 구조 변경: <{row_tag}>에 <{tag}> 없음")
+        rows.append(make(e))
+    page = (root.findtext("page") or "1").strip()
+    return ListPage(target, int(total), int(page) if page.isdigit() else 1, rows)
+
+
+def row_date(r) -> date | None:
+    return r.promulgated_on if isinstance(r, LawRow) else r.issued_on
 
 
 def _txt(e, tag: str) -> str:
@@ -25,6 +164,8 @@ def _strip_marker(s: str, marker: str) -> str:
 def parse_law_xml(data: bytes) -> ParsedDoc:
     root = ET.fromstring(data)
     info = root.find("기본정보")
+    if info is None:
+        raise ResponseChanged("law 본문 응답 구조 변경: <기본정보> 없음")
     eff = _iso(_txt(info, "시행일자"))
     meta = {"law_id": _txt(info, "법령ID"), "promulgated_on": _iso(_txt(info, "공포일자")), "effective_on": eff,
             "amendment_kind": _txt(info, "제개정구분") or None, "kind": _txt(info, "법종구분") or None,

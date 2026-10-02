@@ -1,8 +1,10 @@
+from reg.core.ingest.loader import norm_title as norm_name
 from reg.platform import outbox
 from reg.platform.archive import store
 from reg.platform.sniff import FileKind
 from reg.platform.storage.blob import BlobStore
-from reg.sources.lawgo.client import LawGoClient, norm_name
+from reg.sources.lawgo.client import LawGoClient
+from reg.sources.lawgo.xml import parse_list
 
 XML = FileKind("application/xml", "xml")
 SERVICE_URL = "https://www.law.go.kr/DRF/lawService.do?target=law&type=XML&MST={}"
@@ -12,7 +14,7 @@ def sync_laws(conn, client: LawGoClient, blob: BlobStore, names: list[str]) -> d
     st = {"checked": 0, "fetched": 0, "not_found": []}
     for name in names:
         st["checked"] += 1
-        hit = next((r for r in client.search(name)
+        hit = next((r for r in parse_list("law", client.search("law", query=name)).rows
                     if norm_name(r.name) == norm_name(name) and r.status == "현행"), None)
         if hit is None:
             st["not_found"].append(name)
@@ -22,7 +24,7 @@ def sync_laws(conn, client: LawGoClient, blob: BlobStore, names: list[str]) -> d
             conn.execute("UPDATE regulation.law_watch SET last_checked_at = now() WHERE law_id = %s", (hit.law_id,))
             conn.commit()
             continue
-        doc = store(conn, blob, source="lawgo", url=SERVICE_URL.format(hit.mst), content=client.fetch(hit.mst),
+        doc = store(conn, blob, source="lawgo", url=SERVICE_URL.format(hit.mst), content=client.service("law", hit.mst),
                     kind=XML, meta={"law_id": hit.law_id, "mst": hit.mst, "name": hit.name})
         conn.execute(
             "INSERT INTO regulation.law_watch (law_id, name, kind, last_mst, promulgated_on, effective_on,"
