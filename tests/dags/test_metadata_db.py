@@ -13,7 +13,7 @@ def test_metadata_db_script_is_idempotent(pg):
     for pw in ("af-pass-1", "af-pass-2"):        # 두 번째는 비밀번호 변경까지 반영되는지
         env["REG_AIRFLOW_DB_PASSWORD"] = pw
         r = subprocess.run(["bash", "scripts/airflow-metadata-db.sh"], cwd=ROOT, env=env,
-                           capture_output=True, text=True)
+                           capture_output=True, text=True, check=False)
         assert r.returncode == 0, r.stderr
     host, port = pg.get_container_host_ip(), pg.get_exposed_port(5432)
     with psycopg.connect(f"postgresql://reg_airflow:af-pass-2@{host}:{port}/reg_airflow", autocommit=True) as c:
