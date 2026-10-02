@@ -425,14 +425,11 @@ law.law_master    법령 1건 (법령ID 기준, 개정돼도 같은 행)
 | 테이블 | 키 | 주요 컬럼 |
 |---|---|---|
 | `law_master` | `law_id` (법령ID, 예: `010719` / 행정규칙은 `admrul:{행정규칙ID}`) | `name`, `name_abbr`, `family`(법령/행정규칙), `kind`(법률/대통령령/부령/훈령/예규/고시/…), `ministry`, `current_mst`, `status`(현행/폐지), `first_seen_at`, `last_synced_at`, `url`(법령 화면) |
-| `law_version` | `mst` (법령일련번호) | `law_id`(FK), `promulgated_on`, `promulgation_no`, `effective_on`, `revision_kind`(제정/일부개정/타법개정/…), `is_current`, `source_document_id`(원본 XML, SeaweedFS), `xml_url`(DRF 원문), `html_url` |
+| `law_version` | `mst` (법령일련번호) | `law_id`(FK, **법령당 현행 1행**), `promulgated_on`, `promulgation_no`, `effective_on`, `revision_kind`(제정/일부개정/타법개정/…), `source_document_id`(원본 XML, SeaweedFS), `xml_url`(DRF 원문), `html_url` |
 | `article` | `id` | `mst`(FK), `law_id`, `path`(우리 경로 규칙: `a32.p1.i2`, 부칙 `supp@날짜`, 별표 `annexN`), `jo_code`(DRF 조문 코드 6자리, 예 `003200`), `label`(제32조), `heading`, `text`, `effective_on`, `url`(조문 화면) |
 
-- `article`은 판본(MST)마다 저장한다. 그래야 과거 기준일 질의와 신구 비교가 된다.
-- 바뀌지 않은 조문은 본문 해시로 판별해 저장 공간을 아낀다.
-- 규모 예상:
-  - 현행만 기준이면 조문 약 30~40만 행이다(법률·시행령·시행규칙 평균 수십 조).
-  - 연혁을 쌓으면 해마다 수만 행씩 는다.
+- `article`은 현행 판본의 조문만 둔다. 개정되면 교체한다(§3A.4 "현행만 받는다").
+- 규모 예상: 조문 약 30~40만 행이다(법률·시행령·시행규칙 평균 수십 조). 늘지 않는다.
 
 ### 3A.4 일 배치 (`reg_law_daily`, 01:00) — 신청한 API 기준
 
@@ -492,8 +489,9 @@ law.law_master    법령 1건 (법령ID 기준, 개정돼도 같은 행)
 - **법령명 해석**: 정식 명칭 → 약칭(`law_master.name_abbr`) → 띄어쓰기·가운뎃점 정규화 순으로 맞춘다.
   - 「동법」, 「같은 법」처럼 앞 문장을 가리키는 표현은 바로 앞 인용으로 해석한다(기존 규칙).
   - 여러 법령에 맞거나 아무것에도 맞지 않으면 검수 큐(`REF_LAW_AMBIGUOUS`)로 보낸다.
-- **조문 해석**: 인용 시점이 아니라 **그 내부규정 버전의 시행일에 유효했던 법령 판본**의 조문을 가리킨다. 현행 규정이면 현행 판본이다.
-  - 법령이 개정돼 조문이 바뀌면 다음 연계 배치가 새 판본 조문으로 옮긴다. 이 변경이 개정 영향 분석의 입력이 된다.
+- **조문 해석**: 법령은 현행만 있으므로 외래키는 항상 **현행 조문**을 가리킨다.
+  - 법령이 개정되면 다음 연계 배치가 새 현행 조문으로 다시 연결한다.
+  - `law.change_log`의 신설/개정/삭제 기록이 개정 영향 분석의 입력이 된다.
 - **법령이 폐지되거나 조문이 삭제된 경우**: 외래키는 마지막 판본의 조문을 그대로 가리킨다. 이 참조는 검수 큐(`REF_LAW_GONE`)와 개정 알림(삭제, 높음)으로 보낸다.
 
 ### 3A.6 원본 링크
