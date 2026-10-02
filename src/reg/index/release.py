@@ -3,6 +3,7 @@ import json
 import logging
 import re
 
+from reg.index.mapping import ALIAS
 from reg.index.service import search
 
 log = logging.getLogger(__name__)
@@ -115,3 +116,34 @@ def gate_release(conn, os, embedder, reranker, release_id: int, smoke: list[dict
         conn.execute("UPDATE ops.release SET stats = stats || %s::jsonb WHERE id = %s", (gate, release_id))
     conn.commit()
     return result
+
+
+RELEASE_INDEX = re.compile(rf"{re.escape(ALIAS)}-r\d+")
+
+
+def prune_releases(conn, os, keep_building_hours: int = 6, dry_run: bool = False) -> dict:
+    """게시본과 직전 게시본만 남긴다 (spec 6.2 정리). 진행 중인 빌드와 지금 alias 대상은 언제나 남긴다."""
+    cur = conn.execute("SELECT os_index FROM ops.release WHERE state = 'PUBLISHED'"
+                       " ORDER BY published_at DESC NULLS LAST, id DESC LIMIT 1").fetchone()
+    prev = conn.execute("SELECT os_index FROM ops.release WHERE state = 'RETIRED' AND published_at IS NOT NULL"
+                        " ORDER BY published_at DESC, id DESC LIMIT 1").fetchone()
+    building = conn.execute("SELECT os_index FROM ops.release WHERE state = 'BUILDING'"
+                            " AND created_at > now() - make_interval(hours => %s)", (keep_building_hours,)).fetchall()
+    stale = [r["id"] for r in conn.execute(
+        "SELECT id FROM ops.release WHERE state = 'BUILDING' AND created_at <= now() - make_interval(hours => %s)"
+        " ORDER BY id", (keep_building_hours,)).fetchall()]
+    keep = {r["os_index"] for r in (cur, prev, *building) if r}
+    alias = os.alias_target()
+    if alias:
+        keep.add(alias)
+    drop = [n for n in os.indexes() if RELEASE_INDEX.fullmatch(n) and n not in keep]
+    if dry_run:
+        conn.rollback()
+    else:
+        for n in drop:
+            os.delete_index(n)
+        if stale:
+            conn.execute("UPDATE ops.release SET state = 'FAILED', error = 'stale: 빌드가 끝나지 않아 정리됨'"
+                         " WHERE id = ANY(%s)", (stale,))
+        conn.commit()
+    return {"kept": sorted(keep), "deleted": drop, "stale_failed": stale, "dry_run": dry_run}
