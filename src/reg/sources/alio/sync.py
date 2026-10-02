@@ -13,14 +13,25 @@ DOWNLOAD_URL = "https://www.alio.go.kr/download/rulefiledown.json?fileNo={}"
 
 
 def load_institutions(conn, path: Path) -> list[dict]:
+    """YAML 기관 목록을 DB에 반영한다. active가 없으면 true, aliases(약칭)가 없으면 [].
+
+    반환: 일 배치 대상(active이고 ALIO id가 있음)."""
     for i in yaml.safe_load(Path(path).read_text(encoding="utf-8")):
         conn.execute(
-            "INSERT INTO regulation.institution (code, name, kind, alio_apba_id, alio_name)"
-            " VALUES (%(code)s, %(name)s, %(kind)s, %(alio_apba_id)s, %(alio_name)s)"
+            "INSERT INTO regulation.institution (code, name, kind, alio_apba_id, alio_name, active, aliases)"
+            " VALUES (%(code)s, %(name)s, %(kind)s, %(alio_apba_id)s, %(alio_name)s, %(active)s, %(aliases)s)"
             " ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, kind = EXCLUDED.kind,"
-            " alio_apba_id = EXCLUDED.alio_apba_id, alio_name = EXCLUDED.alio_name", i)
+            " alio_apba_id = EXCLUDED.alio_apba_id, alio_name = EXCLUDED.alio_name, active = EXCLUDED.active,"
+            " aliases = EXCLUDED.aliases",
+            {"alio_apba_id": None, "alio_name": None, "active": True, **i, "aliases": list(i.get("aliases") or [])})
     conn.commit()
-    return conn.execute("SELECT * FROM regulation.institution WHERE active ORDER BY id").fetchall()
+    return conn.execute("SELECT * FROM regulation.institution WHERE active AND alio_apba_id IS NOT NULL"
+                        " ORDER BY id").fetchall()
+
+
+def get_institution(conn, code: str) -> dict | None:
+    """활성 여부와 상관없이 기관 하나 (backfill용)."""
+    return conn.execute("SELECT * FROM regulation.institution WHERE code = %s", (code,)).fetchone()
 
 
 def _upsert_rule(conn, inst_id: int, d: RuleDetail, fingerprint: str) -> None:
@@ -47,7 +58,15 @@ def _record_file(conn, file_no, seq, name, ord_, status, reason, doc_id) -> None
 
 
 def sync_institution(conn, alio: AlioClient, blob: BlobStore, inst: dict, limit: int | None = None) -> dict:
-    st = dict(rules_seen=0, details_fetched=0, files_fetched=0, files_new_content=0, files_rejected=0)
+    """한 기관의 목록 전체를 돈다.
+
+    complete=True는 상한(limit) 없이 목록 끝까지 예외 없이 돈 경우뿐이다. 폐지 대조(reconcile)의 전제다.
+    started_at은 DB now()다. 이 실행이 본 규정의 last_seen_at(now(), 같거나 뒤의 트랜잭션)은 모두 started_at 이상이다.
+    """
+    started = conn.execute("SELECT now() AS t").fetchone()["t"]
+    conn.commit()   # now()는 트랜잭션 시작 시각: 여기서 끝내야 뒤 규정들의 now()가 이보다 앞서지 않는다
+    st = dict(rules_seen=0, details_fetched=0, files_fetched=0, files_new_content=0, files_rejected=0,
+              complete=False, started_at=started.isoformat())
     for row in alio.list_rules(inst["alio_name"], inst["alio_apba_id"]):
         if limit is not None and st["rules_seen"] >= limit:
             break
@@ -79,7 +98,7 @@ def sync_institution(conn, alio: AlioClient, blob: BlobStore, inst: dict, limit:
                 continue
             doc = store(conn, blob, source="alio", url=DOWNLOAD_URL.format(file_no), content=content,
                         kind=kind, meta={"seq": row.seq, "file_no": file_no, "file_name": name,
-                                         "institution_code": inst["code"]})
+                                         "institution_code": inst["code"], "institution_name": inst["name"]})
             _record_file(conn, file_no, row.seq, name, ord_, "fetched", None, doc.id)
             if doc.is_new:
                 st["files_new_content"] += 1
@@ -87,4 +106,6 @@ def sync_institution(conn, alio: AlioClient, blob: BlobStore, inst: dict, limit:
                     "source": "alio", "source_document_id": doc.id, "institution_code": inst["code"],
                     "seq": row.seq, "file_no": file_no, "file_name": name})
         conn.commit()  # 규정 단위 커밋: 중간에 멈춰도 다시 실행하면 이어서 받는다
+    else:
+        st["complete"] = limit is None
     return st
