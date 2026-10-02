@@ -5,12 +5,24 @@ from reg.sources.alio.sync import sync_institution
 
 
 def canary_check() -> dict:
-    return {"ok": True, "skipped": "canary 미구현 (Task 5)"}
+    """ALIO 응답 구조 점검 (요청 2~3회, 1.5초 간격). 구조가 바뀌었으면 AlioSchemaChanged, 점검·장애면 AlioError."""
+    from reg.platform.http import PoliteClient
+    from reg.platform.settings import get_settings
+    from reg.sources.alio.canary import run_canary
+    from reg.sources.alio.client import AlioClient
+
+    http = PoliteClient("alio", get_settings().alio_min_interval)
+    try:
+        return run_canary(AlioClient(http))
+    finally:
+        http.close()
 
 
 def active_institutions() -> list[str]:
+    """DAG 첫 태스크: 응답 구조가 바뀌었으면 여기서 실패해 수집 태스크가 하나도 돌지 않는다."""
     from reg.sources.alio.sync import load_institutions
 
+    canary_check()
     with open_conn() as conn:
         return [i["code"] for i in load_institutions(conn, INSTITUTIONS_YAML)]
 

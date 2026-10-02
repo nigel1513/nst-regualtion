@@ -59,3 +59,21 @@ def backfill_cmd(institution: str = typer.Option(..., "--institution", help="기
 
     typer.echo(tasks.backfill(institution))
     typer.echo("다음: reg process --all  (일 배치에 넣으려면 config/sources/alio.yaml에서 active: true)")
+
+
+@alio.command("canary")
+def canary_cmd() -> None:
+    """ALIO 응답 구조 점검: 목록 1쪽 + 상세 1건. 0 정상, 2 구조 변경, 1 점검·장애."""
+    from reg.sources.alio import tasks
+    from reg.sources.alio.canary import AlioSchemaChanged
+    from reg.sources.alio.client import AlioError
+
+    try:
+        r = tasks.canary_check()
+    except AlioSchemaChanged as e:
+        typer.echo(str(e), err=True)
+        raise typer.Exit(2)
+    except AlioError as e:
+        typer.echo(f"ALIO 점검·장애 (구조 변경 아님): {e}", err=True)
+        raise typer.Exit(1)
+    typer.echo(r)

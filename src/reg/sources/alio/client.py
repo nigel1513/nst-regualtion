@@ -7,6 +7,7 @@ from datetime import date
 from reg.platform.http import PoliteClient
 
 _BFILE_SPLIT = re.compile(r",(?=\d+\|)")
+FINGERPRINT_KEYS = ("submissionNo", "ruleStDa", "idate", "crctYn", "reSbmtYn")   # 목록 지문: 바뀌면 상세를 다시 받는다
 
 
 class AlioError(Exception):
@@ -54,12 +55,19 @@ class AlioClient:
         self.http = http
         self.base = base
 
-    def _json(self, path: str, params: dict) -> dict:
+    def raw(self, path: str, params: dict) -> dict:
+        """JSON 본문 전체 (status 검사 없음). canary가 봉투 구조까지 점검할 때 쓴다."""
         resp = self.http.get(self.base + path, params=params)
         try:
             body = resp.json()
         except ValueError as e:
             raise AlioError(f"{path}: JSON 아님 ({resp.text[:80]!r})") from e
+        if not isinstance(body, dict):
+            raise AlioError(f"{path}: JSON 객체 아님 ({type(body).__name__})")
+        return body
+
+    def _json(self, path: str, params: dict) -> dict:
+        body = self.raw(path, params)
         if body.get("status") != "success":
             raise AlioError(f"{path}: status={body.get('status')} message={body.get('message')}")
         return body["data"]
@@ -73,7 +81,7 @@ class AlioClient:
                 if r.get("apbaId") != apba_id:
                     continue
                 yield ListRow(str(r["seq"]), r["title"].strip(), r["apbaId"], r.get("insdRuleDivis"),
-                              "|".join(str(r.get(k)) for k in ("submissionNo", "ruleStDa", "idate", "crctYn", "reSbmtYn")))
+                              "|".join(str(r.get(k)) for k in FINGERPRINT_KEYS))
             if page >= int(data["page"]["totalPage"]):
                 return
             page += 1
