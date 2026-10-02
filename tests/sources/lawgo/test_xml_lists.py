@@ -58,3 +58,17 @@ def test_law_body_contract_and_guard():
     assert d.title == "공무원 여비 규정" and d.meta["law_id"] == "009402" and d.get("a10") is not None
     with pytest.raises(ResponseChanged, match="기본정보"):
         parse_law_xml('<?xml version="1.0" encoding="UTF-8"?><법령/>'.encode())
+
+
+def test_list_rows_carry_ministry_code():
+    law = parse_list("law", (FX / "law_list_ddes_p1.xml").read_bytes()).rows
+    assert all(r.ministry and r.ministry_code and r.ministry_code.isdigit() for r in law)
+    adm = parse_list("admrul", (FX / "admrul_list_ddes_p1.xml").read_bytes()).rows
+    assert all(r.ministry and r.ministry_code is None for r in adm)  # admrul 목록에는 코드가 없다 (본문에만 있다)
+
+
+def test_ministry_of_law_and_admrul_bodies():
+    from reg.sources.lawgo.xml import ministry_of
+
+    assert ministry_of((FX / "law_287535.xml").read_bytes()) == ("인사혁신처", "1760000")
+    assert ministry_of((FX / "admrul_2100000285346.xml").read_bytes()) == ("법무부", "1270000")

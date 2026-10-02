@@ -34,6 +34,7 @@ class VersionHeader:
     promulgation_no: str | None
     effective_on: date | None
     revision_kind: str | None
+    ministry_code: str | None = None
 
     @property
     def law_id(self) -> str:
@@ -42,12 +43,12 @@ class VersionHeader:
     @classmethod
     def from_law(cls, r: LawRow) -> "VersionHeader":
         return cls("law", r.law_id, r.name, r.abbr, r.kind, r.ministry, r.mst, r.promulgated_on, r.promulgation_no,
-                   r.effective_on, r.revision_kind)
+                   r.effective_on, r.revision_kind, r.ministry_code)
 
     @classmethod
     def from_admrul(cls, r: AdmrulRow) -> "VersionHeader":
         return cls("admrul", r.admrul_id, r.name, None, r.kind, r.ministry, r.seq, r.issued_on, r.issue_no,
-                   r.effective_on, r.revision_kind)
+                   r.effective_on, r.revision_kind, r.ministry_code)
 
 
 def _hash(p: Prov) -> str:
@@ -76,13 +77,14 @@ def has_version(conn, mst: str) -> bool:
 def upsert_master(conn, h: VersionHeader) -> None:
     conn.execute(
         "INSERT INTO law.law_master AS m (law_id, family, source_id, name, name_norm, name_abbr, abbr_norm, kind,"
-        " ministry, url, last_synced_at) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s, now())"
+        " ministry, ministry_code, url, last_synced_at) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s, now())"
         " ON CONFLICT (law_id) DO UPDATE SET name = EXCLUDED.name, name_norm = EXCLUDED.name_norm,"
         " name_abbr = COALESCE(EXCLUDED.name_abbr, m.name_abbr), abbr_norm = COALESCE(EXCLUDED.abbr_norm, m.abbr_norm),"
         " kind = COALESCE(EXCLUDED.kind, m.kind), ministry = COALESCE(EXCLUDED.ministry, m.ministry),"
+        " ministry_code = COALESCE(EXCLUDED.ministry_code, m.ministry_code),"
         " url = EXCLUDED.url, status = '현행', missing_since = NULL, last_synced_at = now()",
         (h.law_id, h.family, h.source_id, h.name, norm_title(h.name), h.abbr or None,
-         norm_title(h.abbr) if h.abbr else None, h.kind, h.ministry, urls.page_for(h.family, h.name)))
+         norm_title(h.abbr) if h.abbr else None, h.kind, h.ministry, h.ministry_code, urls.page_for(h.family, h.name)))
 
 
 def apply_version(conn, h: VersionHeader, doc: ParsedDoc, source_document_id: int, run_id: int | None = None) -> dict:
@@ -216,14 +218,15 @@ def upsert_catalog(conn, rows: list[AdmrulRow]) -> int:
     for r in rows:
         n += conn.execute(
             "INSERT INTO law.admrul_catalog AS c (admrul_id, name, name_norm, kind, ministry, current_seq, issued_on,"
-            " issue_no, effective_on, revision_kind, status) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
+            " issue_no, effective_on, revision_kind, status, ministry_code) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
             " ON CONFLICT (admrul_id) DO UPDATE SET name = EXCLUDED.name, name_norm = EXCLUDED.name_norm,"
-            " kind = EXCLUDED.kind, ministry = EXCLUDED.ministry, current_seq = EXCLUDED.current_seq,"
+            " kind = EXCLUDED.kind, ministry = EXCLUDED.ministry,"
+            " ministry_code = COALESCE(EXCLUDED.ministry_code, c.ministry_code), current_seq = EXCLUDED.current_seq,"
             " issued_on = EXCLUDED.issued_on, issue_no = EXCLUDED.issue_no, effective_on = EXCLUDED.effective_on,"
             " revision_kind = EXCLUDED.revision_kind, status = EXCLUDED.status, last_seen_at = now()"
             " WHERE EXCLUDED.status = '현행' OR c.status <> '현행'",
             (r.admrul_id, r.name, norm_title(r.name), r.kind, r.ministry, r.seq, r.issued_on, r.issue_no,
-             r.effective_on, r.revision_kind, r.status)).rowcount
+             r.effective_on, r.revision_kind, r.status, r.ministry_code)).rowcount
     return n
 
 
@@ -232,4 +235,4 @@ def catalog_row(conn, admrul_id: str) -> AdmrulRow | None:
     if r is None:
         return None
     return AdmrulRow(r["current_seq"], r["admrul_id"], r["name"], r["kind"], r["ministry"], r["issued_on"],
-                     r["issue_no"], r["effective_on"], r["revision_kind"], r["status"])
+                     r["issue_no"], r["effective_on"], r["revision_kind"], r["status"], r["ministry_code"])

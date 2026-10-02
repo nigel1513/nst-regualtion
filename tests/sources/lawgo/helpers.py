@@ -26,12 +26,12 @@ def ymd(s: str) -> date:
 
 
 def law_list(rows: list[dict], total: int | None = None, page: int = 1) -> bytes:
-    """rows: {mst, law_id, name, date(YYYYMMDD), [abbr, kind, no, status, ministry]}"""
+    """rows: {mst, law_id, name, date(YYYYMMDD), [abbr, kind, no, status, ministry, ministry_code]}"""
     items = "".join(
         f'<law id="{i}"><법령일련번호>{r["mst"]}</법령일련번호><현행연혁코드>{r.get("status", "현행")}</현행연혁코드>'
         f'<법령명한글>{_c(r["name"])}</법령명한글><법령약칭명>{_c(r.get("abbr", ""))}</법령약칭명><법령ID>{r["law_id"]}</법령ID>'
         f'<공포일자>{r["date"]}</공포일자><공포번호>{r.get("no", "100")}</공포번호><제개정구분명>일부개정</제개정구분명>'
-        f'<소관부처명>{r.get("ministry", "인사혁신처")}</소관부처명><법령구분명>{r.get("kind", "대통령령")}</법령구분명>'
+        f'<소관부처명>{r.get("ministry", "인사혁신처")}</소관부처명><소관부처코드>{r.get("ministry_code", "1760000")}</소관부처코드><법령구분명>{r.get("kind", "대통령령")}</법령구분명>'
         f'<시행일자>{r["date"]}</시행일자></law>' for i, r in enumerate(rows, 1))
     return (f'<?xml version="1.0" encoding="UTF-8"?><LawSearch><target>law</target>'
             f'<totalCnt>{len(rows) if total is None else total}</totalCnt><page>{page}</page>{items}</LawSearch>').encode()
@@ -138,11 +138,12 @@ class FakeClient:
 
 
 def mirror_law(conn, blob, law_id: str, name: str, articles: dict, mst: str, *, abbr: str | None = None,
-               kind: str = "대통령령", on: str = "20260630", no: str = "100", run_id: int | None = None) -> dict:
+               kind: str = "대통령령", on: str = "20260630", no: str = "100", run_id: int | None = None,
+               ministry_code: str | None = None) -> dict:
     data = law_body(law_id, name, articles, on=on, no=no, kind=kind) + f"<!-- {mst} -->".encode()
     sd = store(conn, blob, source="lawgo", url=f"test:law:{mst}", content=data, kind=XML, meta={"mst": mst})
     d = ymd(on)
-    h = VersionHeader("law", law_id, name, abbr, kind, "인사혁신처", mst, d, no, d, "일부개정")
+    h = VersionHeader("law", law_id, name, abbr, kind, "인사혁신처", mst, d, no, d, "일부개정", ministry_code)
     return apply_version(conn, h, parse_law_xml(data), sd.id, run_id)
 
 

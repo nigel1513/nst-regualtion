@@ -30,7 +30,15 @@ from reg.sources.lawgo.mirror import (
     upsert_catalog,
 )
 from reg.sources.lawgo.select import selected_admruls
-from reg.sources.lawgo.xml import AdmrulRow, LawRow, parse_admrul_xml, parse_law_xml, parse_list, row_date
+from reg.sources.lawgo.xml import (
+    AdmrulRow,
+    LawRow,
+    ministry_of,
+    parse_admrul_xml,
+    parse_law_xml,
+    parse_list,
+    row_date,
+)
 
 XML = FileKind("application/xml", "xml")
 FATAL = (KeyNotApproved, KeyRejected, StopCollecting)
@@ -87,7 +95,14 @@ def ingest_law(ctx: Ctx, row: LawRow) -> dict:
     doc = parse_law_xml(data)
     sd = store(ctx.conn, ctx.blob, source="lawgo", url=urls.drf_xml("law", row.mst), content=data, kind=XML,
                meta={"law_id": row.law_id, "mst": row.mst, "name": row.name})
-    return apply_version(ctx.conn, VersionHeader.from_law(row), doc, sd.id, ctx.run_id)
+    return apply_version(ctx.conn, _with_ministry(VersionHeader.from_law(row), data), doc, sd.id, ctx.run_id)
+
+
+def _with_ministry(h: VersionHeader, data: bytes) -> VersionHeader:
+    """목록에 소관부처(코드)가 없으면 본문에서 채운다 (admrul 목록에는 코드가 없다, overview §2.8)."""
+    name, code = ministry_of(data)
+    h.ministry, h.ministry_code = h.ministry or name, h.ministry_code or code
+    return h
 
 
 def ingest_admrul(ctx: Ctx, row: AdmrulRow) -> dict:
@@ -95,7 +110,7 @@ def ingest_admrul(ctx: Ctx, row: AdmrulRow) -> dict:
     doc = parse_admrul_xml(data)
     sd = store(ctx.conn, ctx.blob, source="lawgo", url=urls.drf_xml("admrul", row.seq), content=data, kind=XML,
                meta={"law_id": row.master_id, "mst": row.seq, "name": row.name})
-    return apply_version(ctx.conn, VersionHeader.from_admrul(row), doc, sd.id, ctx.run_id)
+    return apply_version(ctx.conn, _with_ministry(VersionHeader.from_admrul(row), data), doc, sd.id, ctx.run_id)
 
 
 def refresh_annexes(ctx: Ctx, family: str, law_id: str, name: str) -> int:

@@ -75,3 +75,28 @@ def test_legacy_event_without_mirror_row_is_still_processed(lconn, blob):
     lconn.commit()
     assert process_once(lconn, blob, today=TODAY)["ok"] == 1
     assert lconn.execute("SELECT title FROM regulation.work WHERE id = 'kr/law/009402'").fetchone()["title"] == "공무원 여비 규정"
+
+
+def test_promoted_work_carries_ministry_for_institution_search(lconn, blob):
+    """overview §2.8: 법령·행정규칙 work의 external_ids에 소관부처명·코드 (색인이 institution_name으로 쓴다)."""
+    mirror_law(lconn, blob, "009402", "공무원 여비 규정", YEOBI, "1001", ministry_code="1760000")
+    mirror_admrul(lconn, blob, (FX / "admrul_2100000285346.xml").read_bytes(), "2100000285346")
+    promote_all(lconn, LawgoConfig(promote_laws=["공무원 여비 규정"], promote_admruls=["영장심의위원회 운영세칙"]))
+    process_once(lconn, blob, today=TODAY)
+    ext = {r["id"]: r["external_ids"] for r in lconn.execute(
+        "SELECT id, external_ids FROM regulation.work WHERE id IN ('kr/law/009402', 'kr/admrul/75610')").fetchall()}
+    assert (ext["kr/law/009402"]["ministry"], ext["kr/law/009402"]["ministry_code"]) == ("인사혁신처", "1760000")
+    assert (ext["kr/admrul/75610"]["ministry"], ext["kr/admrul/75610"]["ministry_code"]) == ("법무부", "1270000")
+    m = lconn.execute("SELECT ministry, ministry_code FROM law.law_master WHERE law_id = '009402'").fetchone()
+    assert (m["ministry"], m["ministry_code"]) == ("인사혁신처", "1760000")
+
+
+def test_legacy_event_ministry_comes_from_the_xml(lconn, blob):
+    sd = store(lconn, blob, source="lawgo", url="u", content=(FX / "law_287535.xml").read_bytes(),
+               kind=FileKind("application/xml", "xml"), meta={})
+    lconn.execute("INSERT INTO ops.outbox (topic, payload) VALUES ('regulation.law_fetched', %s)",
+                  (json.dumps({"law_id": "009402", "mst": "287535", "source_document_id": sd.id}),))
+    lconn.commit()
+    process_once(lconn, blob, today=TODAY)
+    ext = lconn.execute("SELECT external_ids FROM regulation.work WHERE id = 'kr/law/009402'").fetchone()["external_ids"]
+    assert (ext["ministry"], ext["ministry_code"]) == ("인사혁신처", "1760000")
