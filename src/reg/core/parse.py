@@ -8,6 +8,8 @@ import re
 from reg.core.model import Block, HistEntry, ParsedDoc, Prov
 from reg.core.text import Joiner, clean, parse_dot_date, split_notes
 
+PARSER_VERSION = "2026.10.2"  # 파서가 바뀌면 올린다 → work_version.parser_version으로 재파싱 대상 판별
+
 CIRCLED = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳"
 RE_CHAPTER = re.compile(r"^제\s*(\d+)\s*장\s*(.{0,30})$")
 RE_SECTION = re.compile(r"^제\s*(\d+)\s*절\s*(.{0,30})$")

@@ -1,5 +1,7 @@
 import json
+import os
 from collections.abc import Callable
+from contextlib import contextmanager
 
 from reg.platform.http import RequestLog
 
@@ -52,3 +54,40 @@ def run_logged(source: str, scope: str | None, body):
     finally:
         log_conn.close()
         conn.close()
+
+
+def open_conn():
+    """설정의 앱 DSN으로 새 연결 (배치 진입점용)."""
+    from reg.platform.db.conn import connect
+    from reg.platform.settings import get_settings
+
+    return connect(get_settings().database_url)
+
+
+@contextmanager
+def task_run(task_id: str, conn=None):
+    """배치 태스크 한 번의 실행을 ops.pipeline_run에 남긴다 (Airflow·CLI 공통). conn이 없으면 따로 연다.
+
+    블록 안에서 채운 dict가 stats로 저장되고, 예외는 failed·error로 기록한 뒤 그대로 다시 던진다."""
+    own = conn is None
+    rec = open_conn() if own else conn
+    try:
+        rid = rec.execute("INSERT INTO ops.pipeline_run (dag_id, run_id, task_id) VALUES (%s, %s, %s) RETURNING id",
+                          (os.environ.get("AIRFLOW_CTX_DAG_ID"), os.environ.get("AIRFLOW_CTX_DAG_RUN_ID"),
+                           task_id)).fetchone()["id"]
+        rec.commit()
+        stats: dict = {}
+        try:
+            yield stats
+        except BaseException as e:
+            rec.rollback()
+            rec.execute("UPDATE ops.pipeline_run SET status = 'failed', finished_at = now(), stats = %s, error = %s"
+                        " WHERE id = %s", (json.dumps(stats, default=str), f"{type(e).__name__}: {e}"[:2000], rid))
+            rec.commit()
+            raise
+        rec.execute("UPDATE ops.pipeline_run SET status = 'success', finished_at = now(), stats = %s WHERE id = %s",
+                    (json.dumps(stats, default=str), rid))
+        rec.commit()
+    finally:
+        if own:
+            rec.close()

@@ -6,6 +6,7 @@ from datetime import date
 
 from reg.core.effective import Effective
 from reg.core.model import ParsedDoc, Prov
+from reg.core.parse import PARSER_VERSION
 
 _NORM = re.compile(r"[\s·ㆍ‧∙・]")
 RENUMBER_UNITS = {"article", "paragraph", "item"}
@@ -58,11 +59,11 @@ def add_version(conn, work_id: str, source_document_id: int, doc: ParsedDoc, eff
     conn.execute(
         "INSERT INTO regulation.work_version (id, work_id, source_document_id, title, promulgated_on, posted_on,"
         " effective_from, effective_basis, effective_status, amendment_kind, amendment_no, class_code, parsed,"
-        " parse_stats) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+        " parse_stats, parser_version) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
         (vid, work_id, source_document_id, doc.title or work_id, eff.promulgated_on, posted_on, eff.effective_from,
          eff.basis, eff.status, doc.meta.get("amendment_kind") or (last.kind if last else None),
          doc.meta.get("promulgation_no") or (last.number if last else None), doc.class_code,
-         json.dumps(doc.to_json(), ensure_ascii=False), json.dumps(doc.meta.get("stats", {}))))
+         json.dumps(doc.to_json(), ensure_ascii=False), json.dumps(doc.meta.get("stats", {})), PARSER_VERSION))
     for i, h in enumerate(doc.history):
         conn.execute("INSERT INTO regulation.amendment_history (work_version_id, ord, kind, date, number)"
                      " VALUES (%s,%s,%s,%s,%s)", (vid, i, h.kind, h.date, h.number))

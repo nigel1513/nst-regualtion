@@ -1,10 +1,9 @@
 """reg alio … — ALIO 내부규정 수집."""
 import typer
 
-from reg.platform.settings import ROOT
+from reg.sources.alio.config import INSTITUTIONS_YAML
 
 alio = typer.Typer(no_args_is_help=True, help="ALIO 내부규정 수집")
-INSTITUTIONS_YAML = ROOT / "config/sources/alio.yaml"
 
 
 @alio.command("collect")
