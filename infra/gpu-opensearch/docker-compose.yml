@@ -1,0 +1,28 @@
+# 규정 플랫폼 전용 OpenSearch — Windows WSL2 GPU PC (메모리 62GB, 32코어). nst-nexus 클러스터와 분리.
+#   :8005  OpenSearch API (보안 플러그인 켬, HTTP, 계정 인증)
+# 방화벽: 플랫폼 서버(192.168.0.3)만 8005 허용
+#   New-NetFirewallRule -DisplayName "OpenSearch (nst server only)" -Direction Inbound -Protocol TCP -LocalPort 8005 -RemoteAddress 192.168.0.3 -Action Allow
+services:
+  opensearch:
+    build: .
+    image: nst-regulation/opensearch:2.19.1-nori
+    environment:
+      discovery.type: single-node
+      cluster.name: nst-regulation
+      OPENSEARCH_JAVA_OPTS: "-Xms8g -Xmx8g"
+      OPENSEARCH_INITIAL_ADMIN_PASSWORD: ${OS_ADMIN_PASSWORD:?OS_ADMIN_PASSWORD를 .env에}
+      plugins.security.ssl.http.enabled: "false"
+      bootstrap.memory_lock: "true"
+    ulimits:
+      memlock: { soft: -1, hard: -1 }
+      nofile: { soft: 65536, hard: 65536 }
+    ports: ["8005:9200"]
+    volumes: ["os-data:/usr/share/opensearch/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:9200/ | grep -qE '200|401'"]
+      interval: 15s
+      timeout: 5s
+      retries: 40
+    restart: unless-stopped
+volumes:
+  os-data:

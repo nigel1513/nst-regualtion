@@ -1,0 +1,18 @@
+# 규정 플랫폼 Neo4j — GPU PC (법령·규정 구조 그래프, M7). 플랫폼 서버(192.168.0.3)만 허용.
+#   :8006 bolt   :8007 브라우저(HTTP)
+#   New-NetFirewallRule -DisplayName "Neo4j (nst server only)" -Direction Inbound -Protocol TCP -LocalPort 8006-8007 -RemoteAddress 192.168.0.3 -Action Allow
+services:
+  neo4j:
+    image: neo4j:5.26-community
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?NEO4J_PASSWORD를 .env에}
+      NEO4J_server_memory_heap_initial__size: 4G
+      NEO4J_server_memory_heap_max__size: 4G
+      NEO4J_server_memory_pagecache_size: 8G
+      NEO4J_server_default__advertised__address: 192.168.0.2
+      NEO4J_server_bolt_advertised__address: 192.168.0.2:8006
+    ports: ["8006:7687", "8007:7474"]
+    volumes: ["neo4j-data:/data"]
+    restart: unless-stopped
+volumes:
+  neo4j-data:
