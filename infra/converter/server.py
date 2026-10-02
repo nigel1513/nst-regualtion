@@ -65,13 +65,13 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def do_GET(self) -> None:  # noqa: N802
+    def do_GET(self) -> None:
         if urlparse(self.path).path == "/healthz":
             self._reply(200, b"ok")
         else:
             self._reply(404, b"not found")
 
-    def do_POST(self) -> None:  # noqa: N802
+    def do_POST(self) -> None:
         u = urlparse(self.path)
         if u.path != "/convert":
             return self._reply(404, b"not found")
@@ -99,7 +99,7 @@ class Handler(BaseHTTPRequestHandler):
         self._reply(200, pdf, "application/pdf")
 
     def log_message(self, fmt: str, *args) -> None:
-        sys.stderr.write("converter %s - %s\n" % (self.address_string(), fmt % args))
+        sys.stderr.write(f"converter {self.address_string()} - {fmt % args}\n")
 
 
 def main() -> None:
