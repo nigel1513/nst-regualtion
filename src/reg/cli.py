@@ -34,7 +34,7 @@ def db_bootstrap(superuser_dsn: str = typer.Option(None, envvar="REG_SUPERUSER_U
 
 @db.command("upgrade")
 def db_upgrade() -> None:
-    upgrade(get_settings().migrator_url)
+    upgrade(get_settings().migrator_url, wiring.migration_locations())
     typer.echo("migrate 완료")
 
 
@@ -99,7 +99,7 @@ def eval_qa(limit: int = typer.Option(None, help="앞에서 N문항만"),
     r = run_eval(conn, deps, cases)
     detail = {row["qa_id"]: row for row in r["cases"]}
     logs = {x["id"]: x for x in conn.execute(
-        "SELECT id, status, verdict, retrieved FROM regulation.qa_log WHERE id = ANY(%s)", (list(detail),)).fetchall()}
+        "SELECT id, status, verdict, retrieved FROM ops.qa_log WHERE id = ANY(%s)", (list(detail),)).fetchall()}
     lines = [f"# 질의응답 평가 ({datetime.now():%Y-%m-%d %H:%M})", "",
              f"- 모델: {s.llm_model} · 임베딩 {s.embed_model} · 리랭커 {s.rerank_model} · 문항 {r['n']}개", "",
              "| 지표 | 값 | 목표 (spec 12) |", "|---|---|---|",

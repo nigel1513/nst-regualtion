@@ -38,7 +38,7 @@ def _version_meta(conn, version_id: str) -> dict | None:
 
 def _version_at(conn, work_id: str, as_of: str | None, release_id: int | str | None = None) -> str | None:
     """참조 대상 규범문서의 버전: 기준일이 없으면 현행, 있으면 그날 시행 중이던 버전 (색인 release 안에서)."""
-    rel = (" AND id IN (SELECT work_version_id FROM regulation.release_item WHERE release_id = %(rel)s)"
+    rel = (" AND id IN (SELECT work_version_id FROM ops.release_item WHERE release_id = %(rel)s)"
            if release_id is not None else "")
     if as_of is None:
         q = "SELECT id FROM regulation.work_version WHERE work_id = %(w)s AND version_state = 'CURRENT'" + rel

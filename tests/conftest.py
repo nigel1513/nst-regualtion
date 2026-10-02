@@ -28,7 +28,9 @@ def migrated(pg):
     su = _dsn(pg, "su", "su")
     bootstrap(su, "nst_regulation", "mig", "app")
     mig, app = _dsn(pg, "reg_migrator", "mig", "nst_regulation"), _dsn(pg, "reg_app", "app", "nst_regulation")
-    upgrade(mig)
+    from reg.wiring import migration_locations
+
+    upgrade(mig, migration_locations())
     return app, mig
 
 
@@ -41,10 +43,10 @@ def conn(migrated):
     c.rollback()
     with c.cursor() as cur:  # 테스트 간 격리: 데이터만 비운다
         cur.execute(
-            "TRUNCATE regulation.email_delivery, regulation.notification, regulation.change_impact, regulation.owner_assignment, regulation.qa_log, regulation.release_item, regulation.release, regulation.reference, regulation.review_task, regulation.law_seed, regulation.provision_change, regulation.version_provision, regulation.provision_version,"
+            "TRUNCATE ops.pipeline_run, ops.embedding_cache, ops.email_delivery, ops.notification, ops.change_impact, ops.owner_assignment, ops.qa_log, ops.release_item, ops.release, regulation.reference, regulation.review_task, regulation.law_seed, regulation.provision_change, regulation.version_provision, regulation.provision_version,"
             " regulation.provision, regulation.amendment_history, regulation.work_version, regulation.work,"
-            " regulation.outbox, regulation.alio_rule_file, regulation.alio_rule,"
-            " regulation.law_watch, regulation.request_log, regulation.fetch_run,"
+            " ops.outbox, regulation.alio_rule_file, regulation.alio_rule,"
+            " regulation.law_watch, ops.request_log, ops.fetch_run,"
             " regulation.source_document, regulation.institution CASCADE"
         )
     c.commit()

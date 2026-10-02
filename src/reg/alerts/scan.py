@@ -10,7 +10,7 @@ def scan_once(conn, driver, limit: int = 100) -> dict:
     st = {"claimed": 0, "ok": 0, "failed": 0, "impacts": 0}
     tried: list[int] = []
     while st["claimed"] < limit:
-        ev = conn.execute("SELECT id, payload FROM regulation.outbox WHERE topic = %s AND processed_at IS NULL"
+        ev = conn.execute("SELECT id, payload FROM ops.outbox WHERE topic = %s AND processed_at IS NULL"
                           " AND attempts < %s AND NOT (id = ANY(%s)) ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED",
                           (TOPIC, MAX_ATTEMPTS, tried)).fetchone()
         if ev is None:
@@ -19,13 +19,13 @@ def scan_once(conn, driver, limit: int = 100) -> dict:
         st["claimed"] += 1
         try:
             rows = analyze_version(conn, driver, ev["payload"]["work_id"], ev["payload"]["version_id"])
-            conn.execute("UPDATE regulation.outbox SET processed_at = now(), claimed_at = now(), last_error = NULL"
+            conn.execute("UPDATE ops.outbox SET processed_at = now(), claimed_at = now(), last_error = NULL"
                          " WHERE id = %s", (ev["id"],))
             st["ok"] += 1
             st["impacts"] += len(rows)
         except Exception as e:
             conn.rollback()
-            conn.execute("UPDATE regulation.outbox SET attempts = attempts + 1, claimed_at = now(), last_error = %s"
+            conn.execute("UPDATE ops.outbox SET attempts = attempts + 1, claimed_at = now(), last_error = %s"
                          " WHERE id = %s", (f"{type(e).__name__}: {e}"[:2000], ev["id"]))
             st["failed"] += 1
         conn.commit()

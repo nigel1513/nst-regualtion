@@ -62,7 +62,7 @@ def test_modified_basis_creates_high_impact_once(conn, tmp_path, neo4j_driver):
     # a4(제6조 참조)는 변경 없음, a7은 같은 규정 안, a8은 법 전체를 참조하므로 낮음으로 한 번
     assert got == [("kr/reg/KASI/여비", "a3", "a5", "HIGH", "BASIS"), ("kr/reg/KASI/여비", "a8", "a5", "LOW", "CITATION")]
     assert analyze_version(conn, neo4j_driver, "kr/law/L1", vid) == []  # 재스캔해도 중복 없음
-    assert conn.execute("SELECT count(*) AS n FROM regulation.change_impact").fetchone()["n"] == 2
+    assert conn.execute("SELECT count(*) AS n FROM ops.change_impact").fetchone()["n"] == 2
 
 
 def test_annotation_only_change_has_no_impact(conn, tmp_path, neo4j_driver):
@@ -150,7 +150,7 @@ def test_backtest_inserts_resolved_and_skips_pending_versions(conn, tmp_path, ne
 
     vid = setup(conn, tmp_path, [Prov("a5", "article", "제5조", "정산", "정산은 10일 이내에 한다."),
                                  Prov("a6", "article", "제6조", "기록", "기록한다.")])
-    conn.execute("INSERT INTO regulation.outbox (topic, payload) VALUES ('regulation.version_loaded', %s)",
+    conn.execute("INSERT INTO ops.outbox (topic, payload) VALUES ('regulation.version_loaded', %s)",
                  (json.dumps({"work_id": "kr/law/L1", "version_id": vid}),))
     conn.commit()
     sync_graph(conn, neo4j_driver)

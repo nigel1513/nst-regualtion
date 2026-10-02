@@ -42,7 +42,7 @@ def run(conn, tmp_path, inst):
 
 
 def events(conn):
-    return conn.execute("SELECT payload FROM regulation.outbox WHERE topic='regulation.source_fetched'"
+    return conn.execute("SELECT payload FROM ops.outbox WHERE topic='regulation.source_fetched'"
                         " ORDER BY id").fetchall()
 
 

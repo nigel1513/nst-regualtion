@@ -23,3 +23,10 @@ def process_command():
     from reg.core.cli import process_cmd
 
     return process_cmd
+
+
+def migration_locations() -> list:
+    from reg.core.ingest.migrations_location import MIGRATIONS as core
+    from reg.sources import alio, lawgo
+
+    return [core] + [m for m in (alio.MIGRATIONS, lawgo.MIGRATIONS) if m is not None]

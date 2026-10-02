@@ -16,7 +16,7 @@ class FakeMailer:
 def impact(conn, work="kr/reg/KASI/여비", path="a3", sev="HIGH", cause_path="a5"):
     conn.execute("INSERT INTO regulation.institution (code, name, kind) VALUES ('KASI','천문연','GRI') ON CONFLICT DO NOTHING")
     return conn.execute(
-        "INSERT INTO regulation.change_impact (cause_work_id, cause_version_id, cause_path, cause_change, affected_work_id,"
+        "INSERT INTO ops.change_impact (cause_work_id, cause_version_id, cause_path, cause_change, affected_work_id,"
         " affected_path, rel_type, evidence, impact_kind, severity) VALUES ('kr/law/L1','kr/law/L1@2026-01-01',%s,"
         "'MODIFIED',%s,%s,'BASIS','「가상 연구법」 제5조에 따라','근거·위임·준용 대상 개정',%s) RETURNING id",
         (cause_path, work, path, sev)).fetchone()["id"]
@@ -32,7 +32,7 @@ def test_owner_then_admin_fallback_and_idempotent(conn):
     import_owners(conn, [{"work_id": "kr/reg/KASI/여비", "email": "owner@x", "name": "담당", "org_unit": "회계", "role": "OWNER"}])
     assert build_notifications(conn, {"KASI": ["admin@x"]}) == 2
     assert build_notifications(conn, {"KASI": ["admin@x"]}) == 0
-    rec = sorted(r["recipient"] for r in conn.execute("SELECT recipient FROM regulation.notification").fetchall())
+    rec = sorted(r["recipient"] for r in conn.execute("SELECT recipient FROM ops.notification").fetchall())
     assert rec == ["admin@x", "owner@x"]
 
 
@@ -57,7 +57,7 @@ def test_failure_is_recorded_and_retried(conn):
     owner(conn, "o@x")
     build_notifications(conn, {})
     assert send_due(conn, FakeMailer(fail=True), datetime(2026, 10, 2, 9, 0))["failed"] == 1
-    d = conn.execute("SELECT status, attempts FROM regulation.email_delivery").fetchone()
+    d = conn.execute("SELECT status, attempts FROM ops.email_delivery").fetchone()
     assert (d["status"], d["attempts"]) == ("failed", 1)
     assert send_due(conn, FakeMailer(), datetime(2026, 10, 2, 9, 5))["notifications"] == 1
 
@@ -66,6 +66,6 @@ def test_closed_alerts_are_not_mailed(conn):
     iid = impact(conn)
     owner(conn, "o@x")
     build_notifications(conn, {})
-    conn.execute("UPDATE regulation.change_impact SET status = 'NO_ACTION' WHERE id = %s", (iid,))
+    conn.execute("UPDATE ops.change_impact SET status = 'NO_ACTION' WHERE id = %s", (iid,))
     conn.commit()
     assert send_due(conn, FakeMailer(), datetime(2026, 10, 2, 9, 0))["notifications"] == 0

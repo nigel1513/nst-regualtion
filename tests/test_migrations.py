@@ -10,10 +10,10 @@ TABLES = {"institution", "fetch_run", "request_log", "source_document",
 
 def test_tables_exist_and_app_can_write(conn):
     rows = conn.execute(
-        "SELECT table_name FROM information_schema.tables WHERE table_schema='regulation'"
+        "SELECT table_name FROM information_schema.tables WHERE table_schema IN ('regulation', 'ops')"
     ).fetchall()
     assert TABLES <= {r["table_name"] for r in rows}
-    conn.execute("INSERT INTO regulation.outbox (topic, payload) VALUES ('t', '{}')")
+    conn.execute("INSERT INTO ops.outbox (topic, payload) VALUES ('t', '{}')")
 
 
 def test_app_cannot_create_tables(conn):

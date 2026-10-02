@@ -25,4 +25,4 @@ def test_index_bulk_alias_and_nori(os_url):
 
 
 def test_release_tables(conn):
-    conn.execute("INSERT INTO regulation.release (state, os_index, embedding_model) VALUES ('BUILDING','x','m')")
+    conn.execute("INSERT INTO ops.release (state, os_index, embedding_model) VALUES ('BUILDING','x','m')")

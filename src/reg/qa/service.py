@@ -26,7 +26,7 @@ def _institutions(conn) -> list[dict]:
 def _log(conn, q: str, res: dict, user_inst, latency_ms: int, model: str | None, retrieved: list) -> int:
     ans = res.get("answer")
     row = conn.execute(
-        "INSERT INTO regulation.qa_log (question, institution, user_institution, as_of, status, verdict, release_id,"
+        "INSERT INTO ops.qa_log (question, institution, user_institution, as_of, status, verdict, release_id,"
         " model, retrieved, cited, verification, answer, latency_ms) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
         " RETURNING id",
         (q, res.get("institution"), user_inst, res.get("as_of"), res["status"], ans.get("결론") if ans else None,

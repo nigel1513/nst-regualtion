@@ -126,7 +126,7 @@ def analyze_version(conn, driver, work_id: str, version_id: str, status: str = "
         cur = conn.execute("SELECT id FROM regulation.work_version WHERE work_id = %s AND version_state = 'CURRENT'",
                            (f["work_id"],)).fetchone()
         row = conn.execute(
-            "INSERT INTO regulation.change_impact (cause_work_id, cause_version_id, cause_from_version_id, cause_path,"
+            "INSERT INTO ops.change_impact (cause_work_id, cause_version_id, cause_from_version_id, cause_path,"
             " cause_change, affected_work_id, affected_version_id, affected_path, rel_type, evidence, impact_kind,"
             " severity, hops, status, resolution_note) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
             " ON CONFLICT DO NOTHING RETURNING *",

@@ -26,11 +26,11 @@ def test_build_and_publish(loaded, os_url):
     st = build_release(loaded, os, FakeEmbedder(), "fake")
     assert st["chunks"] > 30 and os.alias_target() == st["index"]
     assert os.count(st["index"]) == st["chunks"]
-    r = loaded.execute("SELECT state FROM regulation.release WHERE id = %s", (st["release_id"],)).fetchone()
+    r = loaded.execute("SELECT state FROM ops.release WHERE id = %s", (st["release_id"],)).fetchone()
     assert r["state"] == "PUBLISHED"
     st2 = build_release(loaded, os, FakeEmbedder(), "fake")
     assert os.alias_target() == st2["index"]
-    states = [x["state"] for x in loaded.execute("SELECT state FROM regulation.release ORDER BY id").fetchall()]
+    states = [x["state"] for x in loaded.execute("SELECT state FROM ops.release ORDER BY id").fetchall()]
     assert states[-2:] == ["RETIRED", "PUBLISHED"]
 
 
@@ -40,4 +40,4 @@ def test_failed_build_keeps_alias(loaded, os_url):
     with pytest.raises(Exception):
         build_release(loaded, os, FakeEmbedder(fail=True), "fake")
     assert os.alias_target() == before
-    assert loaded.execute("SELECT state FROM regulation.release ORDER BY id DESC LIMIT 1").fetchone()["state"] == "FAILED"
+    assert loaded.execute("SELECT state FROM ops.release ORDER BY id DESC LIMIT 1").fetchone()["state"] == "FAILED"

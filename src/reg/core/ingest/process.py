@@ -21,7 +21,7 @@ def _topics() -> list[str]:
 
 def _check_unhandled(conn) -> None:
     """등록되지 않은 수집 주제의 대기 이벤트가 있으면 조용히 쌓이지 않게 멈춘다."""
-    row = conn.execute("SELECT topic FROM regulation.outbox WHERE processed_at IS NULL AND attempts < %s"
+    row = conn.execute("SELECT topic FROM ops.outbox WHERE processed_at IS NULL AND attempts < %s"
                        " AND topic LIKE 'regulation.%%fetched' AND NOT (topic = ANY(%s)) LIMIT 1",
                        (MAX_ATTEMPTS, _topics())).fetchone()
     if row:
@@ -37,7 +37,7 @@ def _load(conn, pv) -> tuple:
 
 def rebuild_all(conn) -> int:
     conn.execute("TRUNCATE " + ", ".join(f"regulation.{t}" for t in STRUCTURE_TABLES) + " CASCADE")
-    n = conn.execute("UPDATE regulation.outbox SET processed_at = NULL, attempts = 0, last_error = NULL"
+    n = conn.execute("UPDATE ops.outbox SET processed_at = NULL, attempts = 0, last_error = NULL"
                      " WHERE topic = ANY(%s)", (_topics(),)).rowcount
     conn.commit()
     return n
@@ -67,7 +67,7 @@ def kst_today() -> date:
 
 
 def _fail(conn, ev: dict, e: Exception, st: dict) -> None:
-    conn.execute("UPDATE regulation.outbox SET attempts = attempts + 1, claimed_at = now(), last_error = %s"
+    conn.execute("UPDATE ops.outbox SET attempts = attempts + 1, claimed_at = now(), last_error = %s"
                  " WHERE id = %s", (f"{type(e).__name__}: {e}"[:2000], ev["id"]))
     st["failed"] += 1
     if ev["attempts"] + 1 >= MAX_ATTEMPTS:
@@ -84,7 +84,7 @@ def process_once(conn, blob: BlobStore, limit: int = 100, today: date | None = N
     _check_unhandled(conn)
     handlers = registry.handlers()
     st = {"claimed": 0, "ok": 0, "failed": 0, "parked": 0}
-    q = ("SELECT id, topic, payload, attempts FROM regulation.outbox WHERE processed_at IS NULL AND attempts < %s"
+    q = ("SELECT id, topic, payload, attempts FROM ops.outbox WHERE processed_at IS NULL AND attempts < %s"
          " AND topic = ANY(%s)")
     while st["claimed"] < limit:
         first = conn.execute(q + " ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED",
@@ -109,7 +109,7 @@ def process_once(conn, blob: BlobStore, limit: int = 100, today: date | None = N
         skipped = [ev for ev, r in done if r is None]
         done = [(ev, r) for ev, r in done if r is not None]
         for ev in skipped:
-            conn.execute("UPDATE regulation.outbox SET processed_at = now(), claimed_at = now(), last_error = NULL"
+            conn.execute("UPDATE ops.outbox SET processed_at = now(), claimed_at = now(), last_error = NULL"
                          " WHERE id = %s", (ev["id"],))
             st["ok"] += 1
         if done:
@@ -122,7 +122,7 @@ def process_once(conn, blob: BlobStore, limit: int = 100, today: date | None = N
                         emit_version_events(conn, wid)
                     for ev, (wid, vid, doc, eff) in done:
                         record(conn, wid, vid, check(doc, eff))
-                        conn.execute("UPDATE regulation.outbox SET processed_at = now(), claimed_at = now(),"
+                        conn.execute("UPDATE ops.outbox SET processed_at = now(), claimed_at = now(),"
                                      " last_error = NULL WHERE id = %s", (ev["id"],))
                 st["ok"] += len(done)
             except Exception as e:

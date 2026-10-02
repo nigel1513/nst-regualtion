@@ -22,7 +22,7 @@ class SmtpMailer:
 
 def import_owners(conn, rows: list[dict]) -> int:
     for r in rows:
-        conn.execute("INSERT INTO regulation.owner_assignment (work_id, email, name, org_unit, role)"
+        conn.execute("INSERT INTO ops.owner_assignment (work_id, email, name, org_unit, role)"
                      " VALUES (%(work_id)s, %(email)s, %(name)s, %(org_unit)s, %(role)s)"
                      " ON CONFLICT (work_id, email) DO UPDATE SET name = EXCLUDED.name, org_unit = EXCLUDED.org_unit,"
                      " role = EXCLUDED.role", {**r, "role": r.get("role") or "OWNER"})
@@ -41,13 +41,13 @@ def build_notifications(conn, admins: dict[str, list[str]]) -> int:
     """새 영향마다 수신자를 정해 알림을 만든다. 같은 (영향, 수신자)는 한 번만."""
     n = 0
     for imp in conn.execute(
-            "SELECT ci.id, ci.affected_work_id, ci.severity, i.code FROM regulation.change_impact ci"
+            "SELECT ci.id, ci.affected_work_id, ci.severity, i.code FROM ops.change_impact ci"
             " LEFT JOIN regulation.work w ON w.id = ci.affected_work_id"
             " LEFT JOIN regulation.institution i ON i.id = w.institution_id WHERE ci.status = 'NEW'").fetchall():
-        owners = [r["email"] for r in conn.execute("SELECT email FROM regulation.owner_assignment WHERE work_id = %s"
+        owners = [r["email"] for r in conn.execute("SELECT email FROM ops.owner_assignment WHERE work_id = %s"
                                                    " ORDER BY role, email", (imp["affected_work_id"],)).fetchall()]
         for to in owners or admins.get(_inst_code(imp) or "", []):
-            n += conn.execute("INSERT INTO regulation.notification (impact_id, recipient, severity) VALUES (%s,%s,%s)"
+            n += conn.execute("INSERT INTO ops.notification (impact_id, recipient, severity) VALUES (%s,%s,%s)"
                               " ON CONFLICT DO NOTHING", (imp["id"], to, imp["severity"])).rowcount
     conn.commit()
     return n
@@ -65,7 +65,7 @@ def _body(rows: list[dict], web: str) -> str:
 
 
 def _daily_sent(conn, to: str, now: datetime) -> bool:
-    return conn.execute("SELECT 1 FROM regulation.email_delivery WHERE recipient = %s AND status = 'sent'"
+    return conn.execute("SELECT 1 FROM ops.email_delivery WHERE recipient = %s AND status = 'sent'"
                         " AND subject LIKE %s AND sent_at::date = %s", (to, DAILY + "%", now.date())).fetchone() is not None
 
 
@@ -74,7 +74,7 @@ def send_due(conn, mailer, now: datetime, digest_hour: int = 8, web: str = "http
     rows = conn.execute(
         "SELECT n.id, n.recipient, n.severity, n.impact_id, ci.cause_work_id, ci.cause_path, ci.cause_change,"
         " ci.affected_work_id, ci.affected_path, ci.rel_type, ci.evidence, ci.impact_kind"
-        " FROM regulation.notification n JOIN regulation.change_impact ci ON ci.id = n.impact_id"
+        " FROM ops.notification n JOIN ops.change_impact ci ON ci.id = n.impact_id"
         " WHERE n.sent_at IS NULL AND ci.status IN ('NEW', 'ACKED', 'ACTION_REQUIRED') ORDER BY n.id").fetchall()
     batches: dict[tuple[str, str], list[dict]] = defaultdict(list)
     for r in rows:
@@ -86,17 +86,17 @@ def send_due(conn, mailer, now: datetime, digest_hour: int = 8, web: str = "http
         subject = f"{kind} 영향 {len(items)}건 (높음 {high})"
         body = _body(items, web)
         ids = [r["id"] for r in items]
-        d = conn.execute("INSERT INTO regulation.email_delivery (recipient, subject, body, notification_ids)"
+        d = conn.execute("INSERT INTO ops.email_delivery (recipient, subject, body, notification_ids)"
                          " VALUES (%s,%s,%s,%s) RETURNING id", (to, subject, body, ids)).fetchone()["id"]
         try:
             mailer.send(to, subject, body)
-            conn.execute("UPDATE regulation.email_delivery SET status = 'sent', attempts = attempts + 1, sent_at = %s"
+            conn.execute("UPDATE ops.email_delivery SET status = 'sent', attempts = attempts + 1, sent_at = %s"
                          " WHERE id = %s", (now, d))
-            conn.execute("UPDATE regulation.notification SET sent_at = %s WHERE id = ANY(%s)", (now, ids))
+            conn.execute("UPDATE ops.notification SET sent_at = %s WHERE id = ANY(%s)", (now, ids))
             st["emails"] += 1
             st["notifications"] += len(ids)
         except Exception as e:  # 발송 실패는 기록만 하고 다음 실행에서 다시 보낸다
-            conn.execute("UPDATE regulation.email_delivery SET status = 'failed', attempts = attempts + 1,"
+            conn.execute("UPDATE ops.email_delivery SET status = 'failed', attempts = attempts + 1,"
                          " last_error = %s WHERE id = %s", (f"{type(e).__name__}: {e}"[:500], d))
             st["failed"] += 1
         conn.commit()

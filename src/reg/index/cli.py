@@ -26,6 +26,6 @@ def index_status() -> None:
 
     s = get_settings()
     conn = connect(s.database_url)
-    for r in conn.execute("SELECT id, state, os_index, stats, created_at FROM regulation.release ORDER BY id DESC LIMIT 5"):
+    for r in conn.execute("SELECT id, state, os_index, stats, created_at FROM ops.release ORDER BY id DESC LIMIT 5"):
         typer.echo(f"{r['id']} {r['state']} {r['os_index']} {r['stats']}")
     typer.echo(f"alias → {OpenSearch(s.os_url).alias_target()}")

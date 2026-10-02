@@ -183,7 +183,7 @@ def create_app(dsn: str, blob: BlobStore, search_deps: dict | None = None) -> Fa
 
     @app.post("/api/v1/qa/{qa_id}/feedback")
     def qa_feedback(qa_id: int, body: FeedbackIn, c=Depends(conn)):
-        n = c.execute("UPDATE regulation.qa_log SET feedback = %s WHERE id = %s",
+        n = c.execute("UPDATE ops.qa_log SET feedback = %s WHERE id = %s",
                       (body.feedback + (f": {body.reason[:300]}" if body.reason else ""), qa_id)).rowcount
         c.commit()
         if not n:

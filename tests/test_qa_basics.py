@@ -16,7 +16,7 @@ def test_mask_pii():
 
 
 def test_qa_log_table(conn):
-    conn.execute("INSERT INTO regulation.qa_log (question, status) VALUES ('q', 'answered')")
+    conn.execute("INSERT INTO ops.qa_log (question, status) VALUES ('q', 'answered')")
 
 
 def test_mention_needs_a_word_boundary():

@@ -13,7 +13,7 @@ TOPIC = "regulation.version_loaded"
 
 
 def events(conn):
-    return [r["payload"] for r in conn.execute("SELECT payload FROM regulation.outbox WHERE topic = %s ORDER BY id",
+    return [r["payload"] for r in conn.execute("SELECT payload FROM ops.outbox WHERE topic = %s ORDER BY id",
                                                (TOPIC,)).fetchall()]
 
 
@@ -46,11 +46,11 @@ class DownDriver:
 def test_scan_retries_when_graph_is_down_then_processes(conn, tmp_path, neo4j_driver):
     vid = setup(conn, tmp_path, [Prov("a5", "article", "제5조", "정산", "정산은 10일 이내에 한다."),
                                  Prov("a6", "article", "제6조", "기록", "기록한다.")])
-    conn.execute("INSERT INTO regulation.outbox (topic, payload) VALUES (%s, %s)",
+    conn.execute("INSERT INTO ops.outbox (topic, payload) VALUES (%s, %s)",
                  (TOPIC, json.dumps({"work_id": "kr/law/L1", "version_id": vid})))
     conn.commit()
     assert scan_once(conn, DownDriver()) == {"claimed": 1, "ok": 0, "failed": 1, "impacts": 0}
-    ev = conn.execute("SELECT processed_at, attempts FROM regulation.outbox WHERE topic = %s", (TOPIC,)).fetchone()
+    ev = conn.execute("SELECT processed_at, attempts FROM ops.outbox WHERE topic = %s", (TOPIC,)).fetchone()
     assert ev["processed_at"] is None and ev["attempts"] == 1
     sync_graph(conn, neo4j_driver)
     st = scan_once(conn, neo4j_driver)

@@ -54,7 +54,7 @@ def test_answered_with_code_verdict_and_log(loaded, deps):
             "천문연 소속인데 출장 다녀온 지 10일 지났고 지출결의를 아직 안 했어요. 연락처 010-1234-5678")
     assert r["status"] == "answered" and r["answer"]["결론"] == "미충족" and r["verdict_source"] == "code"
     assert r["evidence"][0]["path"] == "a27" and r["institution"] == "KASI"
-    log = loaded.execute("SELECT question, status, verdict FROM regulation.qa_log WHERE id = %s", (r["id"],)).fetchone()
+    log = loaded.execute("SELECT question, status, verdict FROM ops.qa_log WHERE id = %s", (r["id"],)).fetchone()
     assert "5678" not in log["question"] and log["status"] == "answered" and log["verdict"] == "미충족"
 
 

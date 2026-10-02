@@ -25,10 +25,10 @@ def _provisions(conn, version_id: str) -> list[dict]:
 
 
 def build_release(conn, os: OpenSearch, embedder, model_name: str, publish: bool = True) -> dict:
-    rid = conn.execute("INSERT INTO regulation.release (state, os_index, embedding_model) VALUES ('BUILDING', '', %s)"
+    rid = conn.execute("INSERT INTO ops.release (state, os_index, embedding_model) VALUES ('BUILDING', '', %s)"
                        " RETURNING id", (model_name,)).fetchone()["id"]
     index = f"{ALIAS}-r{rid}"
-    conn.execute("UPDATE regulation.release SET os_index = %s WHERE id = %s", (index, rid))
+    conn.execute("UPDATE ops.release SET os_index = %s WHERE id = %s", (index, rid))
     conn.commit()
     created = False
     try:
@@ -63,23 +63,23 @@ def build_release(conn, os: OpenSearch, embedder, model_name: str, publish: bool
         if os.count(index) != len(docs):
             raise RuntimeError(f"색인 건수 불일치 {os.count(index)} != {len(docs)}")
         for v in versions:
-            conn.execute("INSERT INTO regulation.release_item (release_id, work_version_id) VALUES (%s, %s)",
+            conn.execute("INSERT INTO ops.release_item (release_id, work_version_id) VALUES (%s, %s)",
                          (rid, v["id"]))
         stats = {"chunks": len(docs), "unique_texts": len(keys), "versions": len(versions)}
         if publish:
             os.swap_alias(index)
-            conn.execute("UPDATE regulation.release SET state = 'RETIRED' WHERE state = 'PUBLISHED'")
-            conn.execute("UPDATE regulation.release SET state = 'PUBLISHED', published_at = now(), stats = %s"
+            conn.execute("UPDATE ops.release SET state = 'RETIRED' WHERE state = 'PUBLISHED'")
+            conn.execute("UPDATE ops.release SET state = 'PUBLISHED', published_at = now(), stats = %s"
                          " WHERE id = %s", (json.dumps(stats), rid))
         else:
-            conn.execute("UPDATE regulation.release SET stats = %s WHERE id = %s", (json.dumps(stats), rid))
+            conn.execute("UPDATE ops.release SET stats = %s WHERE id = %s", (json.dumps(stats), rid))
         conn.commit()
         return {"release_id": rid, "index": index, **stats}
     except Exception as e:
         conn.rollback()
         if created:
             os.delete_index(index)
-        conn.execute("UPDATE regulation.release SET state = 'FAILED', error = %s WHERE id = %s",
+        conn.execute("UPDATE ops.release SET state = 'FAILED', error = %s WHERE id = %s",
                      (f"{type(e).__name__}: {e}"[:2000], rid))
         conn.commit()
         raise

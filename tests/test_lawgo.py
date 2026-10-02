@@ -32,7 +32,7 @@ def test_sync_fetches_once_then_skips_until_mst_changes(conn, tmp_path):
     blob = LocalBlobStore(tmp_path)
     st = sync_laws(conn, client, blob, ["국가연구개발혁신법", "없는 법"])
     assert st["fetched"] == 1 and st["not_found"] == ["없는 법"] and svc.call_count == 1
-    ev = conn.execute("SELECT payload FROM regulation.outbox WHERE topic='regulation.law_fetched'").fetchall()
+    ev = conn.execute("SELECT payload FROM ops.outbox WHERE topic='regulation.law_fetched'").fetchall()
     assert ev[0]["payload"]["mst"] == "283849"
     st2 = sync_laws(conn, client, blob, ["국가연구개발혁신법"])
     assert st2["fetched"] == 0 and svc.call_count == 1

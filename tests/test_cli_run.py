@@ -18,5 +18,5 @@ def test_interrupted_run_is_marked_failed(app_env, conn):
 
     with pytest.raises(KeyboardInterrupt):
         run_logged("alio", None, body)
-    r = conn.execute("SELECT status, error FROM regulation.fetch_run ORDER BY id DESC LIMIT 1").fetchone()
+    r = conn.execute("SELECT status, error FROM ops.fetch_run ORDER BY id DESC LIMIT 1").fetchone()
     assert r["status"] == "failed" and "KeyboardInterrupt" in r["error"]

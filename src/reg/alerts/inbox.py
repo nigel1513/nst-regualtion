@@ -2,7 +2,7 @@
 OPEN = ("NEW", "ACKED", "ACTION_REQUIRED")
 DONE = ("NO_ACTION", "RESOLVED")
 SELECT = ("SELECT ci.*, cw.title AS cause_title, aw.title AS affected_title, ai.code AS institution"
-          " FROM regulation.change_impact ci LEFT JOIN regulation.work cw ON cw.id = ci.cause_work_id"
+          " FROM ops.change_impact ci LEFT JOIN regulation.work cw ON cw.id = ci.cause_work_id"
           " LEFT JOIN regulation.work aw ON aw.id = ci.affected_work_id"
           " LEFT JOIN regulation.institution ai ON ai.id = aw.institution_id")
 ORDER = " ORDER BY CASE ci.severity WHEN 'HIGH' THEN 0 WHEN 'MEDIUM' THEN 1 ELSE 2 END, ci.created_at DESC, ci.id"
@@ -53,15 +53,15 @@ def alert_detail(conn, impact_id: int) -> dict | None:
         " ON pv.id = vp.provision_version_id WHERE vp.work_version_id = %s AND pv.path = %s",
         (row["affected_version_id"], row["affected_path"])).fetchone() if row["affected_version_id"] else None
     rec = [r["who"] for r in conn.execute(  # 알림을 받은 사람과 지금 등록된 담당자
-        "SELECT recipient AS who FROM regulation.notification WHERE impact_id = %s"
-        " UNION SELECT email FROM regulation.owner_assignment WHERE work_id = %s ORDER BY 1",
+        "SELECT recipient AS who FROM ops.notification WHERE impact_id = %s"
+        " UNION SELECT email FROM ops.owner_assignment WHERE work_id = %s ORDER BY 1",
         (impact_id, row["affected_work_id"])).fetchall()]
     return {**row, "cause_old": joined("from_pv_id"), "cause_new": joined("to_pv_id"),
             "affected_text": _text(conn, aff and aff["id"]), "recipients": rec}
 
 
 def set_status(conn, impact_id: int, status: str, note: str | None) -> bool:
-    n = conn.execute("UPDATE regulation.change_impact SET status = %s, resolution_note = coalesce(%s, resolution_note),"
+    n = conn.execute("UPDATE ops.change_impact SET status = %s, resolution_note = coalesce(%s, resolution_note),"
                      " updated_at = now() WHERE id = %s", (status, note, impact_id)).rowcount
     conn.commit()
     return bool(n)
