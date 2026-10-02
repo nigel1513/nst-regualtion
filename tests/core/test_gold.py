@@ -84,3 +84,55 @@ def test_gold_parse(case):
                 assert p.text.startswith(v)
             else:
                 assert getattr(p, k) == v, (path, k)
+
+
+from reg.core.ingest.loader import norm_title
+from reg.core.model import Prov
+from reg.core.refs import INST_WORDS, RefContext, collect_abbreviations, collect_definitions, extract_refs, match_title
+
+REFS_TASK5 = {"R3", "R4", "R5", "R6", "R10", "R11", "R12", "R13", "R14"}
+
+
+def classify(r, case) -> str:
+    """참조 후보 → 'self' | work id | 'ext:이름' | 'none' (resolve_and_store와 같은 규칙, DB 없이)."""
+    if r.kind in ("internal", "annex"):
+        return "self"
+    if r.kind == "delegation":
+        return "none"
+    titles: dict[str, list[str]] = {}
+    for wid, t in case["titles"].items():
+        titles.setdefault(norm_title(t), []).append(wid)
+    code, name = case["institution"]
+    defs = collect_definitions(case.get("doc_texts", []) + [case["text"]])
+    prefixes = frozenset({norm_title(name), code, *INST_WORDS}
+                         | {norm_title(k) for k, v in defs.items() if norm_title(v) == norm_title(name)})
+    hits = match_title(r.name, titles, prefixes) if r.kind != "external" else titles.get(norm_title(r.name), [])
+    if len(hits) == 1:
+        return "self" if hits[0] == case["work"] else hits[0]
+    return f"ext:{r.name}"
+
+
+def check_ref_case(case):
+    ctx = RefContext(collect_abbreviations(case.get("doc_texts", []) + [case["text"]]))
+    refs = extract_refs(Prov(case["path"], case["unit"], "", case["heading"], case["text"]), ctx)
+    got = [(r.evidence, r.rel_type, classify(r, case), r.target_path, r.kind) for r in refs]
+    for w in case["want"]:
+        match = [g for g in got if g[0] == w["evidence"] or g[0].endswith(w["evidence"])]
+        assert match, (w, got)
+        _ev, rel, target, path, _kind = match[0]
+        if "rel" in w:
+            assert rel == w["rel"], (w, got)
+        if "target" in w:
+            assert target == w["target"], (w, got)
+        assert path == w["path"], (w, got)
+    for p in case.get("forbid_self_paths", []):
+        assert not [g for g in got if g[2] == "self" and g[3] == p], got
+    for rel in case.get("forbid_rel", []):
+        assert not [g for g in got if g[1] == rel], got
+    for kind in case.get("forbid_kinds", []):
+        assert not [g for g in got if g[4] == kind], got
+
+
+@pytest.mark.parametrize("case", [c for c in GOLD["refs"] if c["id"] in REFS_TASK5], ids=lambda c: c["id"])
+def test_gold_refs_extraction(case):
+    check_ref_case(case)
