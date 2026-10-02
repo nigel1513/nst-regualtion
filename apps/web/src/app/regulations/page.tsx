@@ -1,12 +1,13 @@
 import Link from "next/link";
-import { apiGet, type Institution, type Work, workHref } from "@/lib/api";
+import { AbolishBadge } from "@/components/AbolishBadge";
+import { apiGet, type Institution, type Work, type WorkStatusFields, workHref } from "@/lib/api";
 import { fmtDate, STATE_LABEL } from "@/lib/format";
 
 export default async function RegulationsPage({ searchParams }: { searchParams: Promise<{ inst?: string; q?: string; kind?: string }> }) {
   const { inst, q, kind } = await searchParams;
   const [insts, works] = await Promise.all([
     apiGet<Institution[]>("/api/v1/institutions"),
-    apiGet<Work[]>("/api/v1/works", { institution: inst, q, kind }),
+    apiGet<(Work & WorkStatusFields)[]>("/api/v1/works", { institution: inst, q, kind }),
   ]);
   const chip = (href: string, label: string, on: boolean) => (
     <Link key={href} href={href} className={`chip ${on ? "chip-blue" : ""}`}>{label}</Link>
@@ -34,7 +35,10 @@ export default async function RegulationsPage({ searchParams }: { searchParams: 
             <li key={w.id}>
               <Link href={workHref(w.id)} className="card flex items-start justify-between gap-3 p-4 text-[var(--ink)] hover:no-underline hover:border-[var(--accent-line)]">
                 <div>
-                  <div className="font-semibold">{w.title}</div>
+                  <div className="flex flex-wrap items-center gap-2 font-semibold">
+                    {w.title}
+                    <AbolishBadge status={w.status} abolishedOn={w.abolished_on} />
+                  </div>
                   <div className="mt-1 text-xs text-[var(--muted)]">{w.institution ?? w.kind}</div>
                 </div>
                 {w.version && (

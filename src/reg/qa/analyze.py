@@ -39,7 +39,8 @@ class Analysis:
     terms: list[str] = field(default_factory=list)
 
 
-def analyze(llm, question: str) -> Analysis:
+def analyze(llm, question: str, aliases: dict[str, list[str]] | None = None) -> Analysis:
+    """aliases: institutions.load_aliases(conn). 없으면 기관을 찾지 않는다."""
     days = None
     if m := RE_DAYS.search(question):
         days = int(m[1])
@@ -69,4 +70,4 @@ def analyze(llm, question: str) -> Analysis:
         qtype = "기한"
     rule_terms = [t for word, ts in SYNONYMS.items() if word in question for t in ts]
     terms = list(dict.fromkeys(rule_terms + terms))[:8]
-    return Analysis(resolve_mention(question), as_of, qtype, days, terms)
+    return Analysis(resolve_mention(question, aliases) if aliases else None, as_of, qtype, days, terms)

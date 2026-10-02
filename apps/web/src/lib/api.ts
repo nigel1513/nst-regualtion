@@ -96,3 +96,6 @@ export type Alert = {
   rel_type: string; evidence: string | null; resolution_note: string | null; created_at: string; institution: string | null;
 };
 export type AlertDetail = Alert & { cause_old: string | null; cause_new: string | null; affected_text: string | null; recipients: string[] };
+
+/** M6-2: 규범문서 폐지 상태 (works·work/view 응답의 work에 붙는다) */
+export type WorkStatusFields = { status?: "ACTIVE" | "ABOLISHED_CANDIDATE" | "ABOLISHED"; abolished_on?: string | null };

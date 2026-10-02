@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AbolishBadge } from "@/components/AbolishBadge";
 import { ProvisionText } from "@/components/ProvisionText";
 import { Relations } from "@/components/Relations";
-import { apiGet, decodeSegments, type Provision, sourceHref, validDate, type VersionRow, type ViewData, workHref } from "@/lib/api";
+import { apiGet, decodeSegments, type Provision, sourceHref, validDate, type VersionRow, type ViewData, type Work, type WorkStatusFields, workHref } from "@/lib/api";
 import { BASIS_LABEL, fmtDate, STATE_LABEL, STATUS_LABEL, TASK_LABEL } from "@/lib/format";
 
 const INDENT: Record<string, string> = { paragraph: "", item: "pl-5", subitem: "pl-10" };
@@ -32,6 +33,7 @@ export default async function ViewerPage({ params, searchParams }: {
     );
   }
   const { work, version: v, provisions, refs, history, tasks } = view;
+  const ws = work as Work & WorkStatusFields;
   const articles = provisions.filter((p) => p.unit === "article");
   const selected = articles.find((p) => p.path === a) ?? articles[0];
   const tops = provisions.filter((p) => ["chapter", "section", "article", "supplement", "annex"].includes(p.unit));
@@ -53,6 +55,7 @@ export default async function ViewerPage({ params, searchParams }: {
             {v.class_code && <span className="font-mono text-xs text-[var(--muted)]">원규분류 {v.class_code}</span>}
           </div>
           <div className="flex flex-wrap gap-2">
+            <AbolishBadge status={ws.status} abolishedOn={ws.abolished_on} />
             <span className={`chip ${v.version_state === "CURRENT" ? "chip-green" : "chip-amber"}`}>{STATE_LABEL[v.version_state]}</span>
             <span className="chip">시행 {fmtDate(v.effective_from)} · {BASIS_LABEL[v.effective_basis]}</span>
             {v.effective_status !== "CONFIRMED" && <span className="chip chip-amber">{STATUS_LABEL[v.effective_status]}</span>}
@@ -60,6 +63,14 @@ export default async function ViewerPage({ params, searchParams }: {
             <span className="chip">출처 {isLaw ? "law.go.kr" : "ALIO"}</span>
             <span className={`chip ${v.validation_status === "PASSED" ? "chip-blue" : "chip-amber"}`}>{v.validation_status === "PASSED" ? "검증 통과" : "검수 필요"}</span>
           </div>
+          {ws.status === "ABOLISHED" && (
+            <p className="text-[13px] text-[var(--red)]">
+              {fmtDate(ws.abolished_on ?? null)}부터 ALIO 목록에 없어 폐지로 확인된 규정입니다. 현행 검색·질의응답 근거에서 빠지며, 과거 기준일 조회용으로 보존합니다.
+            </p>
+          )}
+          {ws.status === "ABOLISHED_CANDIDATE" && (
+            <p className="text-[13px] text-[var(--amber)]">ALIO 목록에서 3일 넘게 보이지 않아 폐지 여부를 확인하고 있습니다.</p>
+          )}
         </div>
         <div className="flex flex-wrap gap-2">
           <form className="flex items-center gap-2 text-[13px] text-[var(--ink-2)]">

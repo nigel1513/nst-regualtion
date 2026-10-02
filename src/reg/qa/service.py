@@ -4,12 +4,12 @@ import time
 from contextlib import nullcontext
 from dataclasses import asdict
 
+from reg.index.service import search
 from reg.qa.analyze import analyze
 from reg.qa.answer import generate
 from reg.qa.evidence import expand
-from reg.qa.institutions import resolve_mention
+from reg.qa.institutions import load_aliases, resolve_mention
 from reg.qa.mask import mask_pii
-from reg.index.service import search
 
 MIN_SCORE = 0.3
 
@@ -42,7 +42,9 @@ def ask(db, deps: dict, question: str, institution: str | None = None, user_inst
         as_of: str | None = None) -> dict:
     t0 = time.monotonic()
     q = mask_pii(question.strip())
-    mention = resolve_mention(q)
+    with _db(db) as conn:
+        aliases = load_aliases(conn)
+    mention = resolve_mention(q, aliases)
     inst = institution or (mention if not (mention and user_institution and mention != user_institution)
                            else None) or (None if mention else user_institution)
     res = {"status": "", "institution": inst, "as_of": as_of, "question_type": None, "evidence": [], "answer": None,
@@ -59,7 +61,7 @@ def ask(db, deps: dict, question: str, institution: str | None = None, user_inst
                        "어느 기관 규정 기준으로 볼까요? 기관마다 기한이 다릅니다.")
             res["id"] = _log(conn, q, res, user_institution, ms(), None, [])
         return res
-    a = analyze(deps.get("llm"), q)
+    a = analyze(deps.get("llm"), q, aliases)
     res["question_type"] = a.question_type
     res["as_of"] = as_of = as_of or a.as_of
     query = " ".join([q, *a.terms])
