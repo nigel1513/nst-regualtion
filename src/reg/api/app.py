@@ -190,4 +190,6 @@ def create_app(dsn: str, blob: BlobStore, search_deps: dict | None = None) -> Fa
             raise HTTPException(404, "질의 기록을 찾을 수 없습니다")
         return {"ok": True}
 
+    from reg.api.law_routes import router as law_router  # M6-1 법령 미러
+    app.include_router(law_router)
     return app
