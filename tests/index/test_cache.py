@@ -65,3 +65,21 @@ def test_search_on_named_index_without_alias(osx):
     assert osx.alias_target() is None
     r = search(osx, FakeEmbedder(), None, "증빙서", rerank=False, index="nais-regulations-r902")
     assert [h["path"] for h in r["hits"]] == ["a27"]
+
+
+class _Recorder:
+    def __init__(self):
+        self.seen = []
+
+    def embed(self, texts):
+        self.seen += texts
+        return [[0.0] * 4 for _ in texts]
+
+
+def test_long_texts_are_truncated_for_embedding_only(conn):
+    """실데이터(2026-10-03): 8,192 토큰을 넘는 청크로 bge-m3가 400을 냈다. 임베딩 입력만 자른다 (BM25 본문은 그대로)."""
+    from reg.index.cache import EMBED_MAX_CHARS, embed_cached
+
+    rec = _Recorder()
+    embed_cached(conn, rec, "m-trunc", {"h-long": "가" * (EMBED_MAX_CHARS + 500), "h-short": "짧은 조문"})
+    assert sorted(len(t) for t in rec.seen) == [len("짧은 조문"), EMBED_MAX_CHARS]

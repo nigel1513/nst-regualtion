@@ -141,3 +141,12 @@ export type AnnexInfo = {
   segments: { n: number; page: number; url: string }[];
   table: { status: string; url: string | null };
 };
+
+/** 참조 팝업 (사용자 요청 2026-10-03): /api/v1/provision 응답 */
+export type ProvisionPopup = {
+  work_id: string; title: string; institution: string | null; institution_name: string | null;
+  version_id: string; effective_from: string | null;
+  article: { path: string; label: string; heading: string | null };
+  lines: { path: string; label: string; text: string; target: boolean }[];
+  href: string;
+};
