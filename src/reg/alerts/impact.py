@@ -1,8 +1,15 @@
 """개정 영향 분석 (spec 9.2): 실질 변경 조항 → Neo4j 역방향 탐색 → change_impact."""
 import re
 
+# 알림 원인은 law.go.kr에서 받은 상위 규범만 (사용자 결정 2026-10-02, spec §9).
+# 내부규정끼리의 영향(NST ↔ 산하기관, 기관 내 규정 사이)은 당분간 만들지 않는다. 다시 켜려면 여기에 "kr/reg/"를 더한다.
+ALERT_CAUSE_PREFIXES = ("kr/law/", "kr/admrul/")
 STRONG = {"BASIS", "DELEGATION", "MUTATIS", "IMPLEMENTS"}
 SEVERITY_ORDER = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
+
+
+def is_alert_cause(work_id: str) -> bool:
+    return work_id.startswith(ALERT_CAUSE_PREFIXES)
 
 
 def severity(change: str, rel: str, whole: bool = False) -> str:
@@ -75,7 +82,11 @@ def _ancestors(path: str) -> list[str]:
 
 def analyze_version(conn, driver, work_id: str, version_id: str, status: str = "NEW",
                     note: str | None = None) -> list[dict]:
-    """status/note: 사후 검증(backtest)은 처음부터 RESOLVED로 넣어 알림 경로에 한 순간도 걸리지 않게 한다."""
+    """status/note: 사후 검증(backtest)은 처음부터 RESOLVED로 넣어 알림 경로에 한 순간도 걸리지 않게 한다.
+
+    원인이 법령·행정규칙이 아니면(내부규정 개정) 영향을 만들지 않는다 (ALERT_CAUSE_PREFIXES)."""
+    if not is_alert_cause(work_id):
+        return []
     changes = _changes(conn, version_id)
     if not changes:
         return []

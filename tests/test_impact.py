@@ -157,3 +157,24 @@ def test_backtest_inserts_resolved_and_skips_pending_versions(conn, tmp_path, ne
     assert backtest(conn, neo4j_driver)["versions"] == 0  # 알림을 기다리는 실제 개정은 재생하지 않는다
     rows = analyze_version(conn, neo4j_driver, "kr/law/L1", vid, status="RESOLVED", note="backtest")
     assert rows and {r["status"] for r in rows} == {"RESOLVED"}
+
+
+def test_internal_regulation_amendments_do_not_raise_alerts(conn, tmp_path, neo4j_driver):
+    """사용자 결정 2026-10-02: 알림 원인은 law.go.kr 법령·행정규칙만. 내부규정끼리의 영향은 만들지 않는다."""
+    from reg.alerts.impact import is_alert_cause
+
+    assert is_alert_cause("kr/law/L1") and is_alert_cause("kr/admrul/2100000264562")
+    assert not is_alert_cause("kr/reg/NST/보안업무규정")
+    setup(conn, tmp_path, law_v1())
+    blob = LocalBlobStore(tmp_path)
+    upsert_work(conn, "kr/reg/KASI/세칙", "INTERNAL_REG", "여비세칙", None, {})
+    _ver(conn, blob, "kr/reg/KASI/세칙", "여비세칙", [Prov("a1", "article", "제1조", None, "「여비규정」 제3조에 따른다.")],
+         date(2021, 1, 1), b"S1")
+    rebuild_work(conn, "kr/reg/KASI/세칙", T)
+    resolve_and_store(conn, "kr/reg/KASI/세칙")
+    vid = _ver(conn, blob, "kr/reg/KASI/여비", "여비규정", [Prov("a3", "article", "제3조", "정산", "바뀐 내용.")],
+               date(2026, 1, 1), b"R2")
+    rebuild_work(conn, "kr/reg/KASI/여비", T)
+    conn.commit()
+    sync_graph(conn, neo4j_driver)
+    assert analyze_version(conn, neo4j_driver, "kr/reg/KASI/여비", vid) == []

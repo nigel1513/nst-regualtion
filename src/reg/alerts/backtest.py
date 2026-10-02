@@ -8,7 +8,8 @@ from reg.alerts.impact import analyze_version
 
 def backtest(conn, driver, limit: int | None = None) -> dict:
     versions = conn.execute(
-        "SELECT v.work_id, v.id FROM regulation.work_version v WHERE v.effective_from IS NOT NULL AND EXISTS ("
+        "SELECT v.work_id, v.id FROM regulation.work_version v WHERE v.effective_from IS NOT NULL"
+        " AND (v.work_id LIKE 'kr/law/%%' OR v.work_id LIKE 'kr/admrul/%%') AND EXISTS ("
         " SELECT 1 FROM regulation.work_version o WHERE o.work_id = v.work_id AND o.effective_from < v.effective_from)"
         # 알림을 기다리는 실제 개정은 재생하지 않는다 (재생 결과가 유일 키를 먼저 차지해 알림이 묻히지 않게)
         " AND NOT EXISTS (SELECT 1 FROM ops.outbox e WHERE e.topic = 'regulation.version_loaded'"
