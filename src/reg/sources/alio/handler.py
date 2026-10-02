@@ -8,8 +8,11 @@ from reg.core.extract import extract
 from reg.core.extract.pdf import extract_pdf
 from reg.core.ingest.contract import PreparedVersion, SourceHandler
 from reg.core.ingest.loader import work_key_for_regulation
+from reg.core.model import Block
 from reg.core.parse import parse_blocks
 from reg.platform.convert import ConversionError, Converter
+from reg.platform.ocr import load_lines
+from reg.platform.ocr_hooks import close_low_text, low_text_reason, request_ocr
 from reg.platform.storage.blob import BlobStore
 
 HWP_MIMES = {"application/x-hwp": "hwp", "application/hwp+zip": "hwpx"}
@@ -49,16 +52,22 @@ def prepare(conn, blob: BlobStore, payload: dict, today: date, converter: Conver
                             (payload["seq"],)).fetchone()["m"]
     this = conn.execute("SELECT ord FROM regulation.alio_rule_file WHERE file_no = %s",
                         (payload["file_no"],)).fetchone()
-    doc = parse_blocks(extract(blob.get(sd["blob_key"]), sd["mime"], payload["file_name"]))
+    if sd["ocr_blob_key"]:  # OCR 결과 줄(쪽·원본 PDF 좌표)로 파싱한다 (M6-5)
+        blocks = [Block(ln.text, ln.page, ln.bbox) for ln in load_lines(blob.get(sd["ocr_blob_key"]))]
+    else:
+        blocks = extract(blob.get(sd["blob_key"]), sd["mime"], payload["file_name"])
+    doc = parse_blocks(blocks)
     if not any(p.unit == "article" for p in doc.provisions):
-        # 다시 시도해도 같다(스캔본, 글꼴 숫자 인코딩 손상 등): 검수 큐로 보내고 처리 완료로 둔다
+        # 다시 시도해도 같다: 검수 큐에 남기고 처리 완료로 둔다. OCR로 나아질 PDF면 ocr.needed.v1을 남긴다 (M6-5)
+        ocr = request_ocr(conn, sd, blocks, "regulation.source_fetched", payload)
         conn.execute(
             "INSERT INTO regulation.review_task (kind, target, detail) VALUES ('LOW_TEXT', %s, %s)"
             " ON CONFLICT (kind, target) DO UPDATE SET detail = EXCLUDED.detail",
-            (f"source:{sd['id']}", json.dumps({"reason": "조문 번호를 읽지 못함 (스캔본 또는 글꼴 숫자 인코딩 손상, OCR 필요)",
+            (f"source:{sd['id']}", json.dumps({"reason": low_text_reason(ocr), "ocr": ocr,
                                                "file_name": payload["file_name"], "seq": payload["seq"],
                                                "stats": doc.meta.get("stats")}, ensure_ascii=False)))
         return None
+    close_low_text(conn, sd["id"])
     alio_date = rule["revised_on"] if this and this["ord"] == last_ord else None
     eff = resolve(doc, alio_date=alio_date, filename=payload["file_name"])
     _view(conn, blob, sd, doc, converter)
