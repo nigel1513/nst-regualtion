@@ -33,7 +33,8 @@ def test_health_offers_middle_json_and_markdown():
 
 def test_broken_digit_pdf_reads_article_numbers_at_the_right_place():
     res = _engine().ocr(BROKEN.read_bytes())
-    first = next(ln for ln in res.lines if re.match(r"제\s*1\s*조", ln.text))
+    # 본문 조문 머리는 제목 괄호가 있다. 1쪽 목차 항목("제 1 조 목적 …… 3")은 괄호가 없다 (core.parse와 같은 기준)
+    first = next(ln for ln in res.lines if re.match(r"제\s*1\s*조\s*\(", ln.text))
     assert first.page == 3  # 1쪽 표지·목차, 2쪽 빈 쪽, 3쪽 본문 (원본 PDF 기준)
     assert first.bbox is not None and first.bbox[1] < 842 * 0.4  # 왼쪽 위 원점: 본문 첫 조는 쪽 위쪽 (R4 확인)
     arts = _articles(res)

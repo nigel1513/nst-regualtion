@@ -283,6 +283,13 @@ def table_rows(html: str) -> list[str]:
     return [" | ".join(r) for r in p.rows if any(r)]
 
 
+def _is_span(x) -> bool:
+    """'text'는 span 종류이자 블록 종류다. content가 목록인 'text'는 자식 블록이다(4.0.10 실측: index 목차 항목)."""
+    if not isinstance(x, dict) or x.get("type") not in INLINE_SPANS:
+        return False
+    return not (x.get("type") == "text" and isinstance(x.get("content"), list))
+
+
 def _block_lines(block: dict) -> list[str]:
     t, c = block.get("type"), block.get("content")
     if t in SKIP_BLOCKS or t in NON_TEXT_BODIES:
@@ -291,7 +298,7 @@ def _block_lines(block: dict) -> list[str]:
         return table_rows(c)
     if isinstance(c, str):
         raw = c
-    elif isinstance(c, list) and all(isinstance(x, dict) and x.get("type") in INLINE_SPANS for x in c):
+    elif isinstance(c, list) and all(_is_span(x) for x in c):
         raw = _spans(c)
     elif isinstance(c, list):  # 부모 블록(table·list·index·image…): 자식 블록을 차례로
         return [ln for child in c if isinstance(child, dict) for ln in _block_lines(child)]

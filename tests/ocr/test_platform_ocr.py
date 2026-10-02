@@ -72,3 +72,14 @@ def test_mineru_ocr_available_uses_health():
     with respx.mock(assert_all_called=False) as m:
         mock_cycle(m, b"x")
         assert MineruOcr(MineruClient(BASE, KEY)).available() is True
+
+
+def test_text_lines_splits_nested_child_blocks_one_line_each():
+    """MinerU 4.0.10 실측 모양: index(목차) 블록의 content는 자식 text 블록 목록이고, 자식의 content가 다시 span 목록이다.
+    'text'가 span 종류이자 블록 종류라 span으로 오인하면 목차 전체가 한 줄로 붙는다."""
+    toc = {"type": "index", "index": 0, "bbox": [0.1, 0.3, 0.9, 0.5], "content": [
+        {"type": "text", "content": [{"type": "text", "content": "제 1 조 목적 …… 3"}]},
+        {"type": "text", "content": [{"type": "text", "content": "제 2 조 정의 …… 3"}]},
+    ]}
+    lines = text_lines({"pages": [{"page_idx": 0, "blocks": [toc]}]}, {0: (595.0, 842.0)})
+    assert [ln["text"] for ln in lines] == ["제 1 조 목적 …… 3", "제 2 조 정의 …… 3"]
