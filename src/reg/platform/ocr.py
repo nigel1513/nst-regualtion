@@ -1,4 +1,3 @@
-# src/reg/platform/ocr.py
 """OCR 이음매(OcrEngine)와 MinerU 구현(MineruOcr).
 
 결과는 읽는 순서의 줄(OcrLine: text, page 1부터, bbox)이다. 처리기가 core Block으로 바꿔 파싱한다.

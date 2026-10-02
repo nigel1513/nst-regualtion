@@ -13,10 +13,12 @@ def subcommands() -> list:
     from reg.alerts.cli import alerts, owners
     from reg.graph.cli import graph
     from reg.index.cli import index
+    from reg.ocr.cli import ocr  # M6-5
     from reg.sources.alio.cli import alio
     from reg.sources.lawgo.cli import law
 
-    return [("alio", alio), ("law", law), ("index", index), ("graph", graph), ("alerts", alerts), ("owners", owners)]
+    return [("alio", alio), ("law", law), ("index", index), ("graph", graph), ("alerts", alerts), ("owners", owners),
+            ("ocr", ocr)]
 
 
 def process_command():

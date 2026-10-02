@@ -1,4 +1,3 @@
-# src/reg/platform/ocr_hooks.py
 """출처 처리기와 OCR 모듈의 연결부: OCR 필요 판정, 요청(outbox), LOW_TEXT 닫기·사유.
 
 출처 모듈은 reg.ocr을 import할 수 없으므로(overview §2.2) 처리기가 부르는 부분을 platform에 둔다.
