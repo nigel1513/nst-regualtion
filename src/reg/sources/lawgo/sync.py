@@ -11,8 +11,6 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any
 
-from reg.core.ingest.loader import norm_title as norm_name
-from reg.platform import outbox
 from reg.platform.archive import store
 from reg.platform.http import StopCollecting
 from reg.platform.sniff import FileKind
@@ -320,39 +318,3 @@ def status(conn) -> dict:
         "recent_runs": conn.execute("SELECT id, kind, status, since, started_at, finished_at, error FROM law.sync_run"
                                     " ORDER BY id DESC LIMIT 5").fetchall(),
     }
-
-
-# --- 구 감시 수집 (이름 목록 → regulation.law_watch). Task 11에서 CLI와 함께 지운다. ---
-SERVICE_URL = "https://www.law.go.kr/DRF/lawService.do?target=law&type=XML&MST={}"
-
-
-def sync_laws(conn, client: LawGoClient, blob: BlobStore, names: list[str]) -> dict:
-    st = {"checked": 0, "fetched": 0, "not_found": []}
-    for name in names:
-        st["checked"] += 1
-        hit = next((r for r in parse_list("law", client.search("law", query=name)).rows
-                    if norm_name(r.name) == norm_name(name) and r.status == "현행"), None)
-        if hit is None:
-            st["not_found"].append(name)
-            continue
-        w = conn.execute("SELECT last_mst FROM regulation.law_watch WHERE law_id = %s", (hit.law_id,)).fetchone()
-        if w and w["last_mst"] == hit.mst:
-            conn.execute("UPDATE regulation.law_watch SET last_checked_at = now() WHERE law_id = %s", (hit.law_id,))
-            conn.commit()
-            continue
-        doc = store(conn, blob, source="lawgo", url=SERVICE_URL.format(hit.mst), content=client.service("law", hit.mst),
-                    kind=XML, meta={"law_id": hit.law_id, "mst": hit.mst, "name": hit.name})
-        conn.execute(
-            "INSERT INTO regulation.law_watch (law_id, name, kind, last_mst, promulgated_on, effective_on,"
-            " source_document_id, last_checked_at) VALUES (%s,%s,%s,%s,%s,%s,%s, now())"
-            " ON CONFLICT (law_id) DO UPDATE SET name = EXCLUDED.name, kind = EXCLUDED.kind,"
-            " last_mst = EXCLUDED.last_mst, promulgated_on = EXCLUDED.promulgated_on,"
-            " effective_on = EXCLUDED.effective_on, source_document_id = EXCLUDED.source_document_id,"
-            " last_checked_at = now()",
-            (hit.law_id, hit.name, hit.kind, hit.mst, hit.promulgated_on, hit.effective_on, doc.id))
-        if doc.is_new:
-            outbox.write(conn, "regulation.law_fetched",
-                         {"law_id": hit.law_id, "mst": hit.mst, "name": hit.name, "source_document_id": doc.id})
-        st["fetched"] += 1
-        conn.commit()
-    return st
