@@ -96,3 +96,9 @@ export type Alert = {
   rel_type: string; evidence: string | null; resolution_note: string | null; created_at: string; institution: string | null;
 };
 export type AlertDetail = Alert & { cause_old: string | null; cause_new: string | null; affected_text: string | null; recipients: string[] };
+
+export type AnnexInfo = {
+  version: string; path: string; page: number;
+  segments: { n: number; page: number; url: string }[];
+  table: { status: string; url: string | null };
+};
