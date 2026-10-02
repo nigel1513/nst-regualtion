@@ -67,3 +67,26 @@ def test_embed_ok():
     assert embed_ok(Down()) is False
     assert embed_ok(Empty()) is False
     assert embed_ok(FakeEmbedder(delay=0.2), limit=0.05) is False
+
+
+def test_prune_does_not_fail_a_release_published_meanwhile(loaded, osx, os_url, migrated):
+    from reg.index.os import OpenSearch
+    from reg.platform.db.conn import connect
+
+    _build(loaded, osx)
+    old = _build(loaded, osx, publish=False)
+    loaded.execute("UPDATE ops.release SET created_at = now() - interval '7 hours' WHERE id = %s",
+                   (old["release_id"],))
+    loaded.commit()
+
+    class PublishedMeanwhile(OpenSearch):
+        def alias_target(self):                                       # 정리가 상태를 읽은 직후 다른 태스크가 게시
+            with connect(migrated[0]) as c:
+                c.execute("UPDATE ops.release SET state = 'PUBLISHED', published_at = now() WHERE id = %s",
+                          (old["release_id"],))
+                c.commit()
+            return super().alias_target()
+
+    prune_releases(loaded, PublishedMeanwhile(os_url))
+    st = loaded.execute("SELECT state FROM ops.release WHERE id = %s", (old["release_id"],)).fetchone()
+    assert st["state"] == "PUBLISHED" and old["index"] in osx.indexes()

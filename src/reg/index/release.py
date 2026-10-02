@@ -5,6 +5,7 @@ import re
 
 from reg.index.mapping import ALIAS
 from reg.index.service import search
+from reg.platform.llm import ProviderError
 
 log = logging.getLogger(__name__)
 
@@ -20,8 +21,12 @@ def publish_release(conn, os, release_id: int, require_gate: bool = True) -> dic
     r = _release(conn, release_id)
     if r["state"] == "PUBLISHED":
         conn.rollback()
+        realigned = False
+        if os.alias_target() != r["os_index"]:   # 커밋은 됐는데 응답을 잃어 alias를 되돌렸던 경우: DB가 기준
+            os.swap_alias(r["os_index"])
+            realigned = True
         return {"release_id": r["id"], "index": r["os_index"], "published": True, "already": True,
-                "previous_index": None}
+                "previous_index": None, "realigned": realigned}
     stats = r["stats"] or {}
     if r["state"] != "BUILDING" or not stats.get("built"):
         raise RuntimeError(f"release {release_id} 상태 {r['state']}: 게시할 수 없음")
@@ -74,7 +79,8 @@ def smoke_check(os, embedder, reranker, index: str, cases: list[dict], top: int 
                    rerank=reranker is not None, size=top, index=index)
         hits = r["hits"][:top]
         hit = any(c["work_contains"] in h["work_id"] and _article(h["path"]) == c["article"] for h in hits)
-        out.append({"id": c["id"], "hit": hit, "mode": r["mode"], "top": [f"{h['work_id']}|{h['path']}" for h in hits]})
+        out.append({"id": c["id"], "hit": hit, "mode": r["mode"], "reranked": r["reranked"],
+                    "top": [f"{h['work_id']}|{h['path']}" for h in hits]})
     return out
 
 
@@ -97,6 +103,11 @@ def gate_release(conn, os, embedder, reranker, release_id: int, smoke: list[dict
     prev_chunks = (prev["stats"] or {}).get("chunks") if prev else None
     indexed = os.count(r["os_index"])
     checks = smoke_check(os, embedder, reranker, r["os_index"], smoke)
+    degraded = [c["id"] for c in checks
+                if c["mode"] != "hybrid" or (reranker is not None and c["top"] and not c["reranked"])]
+    if degraded:                            # 임베딩·재순위 서버 장애는 색인 품질이 아니다: FAILED로 두지 않고 재시도한다
+        conn.rollback()
+        raise ProviderError(f"release {release_id}: 게이트 검색이 하이브리드·재순위 없이 돌았다 ({', '.join(degraded)})")
     reasons = []
     if not chunk_drop_ok(chunks, prev_chunks, max_drop):
         reasons.append(f"청크 수 {chunks} < 직전 {prev_chunks} × {1 - max_drop:.2f}")
@@ -122,28 +133,38 @@ RELEASE_INDEX = re.compile(rf"{re.escape(ALIAS)}-r\d+")
 
 
 def prune_releases(conn, os, keep_building_hours: int = 6, dry_run: bool = False) -> dict:
-    """게시본과 직전 게시본만 남긴다 (spec 6.2 정리). 진행 중인 빌드와 지금 alias 대상은 언제나 남긴다."""
+    """게시본과 직전 게시본만 남긴다 (spec 6.2 정리). 진행 중인 빌드와 지금 alias 대상은 언제나 남긴다.
+    색인 목록을 먼저 읽고 DB·alias를 나중에 읽어, 그 사이 만들어지거나 게시된 색인을 지우지 않는다."""
+    names = os.indexes()
     cur = conn.execute("SELECT os_index FROM ops.release WHERE state = 'PUBLISHED'"
                        " ORDER BY published_at DESC NULLS LAST, id DESC LIMIT 1").fetchone()
     prev = conn.execute("SELECT os_index FROM ops.release WHERE state = 'RETIRED' AND published_at IS NOT NULL"
                         " ORDER BY published_at DESC, id DESC LIMIT 1").fetchone()
     building = conn.execute("SELECT os_index FROM ops.release WHERE state = 'BUILDING'"
                             " AND created_at > now() - make_interval(hours => %s)", (keep_building_hours,)).fetchall()
-    stale = [r["id"] for r in conn.execute(
-        "SELECT id FROM ops.release WHERE state = 'BUILDING' AND created_at <= now() - make_interval(hours => %s)"
-        " ORDER BY id", (keep_building_hours,)).fetchall()]
+    stale_rows = conn.execute(
+        "SELECT id, os_index FROM ops.release WHERE state = 'BUILDING'"
+        " AND created_at <= now() - make_interval(hours => %s) ORDER BY id", (keep_building_hours,)).fetchall()
     keep = {r["os_index"] for r in (cur, prev, *building) if r}
     alias = os.alias_target()
     if alias:
         keep.add(alias)
-    drop = [n for n in os.indexes() if RELEASE_INDEX.fullmatch(n) and n not in keep]
+    stale = [r["id"] for r in stale_rows]
     if dry_run:
         conn.rollback()
     else:
+        if stale:                           # 그 사이 게시·실패 처리된 release는 건드리지 않는다
+            done = conn.execute("UPDATE ops.release SET state = 'FAILED', error = 'stale: 빌드가 끝나지 않아 정리됨'"
+                                " WHERE id = ANY(%s) AND state = 'BUILDING' RETURNING id", (stale,)).fetchall()
+            moved = {r["id"] for r in done}
+            keep |= {r["os_index"] for r in stale_rows if r["id"] not in moved}
+            stale = [i for i in stale if i in moved]
+        conn.commit()
+        alias = os.alias_target()
+        if alias:
+            keep.add(alias)
+    drop = [n for n in names if RELEASE_INDEX.fullmatch(n) and n not in keep]
+    if not dry_run:
         for n in drop:
             os.delete_index(n)
-        if stale:
-            conn.execute("UPDATE ops.release SET state = 'FAILED', error = 'stale: 빌드가 끝나지 않아 정리됨'"
-                         " WHERE id = ANY(%s)", (stale,))
-        conn.commit()
     return {"kept": sorted(keep), "deleted": drop, "stale_failed": stale, "dry_run": dry_run}

@@ -79,3 +79,29 @@ def test_gate_requires_smoke_cases(loaded, osx):
     st = build_release(loaded, osx, FakeEmbedder(), "fake", publish=False)
     with pytest.raises(ValueError):
         _gate(loaded, osx, st["release_id"], [])
+
+
+def test_gate_with_embedder_down_does_not_fail_the_release(loaded, osx):
+    from reg.platform.llm import ProviderError
+
+    class Down(FakeEmbedder):
+        def embed(self, texts):
+            raise ProviderError("down")
+
+    st = build_release(loaded, osx, FakeEmbedder(), "fake", publish=False)
+    with pytest.raises(ProviderError):
+        gate_release(loaded, osx, Down(), FakeReranker(), st["release_id"], SMOKE_OK)
+    assert _row(loaded, st["release_id"])["state"] == "BUILDING"     # GPU가 돌아오면 같은 release로 다시 본다
+
+
+def test_gate_with_reranker_down_does_not_fail_the_release(loaded, osx):
+    from reg.platform.llm import ProviderError
+
+    class Down(FakeReranker):
+        def rerank(self, q, docs):
+            raise ProviderError("down")
+
+    st = build_release(loaded, osx, FakeEmbedder(), "fake", publish=False)
+    with pytest.raises(ProviderError):
+        gate_release(loaded, osx, FakeEmbedder(), Down(), st["release_id"], SMOKE_OK)
+    assert _row(loaded, st["release_id"])["state"] == "BUILDING"

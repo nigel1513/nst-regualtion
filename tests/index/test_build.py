@@ -98,3 +98,11 @@ def test_publish_twice_is_idempotent(loaded, osx):
     a = build_release(loaded, osx, FakeEmbedder(), "fake")
     again = publish_release(loaded, osx, a["release_id"])
     assert again["already"] is True and osx.alias_target() == a["index"]
+
+
+def test_publish_already_realigns_alias_after_ambiguous_commit(loaded, osx):
+    a = build_release(loaded, osx, FakeEmbedder(), "fake")
+    b = build_release(loaded, osx, FakeEmbedder(), "fake", publish=False, force=True)
+    osx.swap_alias(b["index"])          # DB는 a가 게시본인데 alias는 다른 색인 (커밋 후 응답 유실로 되돌린 경우)
+    out = publish_release(loaded, osx, a["release_id"])
+    assert out["already"] is True and out["realigned"] is True and osx.alias_target() == a["index"]
