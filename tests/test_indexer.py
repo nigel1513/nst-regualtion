@@ -3,6 +3,7 @@ import pytest
 
 from reg.index.indexer import build_release
 from reg.index.os import OpenSearch
+from reg.platform.llm import ProviderError
 
 
 class FakeEmbedder:
@@ -28,7 +29,7 @@ def test_build_and_publish(loaded, os_url):
     assert os.count(st["index"]) == st["chunks"]
     r = loaded.execute("SELECT state FROM ops.release WHERE id = %s", (st["release_id"],)).fetchone()
     assert r["state"] == "PUBLISHED"
-    st2 = build_release(loaded, os, FakeEmbedder(), "fake")
+    st2 = build_release(loaded, os, FakeEmbedder(), "fake", force=True)
     assert os.alias_target() == st2["index"]
     states = [x["state"] for x in loaded.execute("SELECT state FROM ops.release ORDER BY id").fetchall()]
     assert states[-2:] == ["RETIRED", "PUBLISHED"]
@@ -37,7 +38,7 @@ def test_build_and_publish(loaded, os_url):
 def test_failed_build_keeps_alias(loaded, os_url):
     os = OpenSearch(os_url)
     before = build_release(loaded, os, FakeEmbedder(), "fake")["index"]
-    with pytest.raises(Exception):
-        build_release(loaded, os, FakeEmbedder(fail=True), "fake")
+    with pytest.raises(ProviderError):
+        build_release(loaded, os, FakeEmbedder(fail=True), "fake-fail")   # 캐시가 없는 모델 이름
     assert os.alias_target() == before
     assert loaded.execute("SELECT state FROM ops.release ORDER BY id DESC LIMIT 1").fetchone()["state"] == "FAILED"

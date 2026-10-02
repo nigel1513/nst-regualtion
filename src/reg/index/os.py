@@ -48,6 +48,11 @@ class OpenSearch:
     def count(self, name: str) -> int:
         return self._ok(self.c.get(f"/{name}/_count"))["count"]
 
+    def indexes(self) -> list[str]:
+        """이 프로젝트 색인(nais-regulations-*) 이름. 없으면 []."""
+        rows = self._ok(self.c.get(f"/_cat/indices/{ALIAS}-*", params={"format": "json", "h": "index"}))
+        return sorted(r["index"] for r in rows)
+
     def alias_target(self) -> str | None:
         r = self.c.get(f"/_alias/{ALIAS}")
         if r.status_code == 404:
