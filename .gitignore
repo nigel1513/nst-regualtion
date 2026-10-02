@@ -7,3 +7,5 @@ node_modules/
 infra/storage/s3.json
 .run/
 infra/dashboards/htpasswd
+.env*
+!.env.example
