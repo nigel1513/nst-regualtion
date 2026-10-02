@@ -425,10 +425,10 @@ law.law_master    법령 1건 (법령ID 기준, 개정돼도 같은 행)
 | 테이블 | 키 | 주요 컬럼 |
 |---|---|---|
 | `law_master` | `law_id` (법령ID, 예: `010719` / 행정규칙은 `admrul:{행정규칙ID}`) | `name`, `name_abbr`, `family`(법령/행정규칙), `kind`(법률/대통령령/부령/훈령/예규/고시/…), `ministry`, `current_mst`, `status`(현행/폐지), `first_seen_at`, `last_synced_at`, `url`(법령 화면) |
-| `law_version` | `mst` (법령일련번호) | `law_id`(FK, **법령당 현행 1행**), `promulgated_on`, `promulgation_no`, `effective_on`, `revision_kind`(제정/일부개정/타법개정/…), `source_document_id`(원본 XML, SeaweedFS), `xml_url`(DRF 원문), `html_url` |
+| `law_version` | `mst` (법령일련번호) | `law_id`(FK), `promulgated_on`, `promulgation_no`, `effective_on`, `revision_kind`(제정/일부개정/타법개정/…), `is_current`(법령당 현행 1개), `source_document_id`(원본 XML, SeaweedFS), `xml_url`(DRF 원문), `html_url`. 지난 판본은 판본 정보만 남는다 |
 | `article` | `id` | `mst`(FK), `law_id`, `path`(우리 경로 규칙: `a32.p1.i2`, 부칙 `supp@날짜`, 별표 `annexN`), `jo_code`(DRF 조문 코드 6자리, 예 `003200`), `label`(제32조), `heading`, `text`, `effective_on`, `url`(조문 화면) |
 
-- `article`은 현행 판본의 조문만 둔다. 개정되면 교체한다(§3A.4 "현행만 받는다").
+- `article`은 현행 판본(`mst`)의 조문만 둔다. 개정되면 새 판본의 조문으로 교체한다(§3A.4 "현행만 받는다").
 - 규모 예상: 조문 약 30~40만 행이다(법률·시행령·시행규칙 평균 수십 조). 늘지 않는다.
 
 ### 3A.4 일 배치 (`reg_law_daily`, 01:00) — 신청한 API 기준
