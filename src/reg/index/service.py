@@ -1,6 +1,6 @@
 """하이브리드 검색 (spec 8.2 4단계, 8.5 장애 시 동작)."""
-from reg.platform.llm import ProviderError
 from reg.index.mapping import PIPELINE
+from reg.platform.llm import ProviderError
 
 CANDIDATES = 50
 FIELDS = ["text^2", "path_label^2", "title", "context_text"]
