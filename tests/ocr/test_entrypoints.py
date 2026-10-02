@@ -62,3 +62,17 @@ def test_cli_status_prints_json(conn, blob, seeded, monkeypatch):
     assert r.exit_code == 0, r.output
     out = json.loads(r.output)
     assert out["queued"] == 1 and out["mineru_available"] is False
+
+
+def test_cli_run_all_tries_each_event_once(conn, blob, seeded, monkeypatch):
+    """리뷰 Important #2: --all 반복 안에서도 한 이벤트는 한 번만 시도한다."""
+    import reg.ocr.tasks as T
+    from reg.core.ingest.process import process_once
+
+    process_once(conn, blob, today=TODAY)
+    monkeypatch.setattr(T, "open_conn", lambda: contextlib.nullcontext(conn))
+    fake = FakeOcr(fail=99)
+    _patch_engine(monkeypatch, blob, fake)
+    r = CliRunner().invoke(app, ["ocr", "run", "--all"])
+    assert r.exit_code == 0, r.output
+    assert fake.calls == 1 and json.loads(r.output)["retry"] == 1

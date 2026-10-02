@@ -125,3 +125,56 @@ def test_backfill_enqueues_open_low_text_pdfs(conn, blob, seeded):
 def test_status_counts(conn, blob, seeded):
     process_once(conn, blob, today=TODAY)
     assert status(conn) == {"ocr_status": {"pending": 1}, "queued": 1, "parked": 0, "open_low_text": 1}
+
+
+class _Boom(FakeOcr):
+    def ocr(self, pdf):
+        self.calls += 1
+        raise RuntimeError("예상 못한 오류")
+
+
+def test_unexpected_error_counts_an_attempt_instead_of_stalling(conn, blob, seeded):
+    """리뷰 Important #1: OcrError·OcrUnavailable 밖의 예외도 시도 1회로 센다. 대기열 맨 앞에서 영원히 막히지 않는다."""
+    process_once(conn, blob, today=TODAY)
+    eng = _Boom()
+    assert run_pending(conn, blob, eng)["retry"] == 1
+    ev = _ocr_event(conn)
+    assert ev["attempts"] == 1 and "예상 못한 오류" in ev["last_error"]
+    assert run_pending(conn, blob, eng)["failed"] == 1 and _sd(conn, seeded)["ocr_status"] == "failed"
+
+
+def test_repeated_loss_while_healthy_turns_into_an_attempt(conn, blob, seeded):
+    """리뷰 Important #1: 상태 확인은 정상인데 이 문서에서만 서비스가 거듭 사라지면(문서가 MinerU를 죽이는 경우)
+    UNAVAILABLE_STRIKES번째에 시도 1회로 센다. 한 번의 소실은 여전히 세지 않는다."""
+    from reg.ocr.service import UNAVAILABLE_STRIKES
+
+    process_once(conn, blob, today=TODAY)
+    eng = FakeOcr(unavailable=True)
+    for _ in range(UNAVAILABLE_STRIKES - 1):
+        assert run_pending(conn, blob, eng)["unavailable"] is True
+        assert _ocr_event(conn)["attempts"] == 0
+    st = run_pending(conn, blob, eng)
+    ev = _ocr_event(conn)
+    assert st["retry"] == 1 and st["unavailable"] is False
+    assert ev["attempts"] == 1 and ev["payload"]["unavailable_strikes"] == 0 and "사라짐" in ev["last_error"]
+    for _ in range(UNAVAILABLE_STRIKES):
+        st = run_pending(conn, blob, eng)
+    assert st["failed"] == 1 and _sd(conn, seeded)["ocr_status"] == "failed"
+
+
+def test_tried_list_spans_calls_so_one_invocation_tries_once(conn, blob, seeded):
+    """리뷰 Important #2: reg ocr run --all이 같은 이벤트를 연달아 두 번 시도하지 않는다."""
+    process_once(conn, blob, today=TODAY)
+    eng, tried = FakeOcr(fail=99), []
+    assert run_pending(conn, blob, eng, tried=tried)["retry"] == 1
+    assert run_pending(conn, blob, eng, tried=tried)["claimed"] == 0 and eng.calls == 1
+
+
+def test_failed_ocr_updates_the_low_text_reason(conn, blob, seeded):
+    """리뷰 Important #3: 실패로 굳으면 검수 사유도 'OCR 대기'가 아니라 'OCR 실패'다."""
+    process_once(conn, blob, today=TODAY)
+    eng = FakeOcr(fail=99)
+    run_pending(conn, blob, eng)
+    run_pending(conn, blob, eng)
+    t = _low_text(conn, seeded)
+    assert "OCR 실패" in t["detail"]["reason"] and t["detail"]["seq"] == "186618"

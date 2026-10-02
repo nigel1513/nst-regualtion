@@ -19,8 +19,9 @@ def run_cmd(limit: int = typer.Option(50, help="한 번에 처리할 OCR 요청 
     from reg.ocr.tasks import run_pending
 
     total: dict = {}
+    tried: list[int] = []  # 반복 사이에도 한 이벤트는 한 번만 시도한다
     while True:
-        st = run_pending(limit)
+        st = run_pending(limit, tried=tried)
         for k, v in st.items():
             total[k] = (total.get(k, False) or v) if isinstance(v, bool) else total.get(k, 0) + v
         if not all_ or st["claimed"] == 0 or st["unavailable"]:

@@ -13,6 +13,7 @@ from reg.platform.ocr_hooks import TOPIC, low_text_reason, request_ocr
 from reg.platform.storage.blob import BlobStore
 
 MAX_ATTEMPTS = 2
+UNAVAILABLE_STRIKES = 3  # 상태 확인은 정상인데 이 문서에서 서비스가 거듭 사라지면 이 횟수째에 시도 1회로 센다
 SOURCE_TOPICS = ["regulation.source_fetched"]
 
 
@@ -38,8 +39,8 @@ def requeue(conn, topic: str, payload: dict) -> int:
     return n
 
 
-def _note(conn, source_document_id: int, note: dict, upsert: bool = False) -> None:
-    detail = json.dumps({"ocr": note}, ensure_ascii=False)
+def _note(conn, source_document_id: int, note: dict, upsert: bool = False, **top) -> None:
+    detail = json.dumps({"ocr": note, **top}, ensure_ascii=False)
     if upsert:
         conn.execute("INSERT INTO regulation.review_task (kind, target, detail) VALUES ('LOW_TEXT', %s, %s)"
                      " ON CONFLICT (kind, target) DO UPDATE SET detail = regulation.review_task.detail || EXCLUDED.detail",
@@ -52,6 +53,20 @@ def _note(conn, source_document_id: int, note: dict, upsert: bool = False) -> No
 def _done(conn, event_id: int, error: str | None = None) -> None:
     conn.execute("UPDATE ops.outbox SET processed_at = now(), claimed_at = now(), last_error = %s WHERE id = %s",
                  (error, event_id))
+
+
+def _attempt_failed(conn, engine: OcrEngine, ev: dict, error: str) -> str:
+    """시도 1회 실패를 센다. MAX_ATTEMPTS째면 원본을 failed로 굳히고 검수 사유·메모를 남긴다. 'retry'|'failed'."""
+    row = conn.execute("UPDATE ops.outbox SET attempts = attempts + 1, claimed_at = now(), last_error = %s"
+                       " WHERE id = %s RETURNING attempts", (error[:2000], ev["id"])).fetchone()
+    if row["attempts"] < MAX_ATTEMPTS:
+        return "retry"
+    sid = ev["payload"]["source_document_id"]
+    conn.execute("UPDATE regulation.source_document SET ocr_status = 'failed', ocr_engine = %s WHERE id = %s",
+                 (engine.name, sid))
+    _note(conn, sid, {"status": "failed", "engine": engine.name, "error": error[:500]}, upsert=True,
+          reason=low_text_reason("failed"))
+    return "failed"
 
 
 def _one(conn, blob: BlobStore, engine: OcrEngine, ev: dict) -> tuple[str, int]:
@@ -69,14 +84,7 @@ def _one(conn, blob: BlobStore, engine: OcrEngine, ev: dict) -> tuple[str, int]:
     try:
         res = engine.ocr(blob.get(sd["blob_key"]))
     except OcrError as e:
-        conn.execute("UPDATE ops.outbox SET attempts = attempts + 1, claimed_at = now(), last_error = %s WHERE id = %s",
-                     (f"OcrError: {e}"[:2000], ev["id"]))
-        if ev["attempts"] + 1 < MAX_ATTEMPTS:
-            return "retry", 0
-        conn.execute("UPDATE regulation.source_document SET ocr_status = 'failed', ocr_engine = %s WHERE id = %s",
-                     (engine.name, sd["id"]))
-        _note(conn, sd["id"], {"status": "failed", "engine": engine.name, "error": str(e)[:500]}, upsert=True)
-        return "failed", 0
+        return _attempt_failed(conn, engine, ev, f"OcrError: {e}"), 0
     key = ocr_key(sd["sha256"])
     blob.put(key, dump_lines(res.lines), "application/json")
     blob.put(raw_key(sd["sha256"]), json.dumps(res.raw, ensure_ascii=False).encode("utf-8"), "application/json")
@@ -89,12 +97,15 @@ def _one(conn, blob: BlobStore, engine: OcrEngine, ev: dict) -> tuple[str, int]:
     return "ready", n
 
 
-def run_pending(conn, blob: BlobStore, engine: OcrEngine, limit: int = 50) -> dict:
+def run_pending(conn, blob: BlobStore, engine: OcrEngine, limit: int = 50, tried: list[int] | None = None) -> dict:
     """대기 중인 ocr.needed.v1을 하나씩 처리하고 이벤트마다 커밋한다.
 
     - 대기가 있을 때만 엔진 상태를 먼저 확인한다. 꺼져 있으면 아무것도 잡지 않는다.
     - 한 실행에서 같은 이벤트는 한 번만 시도한다.
-    - 도중에 서비스가 사라지면 그 이벤트를 롤백하고 멈춘다.
+    - 도중에 서비스가 사라지면 그 이벤트를 롤백하고 멈춘다. 같은 이벤트에서 UNAVAILABLE_STRIKES번째면 시도 1회로
+      센다(문서가 서비스를 죽이는 경우 대기열이 영원히 막히지 않게).
+    - 그 밖의 예상 못한 예외도 시도 1회로 센다.
+    - tried: 이미 시도한 이벤트 id 목록. 넘기면 호출 사이에 이어 쓴다(reg ocr run --all이 한 번만 시도하도록).
     """
     st = {"claimed": 0, "ready": 0, "retry": 0, "failed": 0, "skipped": 0, "requeued": 0, "processed": 0,
           "unavailable": False}
@@ -106,7 +117,7 @@ def run_pending(conn, blob: BlobStore, engine: OcrEngine, limit: int = 50) -> di
     if not engine.available():
         st["unavailable"] = True
         return st
-    tried: list[int] = []
+    tried = [] if tried is None else tried
     while st["claimed"] < limit:
         ev = conn.execute("SELECT id, payload, attempts FROM ops.outbox WHERE topic = %s AND processed_at IS NULL"
                           " AND attempts < %s AND NOT (id = ANY(%s::bigint[])) ORDER BY id LIMIT 1"
@@ -117,10 +128,21 @@ def run_pending(conn, blob: BlobStore, engine: OcrEngine, limit: int = 50) -> di
         st["claimed"] += 1
         try:
             result, n = _one(conn, blob, engine, ev)
-        except OcrUnavailable:
+        except OcrUnavailable as e:
             conn.rollback()  # 이벤트·상태를 건드리지 않는다: 시도로 세지 않고 다음 실행에서 다시
-            st["unavailable"] = True
-            break
+            strikes = int(ev["payload"].get("unavailable_strikes") or 0) + 1
+            if strikes < UNAVAILABLE_STRIKES:
+                conn.execute("UPDATE ops.outbox SET payload = payload || %s::jsonb, last_error = %s WHERE id = %s",
+                             (json.dumps({"unavailable_strikes": strikes}), f"OcrUnavailable: {e}"[:2000], ev["id"]))
+                conn.commit()
+                st["unavailable"] = True
+                break
+            conn.execute("UPDATE ops.outbox SET payload = payload || '{\"unavailable_strikes\": 0}'::jsonb WHERE id = %s",
+                         (ev["id"],))
+            result, n = _attempt_failed(conn, engine, ev, f"OcrUnavailable x{strikes}: {e}"), 0
+        except Exception as e:
+            conn.rollback()
+            result, n = _attempt_failed(conn, engine, ev, f"{type(e).__name__}: {e}"), 0
         st[result] += 1
         st["requeued"] += n
         st["processed"] += 1 if n else 0  # 다시 파싱할 것이 생김 → M6-3이 reg_process를 깨운다
