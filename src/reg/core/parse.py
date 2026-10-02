@@ -6,16 +6,18 @@
 import re
 
 from reg.core.model import Block, HistEntry, ParsedDoc, Prov
-from reg.core.text import Joiner, clean, parse_dot_date, split_notes
+from reg.core.text import Joiner, clean, despace_line, normalize_glyphs, parse_dot_date, split_notes
 
-PARSER_VERSION = "2026.10.2"  # 파서가 바뀌면 올린다 → work_version.parser_version으로 재파싱 대상 판별
+PARSER_VERSION = "2026.10.6"  # M6-6: 모아찍기·꼬리글·줄 잇기·글리프·별표 머리 (재파싱 필요)
 
 CIRCLED = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳"
 RE_CHAPTER = re.compile(r"^제\s*(\d+)\s*장\s*(.{0,30})$")
 RE_SECTION = re.compile(r"^제\s*(\d+)\s*절\s*(.{0,30})$")
-RE_ARTICLE = re.compile(r"^제\s*(\d+)\s*조(?:\s*의\s*(\d+))?\s*(?:\(\s*([^()]{1,40}?)\s*\))?\s*(.*)$")
 RE_SUPPL = re.compile(r"^부\s*칙\s*(?:[<〈(](.*?)[>〉)])?\s*(.*)$")
-RE_ANNEX = re.compile(r"^[<\[〈]?\s*(별\s*표|별\s*지)\s*(?:제\s*)?(\d+)\s*(?:호)?(?:\s*의\s*(\d+))?\s*(?:서식)?\s*[>\]〉]?\s*(.*)$")
+RE_ARTICLE = re.compile(r"^제\s*(\d+)\s*조(?:\s*의\s*(\d+))?\s*"
+                        r"(?:\(\s*((?:[^()]|\([^()]{0,20}\)){1,40}?)\s*\))?\s*(.*)$")
+RE_ANNEX = re.compile(r"^[<\[〈]?\s*(별\s*표|별\s*지)\s*(?:제\s*)?(\d+)\s*(?:호)?(?:\s*의\s*(\d+)\s*(?:호)?)?"
+                      r"\s*(?:서식)?\s*[>\]〉]?\s*(.*)$")
 RE_ITEM = re.compile(r"^(\d{1,3})(?:\s*의\s*(\d+))?\.(?!\d)\s*(.*)$")  # 날짜(2024. 3. 1.)·소수(3.5)는 호가 아니다
 RE_SUB = re.compile(r"^([가-하])\.\s*(.*)$")
 RE_HIST = re.compile(r"^(제\s*정|전\s*부\s*개\s*정|일\s*부\s*개\s*정|개\s*정|폐\s*지)\s*"
@@ -73,7 +75,18 @@ class _Builder:
         return self.supp.path if self.supp else None
 
 
+def annex_heading(t: str) -> tuple[str, int, int | None, str] | None:
+    """별표·별지 머리 줄이면 (kind, 번호, 가지번호, 나머지). 본문 속 '별지 제1호서식에 따라'는 머리가 아니다."""
+    m = RE_ANNEX.match(t)
+    if not m or not (t.lstrip()[:1] in "<[〈" or m[4] == "" or m[4][0] in "<(〈["):
+        return None
+    return ("annex" if "표" in m[1] else "form"), int(m[2]), int(m[3]) if m[3] else None, m[4]
+
+
 def _finish(p: Prov) -> None:
+    p.text = normalize_glyphs(p.text)
+    if p.heading:
+        p.heading = normalize_glyphs(p.heading)
     text, notes = split_notes(p.text)
     p.text, p.annotations = text, p.annotations + notes
     if re.fullmatch(r"삭\s*제\s*\.?", text or "") or (p.deleted and not text):
@@ -126,7 +139,7 @@ def _pre_split(blocks: list[Block]) -> list[Block]:
 
 
 def parse_blocks(blocks: list[Block]) -> ParsedDoc:
-    blocks = [b for b in blocks if b.text]
+    blocks = [Block(despace_line(b.text), b.page, b.bbox) for b in blocks if b.text]
     start = _body_start(blocks)
     title, code, hist = _header(blocks[:start])
     toc = []
@@ -142,16 +155,16 @@ def parse_blocks(blocks: list[Block]) -> ParsedDoc:
 
     for b in body:
         t = b.text
-        if m := RE_ANNEX.match(t):
-            if t.lstrip()[:1] in "<[〈" or m[4] == "" or m[4][0] in "<(〈[":
-                kind = "annex" if "표" in m[1] else "form"
-                key = f"{kind}{int(m[2])}" + (f"-{int(m[3])}" if m[3] else "")
-                if any(p.path == key for p in B.provs):
-                    key = f"{key}~{sum(1 for p in B.provs if p.path.startswith(key)) + 1}"
-                label = ("별표" if kind == "annex" else "별지") + f" 제{int(m[2])}호" + (f"의{int(m[3])}" if m[3] else "")
-                B.add(Prov(key, "annex", label, heading=clean(m[4]) or None), b)
-                in_annex, annexes = True, annexes + 1
-                continue
+        if ah := annex_heading(t):
+            kind, no, sub, rest = ah
+            key = f"{kind}{no}" + (f"-{sub}" if sub else "")
+            if any(p.path == key for p in B.provs):
+                key = f"{key}~{sum(1 for p in B.provs if p.path.startswith(key)) + 1}"
+            label = ("별표" if kind == "annex" else "별지") + f" 제{no}호" + (f"의{sub}" if sub else "")
+            heading, notes = split_notes(rest)  # '[별지 제1호]<개정 2019.7.5.>': 개정 표시는 제목이 아니라 주석
+            B.add(Prov(key, "annex", label, heading=clean(heading) or None, annotations=notes), b)
+            in_annex, annexes = True, annexes + 1
+            continue
         if in_annex:
             B.append_text(t)
             continue

@@ -65,3 +65,22 @@ def test_gold_despace(case):
 def test_gold_pdf_glyphs(case):
     lines = [b.text for b in extract_pdf((PDF / case["file"]).read_bytes())]
     assert any(case["contains"] in clean(normalize_glyphs(t)) for t in lines)
+
+
+from reg.core.model import Block
+from reg.core.parse import parse_blocks
+
+
+@pytest.mark.parametrize("case", GOLD["parse"], ids=lambda c: c["source"][:30])
+def test_gold_parse(case):
+    doc = parse_blocks([Block(t) for t in case["lines"]])
+    for path, want in case["want"].items():
+        p = doc.get(path)
+        assert p is not None, path
+        for k, v in want.items():
+            if k == "text_endswith":
+                assert p.text.endswith(v)
+            elif k == "text_startswith":
+                assert p.text.startswith(v)
+            else:
+                assert getattr(p, k) == v, (path, k)
