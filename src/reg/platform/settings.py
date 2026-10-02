@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     llm_url: str = "http://192.168.0.2:8001"
     llm_model: str = "llm"
     airflow_log_dir: str = ""  # reg_maintenance가 30일 지난 Airflow 태스크 로그를 지울 폴더 (compose: /opt/airflow/logs)
+    converter_url: str = ""  # 비어 있으면 DockerConverter — docker run, 호스트 CLI —, 있으면 HttpConverter (compose 안)
 
 
 @lru_cache

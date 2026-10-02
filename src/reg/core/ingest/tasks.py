@@ -5,12 +5,12 @@ from reg.platform.runs import open_conn, task_run
 def process_all() -> dict:
     """대기 중인 수집 이벤트를 모두 처리한다 (추출·파싱·적재·계보·참조·품질·개정 이벤트)."""
     from reg.core.ingest.process import process_once
-    from reg.platform.convert import DockerConverter
+    from reg.platform.convert import get_converter
     from reg.platform.storage.blob import blob_store
 
     with open_conn() as conn, task_run("core.process_all", conn) as st:
         total = {"claimed": 0, "ok": 0, "failed": 0, "parked": 0}
-        blob, converter = blob_store(), DockerConverter()
+        blob, converter = blob_store(), get_converter()
         while (r := process_once(conn, blob, converter=converter))["claimed"]:
             total = {k: total[k] + r[k] for k in total}
             if r["ok"] == 0:
