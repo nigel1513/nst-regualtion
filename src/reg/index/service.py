@@ -25,19 +25,20 @@ def _filters(institution: str | None, as_of: str | None, kind: str | None) -> li
 
 
 def search(os, embedder, reranker, q: str, institution: str | None = None, as_of: str | None = None,
-           kind: str | None = None, rerank: bool = True, size: int = 10) -> dict:
+           kind: str | None = None, rerank: bool = True, size: int = 10, index: str | None = None) -> dict:
     flt = _filters(institution, as_of, kind)
     bm25 = {"bool": {"must": {"multi_match": {"query": q, "fields": FIELDS}}, "filter": flt}}
+    kw = {"index": index} if index else {}      # 게이트는 게시 전 색인을 직접 본다
     mode = "hybrid"
     try:
         vec = embedder.embed([q])[0]
         body = {"size": CANDIDATES, "_source": {"excludes": ["embedding"]},
                 "query": {"hybrid": {"queries": [bm25, {"knn": {"embedding": {
                     "vector": vec, "k": CANDIDATES, "filter": {"bool": {"filter": flt}}}}}]}}}
-        res = os.search(body, pipeline=PIPELINE)
+        res = os.search(body, pipeline=PIPELINE, **kw)
     except ProviderError:
         mode = "bm25"
-        res = os.search({"size": CANDIDATES, "_source": {"excludes": ["embedding"]}, "query": bm25})
+        res = os.search({"size": CANDIDATES, "_source": {"excludes": ["embedding"]}, "query": bm25}, **kw)
     hits = [{**{k: h["_source"].get(k) for k in ("chunk_id", "work_id", "version_id", "path", "path_label", "title",
                                                   "institution", "text", "release_id")}, "score": h["_score"]}
             for h in res["hits"]["hits"]]
