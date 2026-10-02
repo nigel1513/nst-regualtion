@@ -6,6 +6,7 @@ import pytest
 from reg.core.model import Prov
 from reg.sources.lawgo.config import LawgoConfig, load_config
 from reg.sources.lawgo.errors import LawGoError, ResponseChanged
+from reg.sources.lawgo.mirror import mark_abolished
 from reg.sources.lawgo.sync import Ctx, canary, last_success, run_daily, run_full, sync_daily, sync_full
 from reg.sources.lawgo.xml import parse_list
 from tests.sources.lawgo.helpers import (
@@ -159,3 +160,19 @@ def test_config_reads_new_and_legacy_formats(tmp_path):
     legacy = tmp_path / "old.yaml"
     legacy.write_text("- 가법\n- 나법\n", encoding="utf-8")
     assert load_config(legacy).promote_laws == ["가법", "나법"]
+
+
+def test_full_reactivates_abolished_law_that_reappears_with_same_mst(lconn, blob):
+    """한 번 짧게 온 목록으로 폐지 처리된 법령이 같은 MST로 다시 보이면 현행으로 되돌린다 (최종 리뷰 I1)."""
+    for i in (1, 2, 3):
+        mirror_law(lconn, blob, f"00000{i}", f"법{i}", ART, f"10{i}")
+    mark_abolished(lconn, "000003")
+    lconn.commit()
+    fc = FakeClient()
+    fc.lists[("law", 1, None)] = law_list([lr("101", "000001", "법1", "20260630"), lr("102", "000002", "법2", "20260630")],
+                                          total=3)
+    fc.lists[("law", 2, None)] = law_list([lr("103", "000003", "법3", "20260630")], total=3, page=2)
+    st = sync_full(Ctx(lconn, fc, blob, CFG))
+    assert st["law_new"] == 0 and st["reactivated"] == 1
+    m = lconn.execute("SELECT status, missing_since FROM law.law_master WHERE law_id = '000003'").fetchone()
+    assert (m["status"], m["missing_since"]) == ("현행", None)

@@ -180,6 +180,19 @@ def mark_abolished(conn, law_id: str, run_id: int | None = None) -> bool:
     return bool(n)
 
 
+def reactivate(conn, law_ids: list[str]) -> int:
+    """폐지로 표시됐지만 현행 목록에 같은 판본으로 다시 보이는 법령을 현행으로 되돌린다 (판본이 그대로면
+    apply_version이 건너뛰므로 upsert_master가 돌지 않는다)."""
+    return conn.execute("UPDATE law.law_master SET status = '현행', missing_since = NULL"
+                        " WHERE status = '폐지' AND law_id = ANY(%s)", (law_ids,)).rowcount
+
+
+def reactivate_admruls(conn) -> int:
+    """카탈로그에서 다시 현행인 행정규칙 마스터를 현행으로."""
+    return conn.execute("UPDATE law.law_master m SET status = '현행', missing_since = NULL FROM law.admrul_catalog c"
+                        " WHERE m.law_id = 'admrul:' || c.admrul_id AND m.status = '폐지' AND c.status = '현행'").rowcount
+
+
 def record_annexes(conn, law_id: str, family: str, rows: list[AnnexRow], complete: bool = True) -> int:
     """그 법령의 별표 목록을 맞춘다. complete면 목록에 없는 기존 별표는 is_current=false (메타데이터·저장본은 남김)."""
     new = 0

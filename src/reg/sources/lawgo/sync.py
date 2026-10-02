@@ -25,6 +25,8 @@ from reg.sources.lawgo.mirror import (
     catalog_row,
     has_version,
     mark_abolished,
+    reactivate,
+    reactivate_admruls,
     record_annexes,
     store_annex_body,
     upsert_catalog,
@@ -55,8 +57,8 @@ class Ctx:
 
 
 def new_stats() -> dict:
-    return {"law_new": 0, "admrul_new": 0, "abolished": 0, "catalog": 0, "annex_new": 0, "annex_bodies": 0,
-            "errors": []}
+    return {"law_new": 0, "admrul_new": 0, "abolished": 0, "reactivated": 0, "catalog": 0, "annex_new": 0,
+            "annex_bodies": 0, "errors": []}
 
 
 def guarded(ctx: Ctx, st: dict, label: str, fn: Callable[[], Any]) -> Any:
@@ -241,10 +243,12 @@ def sync_full(ctx: Ctx) -> dict:
         if not has_version(ctx.conn, r.mst) and guarded(
                 ctx, st, f"law {r.mst} {r.name}", lambda r=r: ingest_law(ctx, r)) is not None:
             st["law_new"] += 1
+    st["reactivated"] += guarded(ctx, st, "reactivate law", lambda: reactivate(ctx.conn, sorted(seen))) or 0
     for law_id in sorted(known - seen):
         st["abolished"] += int(bool(guarded(ctx, st, f"abolish {law_id}",
                                             lambda law_id=law_id: mark_abolished(ctx.conn, law_id, ctx.run_id))))
     st["catalog"] = sync_catalog(ctx)
+    st["reactivated"] += guarded(ctx, st, "reactivate admrul", lambda: reactivate_admruls(ctx.conn)) or 0
     ensure_admruls(ctx, selected_admruls(ctx.conn, ctx.cfg), st)
     gone = ctx.conn.execute(
         "SELECT m.law_id FROM law.law_master m JOIN law.admrul_catalog c ON m.law_id = 'admrul:' || c.admrul_id"
