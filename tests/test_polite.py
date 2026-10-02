@@ -2,7 +2,7 @@ import httpx
 import pytest
 import respx
 
-from reg.collect.polite import PoliteClient, StopCollecting
+from reg.platform.http import PoliteClient, StopCollecting
 
 
 def make(**kw):

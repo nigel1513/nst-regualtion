@@ -3,7 +3,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import date
 
-from reg.llm import ProviderError
+from reg.platform.llm import ProviderError
 from reg.qa.institutions import resolve_mention
 
 TYPES = ["기한", "금액", "가능여부", "절차", "정의", "기타"]

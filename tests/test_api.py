@@ -6,13 +6,13 @@ import pytest
 from fastapi.testclient import TestClient
 
 from reg.api.app import create_app
-from reg.collect.archive import store as _store
-from reg.collect.sniff import FileKind
-from reg.load.loader import add_version, rebuild_work, upsert_work
-from reg.process import process_once
-from reg.storage.blob import LocalBlobStore
-from reg.structure.effective import Effective
-from reg.structure.model import ParsedDoc, Prov
+from reg.platform.archive import store as _store
+from reg.platform.sniff import FileKind
+from reg.core.ingest.loader import add_version, rebuild_work, upsert_work
+from reg.core.ingest.process import process_once
+from reg.platform.storage.blob import LocalBlobStore
+from reg.core.effective import Effective
+from reg.core.model import ParsedDoc, Prov
 from tests.test_process import seed_alio
 
 S = Path(__file__).parent / "fixtures" / "samples"

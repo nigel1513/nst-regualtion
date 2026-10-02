@@ -1,8 +1,8 @@
-from reg.evaluate import run_eval
+from reg.qa.evaluate import run_eval
 
 
 def test_run_eval_scores_cases(monkeypatch):
-    from reg import evaluate as E
+    from reg.qa import evaluate as E
 
     answers = iter([
         {"status": "answered", "institution": "KASI", "evidence": [{"work_id": "kr/reg/KASI/여비규정", "path": "a27"}],
@@ -19,7 +19,7 @@ def test_run_eval_scores_cases(monkeypatch):
 
 
 def test_expect_status_may_list_alternatives(monkeypatch):
-    from reg import evaluate as E
+    from reg.qa import evaluate as E
 
     monkeypatch.setattr(E, "ask", lambda *a, **k: {"status": "answered", "institution": "NST", "evidence": [],
                                                     "answer": {"결론": "판단불가", "근거": [{"id": "E1"}]}, "id": 3})
@@ -28,7 +28,7 @@ def test_expect_status_may_list_alternatives(monkeypatch):
 
 
 def test_citation_metric_uses_the_answer_citations_and_reports_checks(monkeypatch):
-    from reg import evaluate as E
+    from reg.qa import evaluate as E
 
     monkeypatch.setattr(E, "ask", lambda *a, **k: {
         "status": "answered", "institution": "KASI",

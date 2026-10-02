@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from reg.structure.law_xml import parse_law_xml
+from reg.sources.lawgo.xml import parse_law_xml
 
 FX = Path(__file__).parent / "fixtures"
 

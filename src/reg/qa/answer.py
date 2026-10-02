@@ -1,7 +1,7 @@
 """답변 생성과 코드 검증 (spec 8.2-6·7, 2026-10-02: 계산 가능한 판정은 코드로)."""
 import re
 
-from reg.llm import ProviderError
+from reg.platform.llm import ProviderError
 from reg.qa.evidence import Evidence
 
 VERDICTS = ["미충족", "충족", "조건부", "판단불가"]

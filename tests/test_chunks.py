@@ -1,4 +1,4 @@
-from reg.search.chunks import MAX_CHARS, chunk_version
+from reg.index.chunks import MAX_CHARS, chunk_version
 
 
 def P(path, unit, label, text="", heading=None, parent=None):

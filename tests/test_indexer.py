@@ -1,8 +1,8 @@
 
 import pytest
 
-from reg.search.indexer import build_release
-from reg.search.os import OpenSearch
+from reg.index.indexer import build_release
+from reg.index.os import OpenSearch
 
 
 class FakeEmbedder:
@@ -11,7 +11,7 @@ class FakeEmbedder:
 
     def embed(self, texts):
         if self.fail:
-            from reg.llm import ProviderError
+            from reg.platform.llm import ProviderError
             raise ProviderError("down")
         self.calls += len(texts)
         return [[float(len(t) % 7), 1.0, 0.5, 0.25] for t in texts]

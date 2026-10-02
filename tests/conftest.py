@@ -1,8 +1,8 @@
 import pytest
 from testcontainers.community.postgres import PostgresContainer
 
-from reg.db.bootstrap import bootstrap
-from reg.db.migrate import upgrade
+from reg.platform.db.bootstrap import bootstrap
+from reg.platform.db.migrate import upgrade
 
 
 def _dsn(c: PostgresContainer, user: str, pw: str) -> str:
@@ -27,7 +27,7 @@ def migrated(pg):
 
 @pytest.fixture
 def conn(migrated):
-    from reg.db.conn import connect
+    from reg.platform.db.conn import connect
 
     c = connect(migrated[0])
     yield c
@@ -71,8 +71,8 @@ def loaded(conn, tmp_path):
     """천문연 여비규정(실파일)을 처리까지 마친 DB 연결."""
     from datetime import date
 
-    from reg.process import process_once
-    from reg.storage.blob import LocalBlobStore
+    from reg.core.ingest.process import process_once
+    from reg.platform.storage.blob import LocalBlobStore
     from tests.test_process import FX, seed_alio
 
     blob = LocalBlobStore(tmp_path)

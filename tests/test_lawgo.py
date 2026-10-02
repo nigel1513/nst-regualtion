@@ -3,10 +3,10 @@ from pathlib import Path
 
 import respx
 
-from reg.collect.law_sync import sync_laws
-from reg.collect.lawgo import LawGoClient, norm_name, parse_search
-from reg.collect.polite import PoliteClient
-from reg.storage.blob import LocalBlobStore
+from reg.sources.lawgo.sync import sync_laws
+from reg.sources.lawgo.client import LawGoClient, norm_name, parse_search
+from reg.platform.http import PoliteClient
+from reg.platform.storage.blob import LocalBlobStore
 
 FX = Path(__file__).parent / "fixtures"
 B = "https://www.law.go.kr/DRF"

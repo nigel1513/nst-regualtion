@@ -1,5 +1,5 @@
-from reg.collect.polite import RequestLog
-from reg.collect.runs import db_logger, finish_run, start_run
+from reg.platform.http import RequestLog
+from reg.platform.runs import db_logger, finish_run, start_run
 
 
 def test_run_lifecycle_and_request_log(conn):
@@ -20,7 +20,7 @@ def test_finish_failed_discards_uncommitted_work(conn):
 
 
 def test_request_log_survives_failed_run(conn, migrated):
-    from reg.collect.runs import open_log_conn
+    from reg.platform.runs import open_log_conn
 
     run_id = start_run(conn, "alio", None)
     log_conn = open_log_conn(migrated[0])

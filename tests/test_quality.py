@@ -1,11 +1,11 @@
 from datetime import date
 from pathlib import Path
 
-from reg.extract import extract
-from reg.quality import Issue, check, record
-from reg.structure.effective import Effective
-from reg.structure.model import ParsedDoc, Prov
-from reg.structure.parse import parse_blocks
+from reg.core.extract import extract
+from reg.core.quality import Issue, check, record
+from reg.core.effective import Effective
+from reg.core.model import ParsedDoc, Prov
+from reg.core.parse import parse_blocks
 
 S = Path(__file__).parent / "fixtures" / "samples"
 OK = Effective(date(2024, 1, 1), "supplement", "CONFIRMED", None)

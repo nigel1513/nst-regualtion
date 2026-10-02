@@ -5,10 +5,10 @@ import httpx
 import pytest
 import respx
 
-from reg.collect.alio import AlioClient
-from reg.collect.alio_sync import load_institutions, sync_institution
-from reg.collect.polite import PoliteClient, StopCollecting
-from reg.storage.blob import LocalBlobStore
+from reg.sources.alio.client import AlioClient
+from reg.sources.alio.sync import load_institutions, sync_institution
+from reg.platform.http import PoliteClient, StopCollecting
+from reg.platform.storage.blob import LocalBlobStore
 
 FX = Path(__file__).parent / "fixtures"
 BASE = "https://www.alio.go.kr"

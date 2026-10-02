@@ -1,7 +1,7 @@
 from fastapi.testclient import TestClient
 
 from reg.api.app import create_app
-from reg.storage.blob import LocalBlobStore
+from reg.platform.storage.blob import LocalBlobStore
 from tests.test_notify import impact, owner
 
 

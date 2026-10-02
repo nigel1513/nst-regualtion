@@ -1,7 +1,7 @@
 from datetime import date
 
-from reg.structure.model import HistEntry, ParsedDoc, Prov
-from reg.structure.text import Joiner, clean, parse_dot_date, split_notes
+from reg.core.model import HistEntry, ParsedDoc, Prov
+from reg.core.text import Joiner, clean, parse_dot_date, split_notes
 
 
 def test_clean_strips_controls_and_spaces():

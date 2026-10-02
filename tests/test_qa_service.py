@@ -1,8 +1,8 @@
 import pytest
 
 from reg.qa.service import ask
-from reg.search.indexer import build_release
-from reg.search.os import OpenSearch
+from reg.index.indexer import build_release
+from reg.index.os import OpenSearch
 from tests.test_indexer import FakeEmbedder
 from tests.test_search import FakeReranker
 
@@ -15,7 +15,7 @@ class SeqLLM:
     def regex(self, messages, pattern, **kw):
         self.n += 1
         if self.fail:
-            from reg.llm import ProviderError
+            from reg.platform.llm import ProviderError
             raise ProviderError("down")
         if pattern.startswith("유형"):
             return "유형: 기한\n검색어: 증빙 제출, 여비 정산"

@@ -5,8 +5,8 @@ from pathlib import Path
 import pytest
 import respx
 
-from reg.collect.alio import AlioClient, AlioError, parse_bfiles
-from reg.collect.polite import PoliteClient
+from reg.sources.alio.client import AlioClient, AlioError, parse_bfiles
+from reg.platform.http import PoliteClient
 
 FX = Path(__file__).parent / "fixtures"
 BASE = "https://www.alio.go.kr"

@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from reg.views.converter import ConversionError, DockerConverter
+from reg.platform.convert import ConversionError, DockerConverter
 
 S = Path(__file__).parent / "fixtures" / "samples"
 

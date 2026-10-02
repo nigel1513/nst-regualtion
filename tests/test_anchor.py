@@ -1,9 +1,9 @@
 from pathlib import Path
 
-from reg.extract import extract
-from reg.extract.pdf import extract_pdf
-from reg.structure.parse import parse_blocks
-from reg.views.anchor import locate
+from reg.core.extract import extract
+from reg.core.extract.pdf import extract_pdf
+from reg.core.parse import parse_blocks
+from reg.core.anchor import locate
 
 S = Path(__file__).parent / "fixtures" / "samples"
 

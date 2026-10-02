@@ -1,7 +1,7 @@
 import psycopg
 import pytest
 
-from reg.db.bootstrap import bootstrap
+from reg.platform.db.bootstrap import bootstrap
 from tests.conftest import _dsn
 
 TABLES = {"institution", "fetch_run", "request_log", "source_document",

@@ -3,8 +3,8 @@ from fastapi.testclient import TestClient
 from httpx import Response
 
 from reg.api.app import create_app
-from reg.llm import EmbeddingProvider, ProviderError
-from reg.storage.blob import LocalBlobStore
+from reg.platform.llm import EmbeddingProvider, ProviderError
+from reg.platform.storage.blob import LocalBlobStore
 
 
 class FakeOS:

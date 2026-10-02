@@ -2,10 +2,10 @@ import json
 from datetime import date
 from pathlib import Path
 
-from reg.collect.archive import store
-from reg.collect.sniff import FileKind
-from reg.process import process_once
-from reg.storage.blob import LocalBlobStore
+from reg.platform.archive import store
+from reg.platform.sniff import FileKind
+from reg.core.ingest.process import process_once
+from reg.platform.storage.blob import LocalBlobStore
 
 FX = Path(__file__).parent / "fixtures"
 TODAY = date(2026, 10, 2)
@@ -72,7 +72,7 @@ def test_broken_file_fails_then_parks(conn, tmp_path):
 def test_review_each_event_commits_independently(conn, tmp_path, monkeypatch):
     import psycopg
 
-    from reg import process as P
+    from reg.core.ingest import process as P
 
     blob = LocalBlobStore(tmp_path)
     seed_alio(conn, blob, (FX / "samples" / "kasi-yeobi-339.pdf").read_bytes())
@@ -95,7 +95,7 @@ def test_review_each_event_commits_independently(conn, tmp_path, monkeypatch):
 
 
 def test_events_of_one_work_are_rebuilt_once(conn, tmp_path, monkeypatch):
-    from reg import process as P
+    from reg.core.ingest import process as P
 
     blob = LocalBlobStore(tmp_path)
     seed_alio(conn, blob, (FX / "samples" / "kasi-yeobi-339.pdf").read_bytes(), ord_=1)
@@ -109,8 +109,8 @@ def test_events_of_one_work_are_rebuilt_once(conn, tmp_path, monkeypatch):
 
 
 def test_document_without_readable_articles_goes_to_review_queue(conn, tmp_path, monkeypatch):
-    from reg import process as P
-    from reg.structure.model import Block
+    from reg.core.ingest import process as P
+    from reg.core.model import Block
 
     blob = LocalBlobStore(tmp_path)
     seed_alio(conn, blob, (FX / "samples" / "kasi-yeobi-339.pdf").read_bytes())

@@ -1,9 +1,9 @@
 from datetime import date
 
-from reg.process import process_once
+from reg.core.ingest.process import process_once
 from reg.qa.analyze import analyze
 from reg.qa.evidence import expand
-from reg.storage.blob import LocalBlobStore
+from reg.platform.storage.blob import LocalBlobStore
 from tests.test_process import FX, seed_alio
 
 
@@ -14,7 +14,7 @@ class FakeLLM:
     def json(self, messages, schema, **kw):
         self.calls.append(messages)
         if self.fail:
-            from reg.llm import ProviderError
+            from reg.platform.llm import ProviderError
             raise ProviderError("down")
         return self.out
 
@@ -23,7 +23,7 @@ class FakeLLM:
         self.calls.append(messages)
         self.pattern = pattern
         if self.fail:
-            from reg.llm import ProviderError
+            from reg.platform.llm import ProviderError
             raise ProviderError("down")
         o = self.out
         if "question_type" in o:
@@ -69,12 +69,12 @@ def test_calendar_dates_are_not_elapsed_days():
 
 
 def test_cross_work_citation_uses_the_version_valid_at_as_of(conn, tmp_path):
-    from reg.collect.archive import store
-    from reg.collect.sniff import FileKind
-    from reg.load.loader import add_version, rebuild_work, upsert_work
+    from reg.platform.archive import store
+    from reg.platform.sniff import FileKind
+    from reg.core.ingest.loader import add_version, rebuild_work, upsert_work
     from reg.qa.evidence import _version_at
-    from reg.structure.effective import Effective
-    from reg.structure.model import ParsedDoc, Prov
+    from reg.core.effective import Effective
+    from reg.core.model import ParsedDoc, Prov
 
     blob = LocalBlobStore(tmp_path)
     upsert_work(conn, "kr/law/L9", "법률", "가상법", None, {})

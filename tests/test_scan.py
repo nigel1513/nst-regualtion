@@ -3,9 +3,9 @@ from datetime import date
 
 from reg.alerts.scan import scan_once
 from reg.graph.sync import sync_graph
-from reg.process import emit_version_events, process_once
-from reg.storage.blob import LocalBlobStore
-from reg.structure.model import Prov
+from reg.core.ingest.process import emit_version_events, process_once
+from reg.platform.storage.blob import LocalBlobStore
+from reg.core.model import Prov
 from tests.test_impact import _ver, law_v1, setup
 from tests.test_process import FX, seed_alio
 
@@ -25,7 +25,7 @@ def test_first_load_emits_no_version_loaded(conn, tmp_path):
 
 
 def test_only_versions_newer_than_existing_ones_emit(conn, tmp_path):
-    from reg.load.loader import upsert_work
+    from reg.core.ingest.loader import upsert_work
 
     blob = LocalBlobStore(tmp_path)
     upsert_work(conn, "kr/law/L1", "법률", "가상 연구법", None, {})

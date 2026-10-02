@@ -1,9 +1,9 @@
 from datetime import date
 from pathlib import Path
 
-from reg.extract import extract
-from reg.structure.model import Block
-from reg.structure.parse import parse_blocks
+from reg.core.extract import extract
+from reg.core.model import Block
+from reg.core.parse import parse_blocks
 
 S = Path(__file__).parent / "fixtures" / "samples"
 

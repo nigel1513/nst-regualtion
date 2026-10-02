@@ -1,7 +1,7 @@
 
 import pytest
 
-from reg.storage.blob import LocalBlobStore, S3BlobStore, blob_key
+from reg.platform.storage.blob import LocalBlobStore, S3BlobStore, blob_key
 
 
 def test_blob_key_layout():
@@ -18,7 +18,7 @@ def test_local_roundtrip(tmp_path):
 
 @pytest.mark.integration
 def test_s3_roundtrip_live():
-    from reg.settings import get_settings
+    from reg.platform.settings import get_settings
 
     st = get_settings()
     s = S3BlobStore(st.s3_endpoint, st.s3_bucket, st.s3_access_key, st.s3_secret_key)

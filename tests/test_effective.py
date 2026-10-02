@@ -1,10 +1,10 @@
 from datetime import date
 from pathlib import Path
 
-from reg.extract import extract
-from reg.structure.effective import resolve
-from reg.structure.model import Block, HistEntry, ParsedDoc, Prov
-from reg.structure.parse import parse_blocks
+from reg.core.extract import extract
+from reg.core.effective import resolve
+from reg.core.model import Block, HistEntry, ParsedDoc, Prov
+from reg.core.parse import parse_blocks
 
 S = Path(__file__).parent / "fixtures" / "samples"
 

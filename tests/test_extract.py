@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from reg.extract import extract
+from reg.core.extract import extract
 
 S = Path(__file__).parent / "fixtures" / "samples"
 
@@ -43,7 +43,7 @@ def test_unknown_mime_rejected():
 def test_hwp_surrogate_pairs_are_combined():
     import struct
 
-    from reg.extract.hwp import _para_text
+    from reg.core.extract.hwp import _para_text
 
     raw = "제1조 ".encode("utf-16-le") + "𠀀".encode("utf-16-le") + struct.pack("<H", 13)
     t = _para_text(raw)

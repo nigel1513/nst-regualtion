@@ -1,14 +1,14 @@
 from datetime import date
 
 from reg.alerts.impact import analyze_version, severity
-from reg.collect.archive import store
-from reg.collect.sniff import FileKind
+from reg.platform.archive import store
+from reg.platform.sniff import FileKind
 from reg.graph.sync import sync_graph
-from reg.load.loader import add_version, rebuild_work, upsert_work
-from reg.refs import resolve_and_store
-from reg.storage.blob import LocalBlobStore
-from reg.structure.effective import Effective
-from reg.structure.model import ParsedDoc, Prov
+from reg.core.ingest.loader import add_version, rebuild_work, upsert_work
+from reg.core.refs import resolve_and_store
+from reg.platform.storage.blob import LocalBlobStore
+from reg.core.effective import Effective
+from reg.core.model import ParsedDoc, Prov
 
 T = date(2026, 10, 2)
 

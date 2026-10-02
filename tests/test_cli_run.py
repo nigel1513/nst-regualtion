@@ -1,7 +1,7 @@
 import pytest
 
 from reg import cli
-from reg.settings import get_settings
+from reg.platform.settings import get_settings
 
 
 @pytest.fixture

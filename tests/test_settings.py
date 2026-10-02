@@ -1,4 +1,4 @@
-from reg.settings import Settings
+from reg.platform.settings import Settings
 
 
 def test_settings_read_env(monkeypatch):

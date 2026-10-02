@@ -64,7 +64,7 @@ def test_code_uses_top_ranked_deadline_clause_when_llm_cites_another():
 
 
 def test_invalid_json_is_reported_as_invalid_output():
-    from reg.llm import ProviderError
+    from reg.platform.llm import ProviderError
 
     class Bad(FakeLLM):
         def regex(self, *a, **k):

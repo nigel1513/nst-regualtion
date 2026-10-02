@@ -1,9 +1,9 @@
 import pytest
 
-from reg.llm import ProviderError
-from reg.search.indexer import build_release
-from reg.search.os import OpenSearch
-from reg.search.service import search
+from reg.platform.llm import ProviderError
+from reg.index.indexer import build_release
+from reg.index.os import OpenSearch
+from reg.index.service import search
 from tests.test_indexer import FakeEmbedder
 
 

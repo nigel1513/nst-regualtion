@@ -1,8 +1,8 @@
 from datetime import date
 from pathlib import Path
 
-from reg.process import process_once, rebuild_all
-from reg.storage.blob import LocalBlobStore
+from reg.core.ingest.process import process_once, rebuild_all
+from reg.platform.storage.blob import LocalBlobStore
 from tests.test_process import seed_alio
 
 S = Path(__file__).parent / "fixtures" / "samples"
@@ -16,7 +16,7 @@ class FakeConverter:
     def to_pdf(self, data, ext):
         self.calls += 1
         if self.pdf is None:
-            from reg.views.converter import ConversionError
+            from reg.platform.convert import ConversionError
             raise ConversionError("no docker")
         return self.pdf
 

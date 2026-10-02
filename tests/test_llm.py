@@ -4,7 +4,7 @@ import httpx
 import pytest
 import respx
 
-from reg.llm import EmbeddingProvider, LLMProvider, ProviderError, RerankProvider
+from reg.platform.llm import EmbeddingProvider, LLMProvider, ProviderError, RerankProvider
 
 
 @respx.mock

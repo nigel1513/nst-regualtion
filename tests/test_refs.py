@@ -1,12 +1,12 @@
 from datetime import date
 
-from reg.collect.archive import store
-from reg.collect.sniff import FileKind
-from reg.load.loader import add_version, rebuild_work, upsert_work
-from reg.refs import extract_refs, looks_like_law, resolve_and_store
-from reg.storage.blob import LocalBlobStore
-from reg.structure.effective import Effective
-from reg.structure.model import ParsedDoc, Prov
+from reg.platform.archive import store
+from reg.platform.sniff import FileKind
+from reg.core.ingest.loader import add_version, rebuild_work, upsert_work
+from reg.core.refs import extract_refs, looks_like_law, resolve_and_store
+from reg.platform.storage.blob import LocalBlobStore
+from reg.core.effective import Effective
+from reg.core.model import ParsedDoc, Prov
 
 
 def P(path, text, unit="paragraph", label="③", heading=None, parent="a27"):
@@ -92,7 +92,7 @@ def test_review_i_jochi_is_not_this_article():
 
 
 def test_review_reference_tasks_do_not_pile_up(conn, tmp_path):
-    from reg.quality import record_reference_tasks
+    from reg.core.quality import record_reference_tasks
 
     _load(conn, tmp_path, "kr/reg/X/규정", "INTERNAL_REG", "규정",
           [Prov("a1", "article", "제1조", "기타", "「없는 예규」를 준용한다.")])

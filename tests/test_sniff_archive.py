@@ -1,6 +1,6 @@
-from reg.collect.archive import store
-from reg.collect.sniff import sniff
-from reg.storage.blob import LocalBlobStore
+from reg.platform.archive import store
+from reg.platform.sniff import sniff
+from reg.platform.storage.blob import LocalBlobStore
 
 OLE = bytes.fromhex("D0CF11E0A1B11AE1") + b"\x00" * 8
 

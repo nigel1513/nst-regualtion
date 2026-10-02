@@ -1,4 +1,4 @@
-from reg.search.os import OpenSearch
+from reg.index.os import OpenSearch
 
 
 def test_index_bulk_alias_and_nori(os_url):

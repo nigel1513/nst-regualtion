@@ -4,19 +4,19 @@ from urllib.parse import urlparse
 import typer
 import yaml
 
-from reg.collect.alio import AlioClient
-from reg.collect.alio_sync import load_institutions, sync_institution
-from reg.collect.law_sync import sync_laws
-from reg.collect.lawgo import LawGoClient
-from reg.collect.polite import PoliteClient
-from reg.collect.runs import db_logger, finish_run, open_log_conn, start_run
-from reg.db.bootstrap import bootstrap
-from reg.db.conn import connect
-from reg.db.migrate import upgrade
-from reg.process import process_once, rebuild_all
-from reg.settings import get_settings
-from reg.storage.blob import S3BlobStore
-from reg.views.converter import DockerConverter
+from reg.sources.alio.client import AlioClient
+from reg.sources.alio.sync import load_institutions, sync_institution
+from reg.sources.lawgo.sync import sync_laws
+from reg.sources.lawgo.client import LawGoClient
+from reg.platform.http import PoliteClient
+from reg.platform.runs import db_logger, finish_run, open_log_conn, start_run
+from reg.platform.db.bootstrap import bootstrap
+from reg.platform.db.conn import connect
+from reg.platform.db.migrate import upgrade
+from reg.core.ingest.process import process_once, rebuild_all
+from reg.platform.settings import get_settings
+from reg.platform.storage.blob import S3BlobStore
+from reg.platform.convert import DockerConverter
 
 ROOT = Path(__file__).resolve().parents[2]
 app = typer.Typer(no_args_is_help=True)
@@ -125,8 +125,8 @@ def api_cmd(host: str = "0.0.0.0", port: int = 21061) -> None:
     import uvicorn
 
     from reg.api.app import create_app
-    from reg.llm import EmbeddingProvider, LLMProvider, RerankProvider
-    from reg.search.os import OpenSearch
+    from reg.platform.llm import EmbeddingProvider, LLMProvider, RerankProvider
+    from reg.index.os import OpenSearch
 
     s = get_settings()
     # 질의 시점: 임베딩이 안 되면 바로 BM25로 넘어가도록 짧게, 답변 생성은 프록시 제한(60초) 안에서 끝나도록
@@ -142,9 +142,9 @@ app.add_typer(index, name="index")
 
 @index.command("build")
 def index_build(no_publish: bool = typer.Option(False, "--no-publish")) -> None:
-    from reg.llm import EmbeddingProvider
-    from reg.search.indexer import build_release
-    from reg.search.os import OpenSearch
+    from reg.platform.llm import EmbeddingProvider
+    from reg.index.indexer import build_release
+    from reg.index.os import OpenSearch
 
     s = get_settings()
     conn = connect(s.database_url)
@@ -155,7 +155,7 @@ def index_build(no_publish: bool = typer.Option(False, "--no-publish")) -> None:
 
 @index.command("status")
 def index_status() -> None:
-    from reg.search.os import OpenSearch
+    from reg.index.os import OpenSearch
 
     s = get_settings()
     conn = connect(s.database_url)
@@ -173,9 +173,9 @@ def eval_qa(limit: int = typer.Option(None, help="앞에서 N문항만"),
             out: Path = typer.Option(ROOT / "docs/reports/2026-10-02-qa-eval.md")) -> None:
     from datetime import datetime
 
-    from reg.evaluate import run_eval
-    from reg.llm import EmbeddingProvider, LLMProvider, RerankProvider
-    from reg.search.os import OpenSearch
+    from reg.qa.evaluate import run_eval
+    from reg.platform.llm import EmbeddingProvider, LLMProvider, RerankProvider
+    from reg.index.os import OpenSearch
 
     s = get_settings()
     conn = connect(s.database_url)

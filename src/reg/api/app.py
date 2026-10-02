@@ -12,7 +12,7 @@ from psycopg_pool import ConnectionPool
 from pydantic import BaseModel, Field
 
 from reg.api import queries as Q
-from reg.storage.blob import BlobStore
+from reg.platform.storage.blob import BlobStore
 
 QA_SLOTS = 3  # 동시에 생성하는 답변 수 (vLLM 한 대, DB 풀 8개 중 일부만 쓴다)
 
@@ -130,7 +130,7 @@ def create_app(dsn: str, blob: BlobStore, search_deps: dict | None = None) -> Fa
     @app.get("/api/v1/hsearch")
     def hsearch(q: str = Query(..., min_length=2), institution: str | None = None, as_of: date | None = None,
                 kind: str | None = Query(None, pattern="^(law|reg)$"), rerank: bool = True, size: int = Query(10, le=50)):
-        from reg.search.service import search as hybrid
+        from reg.index.service import search as hybrid
 
         deps = app.state.search
         if not deps or deps["os"].alias_target() is None:

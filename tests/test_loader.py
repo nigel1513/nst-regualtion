@@ -1,11 +1,11 @@
 from datetime import date
 
-from reg.collect.archive import store
-from reg.collect.sniff import FileKind
-from reg.load.loader import add_version, rebuild_work, upsert_work, work_key_for_regulation
-from reg.storage.blob import LocalBlobStore
-from reg.structure.effective import Effective
-from reg.structure.model import ParsedDoc, Prov
+from reg.platform.archive import store
+from reg.platform.sniff import FileKind
+from reg.core.ingest.loader import add_version, rebuild_work, upsert_work, work_key_for_regulation
+from reg.platform.storage.blob import LocalBlobStore
+from reg.core.effective import Effective
+from reg.core.model import ParsedDoc, Prov
 
 PDF = FileKind("application/pdf", "pdf")
 
