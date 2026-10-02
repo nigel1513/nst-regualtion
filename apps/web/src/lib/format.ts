@@ -21,4 +21,5 @@ export const CHANGE_LABEL: Record<string, string> = {
 };
 export const TASK_LABEL: Record<string, string> = {
   PARSE: "구조 파싱", EFFECTIVE_DATE: "시행일", REFERENCE: "참조 해석", CONFLICT: "출처 충돌", LOW_TEXT: "텍스트 부족",
+  REF_LAW_AMBIGUOUS: "법령명 모호", REF_LAW_GONE: "인용 조문 삭제·폐지",
 };

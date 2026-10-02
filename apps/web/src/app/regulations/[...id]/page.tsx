@@ -1,14 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ProvisionText } from "@/components/ProvisionText";
+import { LawPanel } from "@/components/LawPanel";
 import { Relations } from "@/components/Relations";
-import { apiGet, decodeSegments, type Provision, sourceHref, validDate, type VersionRow, type ViewData, workHref } from "@/lib/api";
+import { apiGet, decodeSegments, type LawArticleDetail, type LawCite, type Provision, sourceHref, validDate, type VersionRow, type ViewData, workHref } from "@/lib/api";
 import { BASIS_LABEL, fmtDate, STATE_LABEL, STATUS_LABEL, TASK_LABEL } from "@/lib/format";
 
 const INDENT: Record<string, string> = { paragraph: "", item: "pl-5", subitem: "pl-10" };
 
 export default async function ViewerPage({ params, searchParams }: {
-  params: Promise<{ id: string[] }>; searchParams: Promise<{ as_of?: string | string[]; a?: string }>;
+  params: Promise<{ id: string[] }>; searchParams: Promise<{ as_of?: string | string[]; a?: string; law?: string }>;
 }) {
   const { id } = await params;
   const sp = await searchParams;
@@ -32,6 +33,14 @@ export default async function ViewerPage({ params, searchParams }: {
     );
   }
   const { work, version: v, provisions, refs, history, tasks } = view;
+  const lawArt = typeof sp.law === "string" && /^\d+$/.test(sp.law) ? sp.law : undefined;
+  const [cites, lawDetail] = await Promise.all([
+    apiGet<Record<string, LawCite[]>>("/api/v1/law/citations", { version: v.id }).catch(() => null),
+    lawArt ? apiGet<LawArticleDetail>(`/api/v1/law/article/${lawArt}`).catch(() => null) : Promise.resolve(null),
+  ]);
+  const baseQ: Record<string, string> = { ...(as_of ? { as_of } : {}), ...(a ? { a } : {}) };
+  const lawPanelHref = (id: number) => `?${new URLSearchParams({ ...baseQ, law: String(id) })}`;
+  const closeLawHref = `?${new URLSearchParams(baseQ)}`;
   const articles = provisions.filter((p) => p.unit === "article");
   const selected = articles.find((p) => p.path === a) ?? articles[0];
   const tops = provisions.filter((p) => ["chapter", "section", "article", "supplement", "annex"].includes(p.unit));
@@ -101,11 +110,11 @@ export default async function ViewerPage({ params, searchParams }: {
                     <a className="font-sans text-xs" href={`?${new URLSearchParams({ ...(as_of ? { as_of } : {}), a: p.path })}#${p.path}`}>관계 보기</a>
                   )}
                 </div>
-                {p.text && <p className={`mt-1 ${p.deleted ? "text-[var(--muted)]" : ""}`}><ProvisionText text={p.text} refs={refs[String(p.id)]} workId={work.id} asOf={as_of} /></p>}
+                {p.text && <p className={`mt-1 ${p.deleted ? "text-[var(--muted)]" : ""}`}><ProvisionText text={p.text} refs={refs[String(p.id)]} workId={work.id} asOf={as_of} cites={cites?.[String(p.id)]} lawHref={lawPanelHref} /></p>}
                 {subtree(p.path).map((c) => (
                   <p key={c.path} id={c.path} className={`mt-1.5 ${INDENT[c.unit] ?? ""} ${c.deleted ? "text-[var(--muted)]" : ""}`}>
                     {c.unit !== "supp_article" ? `${c.label} ` : <strong className="font-semibold">{c.label}{c.heading ? `(${c.heading}) ` : " "}</strong>}
-                    <ProvisionText text={c.text} refs={refs[String(c.id)]} workId={work.id} asOf={as_of} />
+                    <ProvisionText text={c.text} refs={refs[String(c.id)]} workId={work.id} asOf={as_of} cites={cites?.[String(c.id)]} lawHref={lawPanelHref} />
                     {c.annotations.map((n) => <span key={n} className="note"> {n}</span>)}
                   </p>
                 ))}
@@ -116,6 +125,7 @@ export default async function ViewerPage({ params, searchParams }: {
         </article>
 
         <aside className="flex flex-col gap-4 self-start lg:sticky lg:top-4">
+          {lawDetail && <LawPanel d={lawDetail} closeHref={closeLawHref} />}
           {selected && <Relations pvIds={[selected.id, ...subtree(selected.path).map((c) => c.id)]} label={selected.label} workId={work.id} />}
           <section className="card p-4">
             <div className="mb-3 flex items-baseline justify-between">

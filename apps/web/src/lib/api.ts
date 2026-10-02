@@ -96,3 +96,39 @@ export type Alert = {
   rel_type: string; evidence: string | null; resolution_note: string | null; created_at: string; institution: string | null;
 };
 export type AlertDetail = Alert & { cause_old: string | null; cause_new: string | null; affected_text: string | null; recipients: string[] };
+
+// --- M6-1 법령 미러 (/api/v1/law) ---
+export type LawLinks = {
+  law_go: string; law_go_edition: string | null; xml: string | null; archive: string | null; article_go: string | null;
+};
+export type LawVersion = {
+  mst: string; promulgated_on: string | null; promulgation_no: string | null; effective_on: string | null;
+  revision_kind: string | null; edition_line: string;
+};
+export type LawMaster = {
+  law_id: string; family: "law" | "admrul"; source_id: string; name: string; name_abbr: string | null;
+  kind: string | null; ministry: string | null; status: string; current_mst: string | null; url: string;
+};
+export type LawSummary = {
+  law: LawMaster; version: LawVersion | null; past_versions: (LawVersion & { url: string | null })[];
+  links: LawLinks; work_id: string | null; annex_count: number;
+};
+export type LawArticle = {
+  id: number; law_id: string; mst: string; path: string; unit: string; parent: string | null; label: string;
+  heading: string | null; text: string; deleted: boolean; gone: boolean; effective_on: string | null; url: string | null;
+};
+export type LawCiting = {
+  work_id: string; work_title: string; institution: string | null; path: string; label: string;
+  evidence_text: string; rel_type: string;
+};
+export type LawArticleDetail = {
+  article: LawArticle; children: LawArticle[];
+  law: Pick<LawMaster, "law_id" | "name" | "kind" | "family" | "status">;
+  version: LawVersion | null; links: LawLinks; citing: LawCiting[];
+};
+export type LawAnnex = {
+  seq: string; law_id: string; number: string | null; kind: string | null; title: string; promulgated_on: string | null;
+  is_current: boolean; has_html: boolean; has_pdf: boolean; file_url: string | null; pdf_url: string | null;
+  view_url: string;
+};
+export type LawCite = { start: number; end: number; law_id: string; article_id: number | null };
