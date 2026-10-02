@@ -29,7 +29,7 @@ x-airflow-common: &airflow-common
     AIRFLOW__DAG_PROCESSOR__REFRESH_INTERVAL: "60"
     REG_DATABASE_URL: ${REG_DATABASE_URL_DOCKER:?set REG_DATABASE_URL_DOCKER}
     REG_S3_ENDPOINT: http://storage:8333
-    REG_OS_URL: http://opensearch:9200
+    REG_OS_URL: ${REG_OS_URL_DOCKER:?set REG_OS_URL_DOCKER}
     REG_NEO4J_URL: bolt://neo4j:7687
     REG_SMTP_HOST: mailpit
     REG_SMTP_PORT: "1025"
@@ -134,12 +134,14 @@ services:
     depends_on:
       airflow-init:
         condition: service_completed_successfully
-  # OpenSearch Dashboards (공유 nst-nexus OpenSearch, 보안 플러그인 꺼짐 → 로그인 없음). 사용자 결정: 내부망에 그대로 연다.
+  # OpenSearch Dashboards: 공유 클러스터의 보안 플러그인 계정으로 로그인 (2026-10-02, 사용자 결정 A안)
   opensearch-dashboards:
     image: opensearchproject/opensearch-dashboards:2.19.1
     environment:
       OPENSEARCH_HOSTS: '["http://opensearch:9200"]'
-      DISABLE_SECURITY_DASHBOARDS_PLUGIN: "true"
+      OPENSEARCH_USERNAME: kibanaserver
+      OPENSEARCH_PASSWORD: ${REG_OS_DASHBOARDS_PASSWORD:?set REG_OS_DASHBOARDS_PASSWORD}
+      OPENSEARCH_SECURITY_COOKIE_SECURE: "false"   # HTTP(내부망)로 접속
     ports: ["0.0.0.0:21069:5601"]
     networks: [default, nais]
     restart: unless-stopped
