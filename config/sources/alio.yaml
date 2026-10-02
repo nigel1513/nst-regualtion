@@ -6,30 +6,30 @@
 #   정식명과 코드는 자동으로 함께 쓰이므로 적지 않는다. 한 약칭은 한 기관에만 둔다.
 - {code: NST,    name: 국가과학기술연구회,     kind: NST, alio_apba_id: C0909, alio_name: 국가과학기술연구회,     active: true,  aliases: [과기연구회, 연구회]}
 - {code: KIST,   name: 한국과학기술연구원,     kind: GRI, alio_apba_id: C0159, alio_name: 한국과학기술연구원,     active: true,  aliases: [키스트]}
-- {code: KBSI,   name: 한국기초과학지원연구원, kind: GRI, alio_apba_id: C0177, alio_name: 한국기초과학지원연구원, active: false, aliases: [기초과학지원연구원, 기초지원연]}
-- {code: NIMS,   name: 국가수리과학연구소,     kind: GRI, alio_apba_id: C0441, alio_name: 국가수리과학연구소,     active: false, aliases: [수리과학연구소, 수리연]}
+- {code: KBSI,   name: 한국기초과학지원연구원, kind: GRI, alio_apba_id: C0177, alio_name: 한국기초과학지원연구원, active: true, aliases: [기초과학지원연구원, 기초지원연]}
+- {code: NIMS,   name: 국가수리과학연구소,     kind: GRI, alio_apba_id: C0441, alio_name: 국가수리과학연구소,     active: true, aliases: [수리과학연구소, 수리연]}
 - {code: KASI,   name: 한국천문연구원,         kind: GRI, alio_apba_id: C0266, alio_name: 한국천문연구원,         active: true,  aliases: [천문연구원, 천문연]}
-- {code: KRIBB,  name: 한국생명공학연구원,     kind: GRI, alio_apba_id: C0212, alio_name: 한국생명공학연구원,     active: false, aliases: [생명공학연구원, 생명연]}
-- {code: KISTI,  name: 한국과학기술정보연구원, kind: GRI, alio_apba_id: C0161, alio_name: 한국과학기술정보연구원, active: false, aliases: [과학기술정보연구원, 키스티]}
-- {code: KIOM,   name: 한국한의학연구원,       kind: GRI, alio_apba_id: C0291, alio_name: 한국한의학연구원,       active: false, aliases: [한의학연구원, 한의학연]}
-- {code: KITECH, name: 한국생산기술연구원,     kind: GRI, alio_apba_id: C0213, alio_name: 한국생산기술연구원,     active: false, aliases: [생산기술연구원, 생기원]}
+- {code: KRIBB,  name: 한국생명공학연구원,     kind: GRI, alio_apba_id: C0212, alio_name: 한국생명공학연구원,     active: true, aliases: [생명공학연구원, 생명연]}
+- {code: KISTI,  name: 한국과학기술정보연구원, kind: GRI, alio_apba_id: C0161, alio_name: 한국과학기술정보연구원, active: true, aliases: [과학기술정보연구원, 키스티]}
+- {code: KIOM,   name: 한국한의학연구원,       kind: GRI, alio_apba_id: C0291, alio_name: 한국한의학연구원,       active: true, aliases: [한의학연구원, 한의학연]}
+- {code: KITECH, name: 한국생산기술연구원,     kind: GRI, alio_apba_id: C0213, alio_name: 한국생산기술연구원,     active: true, aliases: [생산기술연구원, 생기원]}
 - {code: ETRI,   name: 한국전자통신연구원,     kind: GRI, alio_apba_id: C0251, alio_name: 한국전자통신연구원,     active: true,  aliases: [전자통신연구원, 에트리]}
 # NSR: ALIO 검색 0건(공시 대상 아님) — 수집 경로가 생기기 전까지 비활성
 - {code: NSR,    name: 국가보안기술연구소,     kind: GRI, alio_apba_id: null,  alio_name: null,                   active: false, aliases: [보안기술연구소, 보안연]}
-- {code: KICT,   name: 한국건설기술연구원,     kind: GRI, alio_apba_id: C0154, alio_name: 한국건설기술연구원,     active: false, aliases: [건설기술연구원, 건설연]}
-- {code: KRRI,   name: 한국철도기술연구원,     kind: GRI, alio_apba_id: C0269, alio_name: 한국철도기술연구원,     active: false, aliases: [철도기술연구원, 철도연]}
-- {code: KRISS,  name: 한국표준과학연구원,     kind: GRI, alio_apba_id: C0286, alio_name: 한국표준과학연구원,     active: false, aliases: [표준과학연구원, 표준연]}
-- {code: KFRI,   name: 한국식품연구원,         kind: GRI, alio_apba_id: C0226, alio_name: 한국식품연구원,         active: false, aliases: [식품연구원, 식품연]}
-- {code: WIKIM,  name: 세계김치연구소,         kind: GRI, alio_apba_id: C0431, alio_name: 세계김치연구소,         active: false, aliases: [김치연구소, 김치연]}
-- {code: KIGAM,  name: 한국지질자원연구원,     kind: GRI, alio_apba_id: C0263, alio_name: 한국지질자원연구원,     active: false, aliases: [지질자원연구원, 지자연]}
-- {code: KIMM,   name: 한국기계연구원,         kind: GRI, alio_apba_id: C0174, alio_name: 한국기계연구원,         active: false, aliases: [기계연구원, 기계연]}
-- {code: KIMS,   name: 한국재료연구원,         kind: GRI, alio_apba_id: C0381, alio_name: 한국재료연구원,         active: false, aliases: [재료연구원, 재료연]}
-- {code: KARI,   name: 한국항공우주연구원,     kind: GRI, alio_apba_id: C0292, alio_name: 한국항공우주연구원,     active: false, aliases: [항공우주연구원, 항우연]}
-- {code: KIER,   name: 한국에너지기술연구원,   kind: GRI, alio_apba_id: C0229, alio_name: 한국에너지기술연구원,   active: false, aliases: [에너지기술연구원, 에너지연]}
-- {code: KERI,   name: 한국전기연구원,         kind: GRI, alio_apba_id: C0245, alio_name: 한국전기연구원,         active: false, aliases: [전기연구원, 전기연]}
-- {code: KRICT,  name: 한국화학연구원,         kind: GRI, alio_apba_id: C0300, alio_name: 한국화학연구원,         active: false, aliases: [화학연구원, 화학연]}
-- {code: KIT,    name: 안전성평가연구소,       kind: GRI, alio_apba_id: C0384, alio_name: 안전성평가연구소,       active: false, aliases: [안전성평가연]}
-- {code: KAERI,  name: 한국원자력연구원,       kind: GRI, alio_apba_id: C0235, alio_name: 한국원자력연구원,       active: false, aliases: [원자력연구원, 원자력연]}
-- {code: KFE,    name: 한국핵융합에너지연구원, kind: GRI, alio_apba_id: C0382, alio_name: 한국핵융합에너지연구원, active: false, aliases: [핵융합에너지연구원, 핵융합연]}
+- {code: KICT,   name: 한국건설기술연구원,     kind: GRI, alio_apba_id: C0154, alio_name: 한국건설기술연구원,     active: true, aliases: [건설기술연구원, 건설연]}
+- {code: KRRI,   name: 한국철도기술연구원,     kind: GRI, alio_apba_id: C0269, alio_name: 한국철도기술연구원,     active: true, aliases: [철도기술연구원, 철도연]}
+- {code: KRISS,  name: 한국표준과학연구원,     kind: GRI, alio_apba_id: C0286, alio_name: 한국표준과학연구원,     active: true, aliases: [표준과학연구원, 표준연]}
+- {code: KFRI,   name: 한국식품연구원,         kind: GRI, alio_apba_id: C0226, alio_name: 한국식품연구원,         active: true, aliases: [식품연구원, 식품연]}
+- {code: WIKIM,  name: 세계김치연구소,         kind: GRI, alio_apba_id: C0431, alio_name: 세계김치연구소,         active: true, aliases: [김치연구소, 김치연]}
+- {code: KIGAM,  name: 한국지질자원연구원,     kind: GRI, alio_apba_id: C0263, alio_name: 한국지질자원연구원,     active: true, aliases: [지질자원연구원, 지자연]}
+- {code: KIMM,   name: 한국기계연구원,         kind: GRI, alio_apba_id: C0174, alio_name: 한국기계연구원,         active: true, aliases: [기계연구원, 기계연]}
+- {code: KIMS,   name: 한국재료연구원,         kind: GRI, alio_apba_id: C0381, alio_name: 한국재료연구원,         active: true, aliases: [재료연구원, 재료연]}
+- {code: KARI,   name: 한국항공우주연구원,     kind: GRI, alio_apba_id: C0292, alio_name: 한국항공우주연구원,     active: true, aliases: [항공우주연구원, 항우연]}
+- {code: KIER,   name: 한국에너지기술연구원,   kind: GRI, alio_apba_id: C0229, alio_name: 한국에너지기술연구원,   active: true, aliases: [에너지기술연구원, 에너지연]}
+- {code: KERI,   name: 한국전기연구원,         kind: GRI, alio_apba_id: C0245, alio_name: 한국전기연구원,         active: true, aliases: [전기연구원, 전기연]}
+- {code: KRICT,  name: 한국화학연구원,         kind: GRI, alio_apba_id: C0300, alio_name: 한국화학연구원,         active: true, aliases: [화학연구원, 화학연]}
+- {code: KIT,    name: 안전성평가연구소,       kind: GRI, alio_apba_id: C0384, alio_name: 안전성평가연구소,       active: true, aliases: [안전성평가연]}
+- {code: KAERI,  name: 한국원자력연구원,       kind: GRI, alio_apba_id: C0235, alio_name: 한국원자력연구원,       active: true, aliases: [원자력연구원, 원자력연]}
+- {code: KFE,    name: 한국핵융합에너지연구원, kind: GRI, alio_apba_id: C0382, alio_name: 한국핵융합에너지연구원, active: true, aliases: [핵융합에너지연구원, 핵융합연]}
 # 보류: 국가녹색기술연구소(ALIO C0878) — 연구회 소관 25곳 포함 여부 확인 후 추가
 # - {code: NIGT, name: 국가녹색기술연구소, kind: GRI, alio_apba_id: C0878, alio_name: 국가녹색기술연구소, active: false}
