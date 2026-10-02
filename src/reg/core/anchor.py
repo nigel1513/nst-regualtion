@@ -8,6 +8,7 @@ import re
 
 from reg.core.model import Block, ParsedDoc, Prov
 from reg.core.parse import annex_heading
+from reg.core.text import normalize_glyphs
 
 _WS = re.compile(r"\s+")
 _ANNEX_PATH = re.compile(r"^(annex|form)(\d+)(?:-(\d+))?")
@@ -36,7 +37,7 @@ def _annex_sig(p: Prov) -> tuple | None:
 
 
 def locate(doc: ParsedDoc, blocks: list[Block]) -> int:
-    lines = [_n(b.text) for b in blocks]
+    lines = [_n(normalize_glyphs(b.text)) for b in blocks]  # 파서가 정리한 글리프와 같은 글자로 비교한다
     sigs: dict[int, tuple | None] = {}
     pos, n = 0, 0
     for p in doc.provisions:

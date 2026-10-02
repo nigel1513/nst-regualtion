@@ -14,21 +14,33 @@ def current_versions(conn, limit: int) -> list[str]:
         " AND coalesce(vp.anchor, pv.source_anchor) IS NOT NULL ORDER BY v.id LIMIT %s", (limit,)).fetchall()]
 
 
+def render_versions(conn, blob, version_ids: list[str], limit: int) -> dict:
+    """그릴 것이 있는 판본만 limit개까지 그린다. 이미 같은 위치로 그린 판본은 건너뛰고 상한에 세지 않는다."""
+    from reg.core.annex import anchor_digest, load_manifest, render_order, version_order
+
+    st = {"versions": 0, "annexes": 0, "skipped": 0, "failed": 0, "errors": []}
+    for vid in version_ids:
+        try:
+            sd, order = version_order(conn, vid)
+            if not sd or not sd["view_blob_key"] or load_manifest(blob, sd["sha256"]).get("digest") == anchor_digest(order):
+                st["skipped"] += 1
+                continue
+            if st["versions"] >= limit:
+                break
+            st["annexes"] += len(render_order(blob, sd, order)["items"])
+            st["versions"] += 1
+        except Exception as e:  # 판본 하나의 실패가 배치를 멈추지 않게
+            st["failed"] += 1
+            st["errors"] = (st["errors"] + [f"{vid}: {type(e).__name__}: {e}"[:200]])[:20]
+    return st
+
+
 def render_current(limit: int = 500) -> dict:
-    """현행 판본의 별표 이미지를 미리 그린다 (이미 같은 위치로 그린 것은 건너뛴다)."""
-    from reg.core.annex import ensure_rendered
+    """현행 판본의 별표 이미지를 미리 그린다 (이미 같은 위치로 그린 것은 건너뛰고, 그린 판본만 상한에 센다)."""
     from reg.platform.storage.blob import blob_store
 
     with open_conn() as conn, task_run("core.annex_render", conn) as st:
-        blob = blob_store()
-        st.update({"versions": 0, "annexes": 0, "failed": 0, "errors": []})
-        for vid in current_versions(conn, limit):
-            try:
-                st["annexes"] += len(ensure_rendered(conn, blob, vid)["items"])
-                st["versions"] += 1
-            except Exception as e:  # 판본 하나의 실패가 배치를 멈추지 않게
-                st["failed"] += 1
-                st["errors"] = (st["errors"] + [f"{vid}: {type(e).__name__}: {e}"[:200]])[:20]
+        st.update(render_versions(conn, blob_store(), current_versions(conn, 100_000), limit))
         return dict(st)
 
 

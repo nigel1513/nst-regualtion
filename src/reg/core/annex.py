@@ -13,6 +13,7 @@
 import hashlib
 import io
 import json
+import threading
 from dataclasses import asdict, dataclass
 
 import pypdfium2 as pdfium
@@ -145,30 +146,51 @@ def version_order(conn, version_id: str) -> tuple[dict | None, list[dict]]:
     return sd, [dict(r) for r in rows]
 
 
+_LOCKS: dict[str, threading.Lock] = {}
+_LOCKS_GUARD = threading.Lock()
+
+
+def _sha_lock(sha: str) -> threading.Lock:
+    with _LOCKS_GUARD:
+        return _LOCKS.setdefault(sha, threading.Lock())
+
+
 def ensure_rendered(conn, blob, version_id: str) -> dict:
     """판본의 모든 별표 영역 이미지를 만들어 두고 매니페스트를 돌려준다. 이미 같은 위치로 만들었으면 그대로."""
     sd, order = version_order(conn, version_id)
+    return render_order(blob, sd, order)
+
+
+def render_order(blob, sd: dict | None, order: list[dict]) -> dict:
+    """ensure_rendered의 DB 없는 부분. 같은 원본은 한 프로세스에서 한 번에 하나만 그린다(동시 요청이 겹쳐 그리지 않게).
+
+    API는 DB 연결을 돌려준 뒤 이 함수를 부른다: 그리는 동안 연결 풀을 붙잡지 않는다."""
     if not sd or not sd["view_blob_key"]:
         return {"digest": None, "items": {}, "reason": "no_view_pdf"}
-    man = load_manifest(blob, sd["sha256"])
     digest = anchor_digest(order)
-    if man.get("digest") == digest:
+    with _sha_lock(sd["sha256"]):
+        man = load_manifest(blob, sd["sha256"])
+        if man.get("digest") == digest:
+            return man
+        pdf = blob.get(sd["view_blob_key"])
+        regions = annex_regions(order, page_layouts(pdf))
+        doc = pdfium.PdfDocument(pdf)
+        try:
+            items = {}
+            for path, segs in regions.items():
+                keys = []
+                for n, seg in enumerate(segs, 1):
+                    key = image_key(sd["sha256"], path, n)
+                    blob.put(key, render_segment(doc, seg), "image/png")
+                    keys.append({"key": key, **asdict(seg)})
+                old = man.get("items", {}).get(path, {})
+                # 표 HTML은 그 영역에서 뽑은 것이다: 영역이 그대로일 때만 이어받고, 바뀌면 다시 변환한다
+                same = [(s["page"], list(s["box"])) for s in old.get("segments", [])] == \
+                    [(k["page"], list(k["box"])) for k in keys]
+                items[path] = {"segments": keys, "table": old["table"] if same and "table" in old
+                               else {"status": "none"}}
+        finally:
+            doc.close()
+        man = {"digest": digest, "items": items}
+        save_manifest(blob, sd["sha256"], man)
         return man
-    pdf = blob.get(sd["view_blob_key"])
-    regions = annex_regions(order, page_layouts(pdf))
-    doc = pdfium.PdfDocument(pdf)
-    try:
-        items = {}
-        for path, segs in regions.items():
-            keys = []
-            for n, seg in enumerate(segs, 1):
-                key = image_key(sd["sha256"], path, n)
-                blob.put(key, render_segment(doc, seg), "image/png")
-                keys.append({"key": key, **asdict(seg)})
-            old = man.get("items", {}).get(path, {})
-            items[path] = {"segments": keys, "table": old.get("table", {"status": "none"})}
-    finally:
-        doc.close()
-    man = {"digest": digest, "items": items}
-    save_manifest(blob, sd["sha256"], man)
-    return man

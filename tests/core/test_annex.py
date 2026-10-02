@@ -67,3 +67,79 @@ def test_version_without_view_pdf_has_no_items(conn, tmp_path):
     conn.execute("UPDATE regulation.source_document SET view_blob_key = NULL")
     conn.commit()
     assert ensure_rendered(conn, blob, vid) == {"digest": None, "items": {}, "reason": "no_view_pdf"}
+
+
+def _ok_tables(conn, blob, vid):
+    from reg.core.annex_tables import TableBlock, convert_version
+
+    class Src:
+        name = "fake"
+
+        def tables(self, pdf, pages):
+            return [TableBlock(p, None, "<table><tr><td>x</td></tr></table>") for p in pages]
+
+    convert_version(conn, blob, vid, Src())
+
+
+def test_table_state_is_kept_only_for_unchanged_segments(conn, tmp_path):
+    """최종 검토: 영역이 바뀐 별표의 표 HTML은 옛 영역 것이므로 다시 변환해야 한다."""
+    blob = LocalBlobStore(tmp_path)
+    vid, _ = load_pdf_version(conn, blob, "kasi_form4_p48-49.pdf")
+    _ok_tables(conn, blob, vid)
+    # 별표 영역과 상관없는 조문 위치만 바뀜 → 표 상태 유지
+    conn.execute("UPDATE regulation.version_provision SET anchor = jsonb_set(anchor, '{bbox,0}', '81')"
+                 " WHERE work_version_id = %s AND ord = (SELECT min(ord) FROM regulation.version_provision"
+                 " WHERE work_version_id = %s AND anchor IS NOT NULL)", (vid, vid))
+    conn.commit()
+    man = ensure_rendered(conn, blob, vid)
+    assert {p: it["table"]["status"] for p, it in man["items"].items()} == {"form4": "ok", "form5": "ok"}
+    # form5 머리 위치가 바뀜 → form5(와 영역이 늘어난 form4)는 다시 변환 대상
+    conn.execute("UPDATE regulation.version_provision SET anchor = jsonb_set(anchor, '{bbox,1}', '300')"
+                 " WHERE work_version_id = %s AND anchor IS NOT NULL AND ord = (SELECT max(ord)"
+                 " FROM regulation.version_provision WHERE work_version_id = %s AND anchor IS NOT NULL)", (vid, vid))
+    conn.commit()
+    man = ensure_rendered(conn, blob, vid)
+    assert man["items"]["form5"]["table"] == {"status": "none"}
+
+
+def test_render_versions_counts_only_versions_it_renders(conn, tmp_path):
+    """최종 검토: 이미 그린 판본은 상한에 세지 않는다 (앞쪽 판본만 되풀이해 확인하던 문제)."""
+    from reg.core.annex_tasks import render_versions
+
+    blob = LocalBlobStore(tmp_path)
+    vid, _ = load_pdf_version(conn, blob, "kasi_form4_p48-49.pdf")
+    assert render_versions(conn, blob, [vid], limit=0)["versions"] == 0
+    st = render_versions(conn, blob, [vid], limit=5)
+    assert (st["versions"], st["annexes"], st["skipped"]) == (1, 2, 0)
+    st = render_versions(conn, blob, [vid, vid], limit=1)
+    assert (st["versions"], st["skipped"]) == (0, 2)
+
+
+def test_concurrent_requests_render_once(migrated, conn, tmp_path):
+    """최종 검토: 별표 카드가 동시에 여러 요청을 보내도 한 원본은 한 번만 그린다."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    from reg.platform.db.conn import connect
+
+    class Counting(LocalBlobStore):
+        def __init__(self, root):
+            super().__init__(root)
+            self.png = 0
+
+        def put(self, key, data, content_type):
+            self.png += key.endswith(".png")
+            super().put(key, data, content_type)
+
+    blob = Counting(tmp_path)
+    vid, _ = load_pdf_version(conn, blob, "kasi_form4_p48-49.pdf")
+
+    def one(_):
+        c = connect(migrated[0])
+        try:
+            return len(ensure_rendered(c, blob, vid)["items"])
+        finally:
+            c.close()
+
+    with ThreadPoolExecutor(4) as ex:
+        assert list(ex.map(one, range(4))) == [2, 2, 2, 2]
+    assert blob.png == 2

@@ -48,3 +48,12 @@ def test_form_headings_are_not_taken_for_running_headers():
     lines = [b.text for b in drop_running(units)]
     assert [t for t in lines if t.startswith("별지")] == [f"별지 제{n}호 서식" for n in range(1, 6)]
     assert not [t for t in lines if "내자구매요령" in t]
+
+
+def test_dashes_inside_dates_and_numbers_are_not_page_numbers():
+    """최종 검토: '-03-'처럼 낱말 안의 숫자는 쪽번호가 아니다 (가장자리 본문 줄이 지워지던 문제)."""
+    assert not is_page_number_line("이 규정은 2024-03-01부터 시행한다.")
+    assert not is_page_number_line("연락처 042-860-1234")
+    assert not is_page_number_line("별표 1-2-1 참조")
+    assert is_page_number_line("- 3 - 연구관리요령") and is_page_number_line("보안업무요령 - 28 -")
+    assert is_page_number_line("-3-")

@@ -27,3 +27,12 @@ def test_annex_anchor_skips_body_citations():
     doc.get("form1").anchor = None
     locate(doc, view)
     assert doc.get("form1").anchor == {"page": 3, "bbox": [10, 50, 100, 60]}
+
+
+def test_article_with_pua_heading_is_located_in_raw_view_pdf():
+    """최종 검토: 파서는 글리프를 정리하지만 보기용 PDF 줄에는 PUA가 그대로 있다."""
+    doc = parse_blocks([Block("규칙"), Block("제2조(설립\U0000f09e운영) 연구회를 둔다.", 1, (0, 0, 1, 1))])
+    assert doc.get("a2").heading == "설립·운영"
+    doc.get("a2").anchor = None
+    locate(doc, [Block("제2조(설립\U0000f09e운영) 연구회를 둔다.", 4, (10, 10, 100, 20))])
+    assert doc.get("a2").anchor == {"page": 4, "bbox": [10, 10, 100, 20]}
