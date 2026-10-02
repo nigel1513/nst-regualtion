@@ -30,3 +30,38 @@ def test_gold_pdf(case):
     pos = [next(i for i, t in enumerate(lines) if t.startswith(h)) for h in case["order"]]
     assert pos == sorted(pos)
     assert not [t for t in lines if re.search(case["absent_re"], t)]
+
+
+from reg.core.text import Joiner, clean, despace_line, normalize_glyphs
+
+# HWP·PDF 사용자 정의 영역 글리프 (JSON에 넣기 어려워 여기 둔다). 출처: 실서버 판본 텍스트
+GLYPHS = [
+    ("국가과학기술연구회(이하\U000f0852연구회\U000f0853라 한다)", "국가과학기술연구회(이하“연구회”라 한다)"),  # NST 판공비류사용기준 a1
+    ("정부출연연구기관 등의 설립\U0000f09e운영 및 육성", "정부출연연구기관 등의 설립·운영 및 육성"),        # NST 기본사업운영규정 a1
+    ("\U0000f000물품의 반출\U0000f000이라 함은 일상 운행하는", "“물품의 반출”이라 함은 일상 운행하는"),      # KIST 비유동자산관리요령 a33
+    ("년 월 일신 청 인 (인) " + "\U000f081c" * 16, "년 월 일신 청 인 (인)"),                              # KIST 유연근무제운영지침 annex1
+    ("신청서 등록구분 \U0000f0fe 신규 \U0000f06f 재신청", "신청서 등록구분 ☑ 신규 □ 재신청"),              # NST 정보보안업무규칙 annex3
+]
+
+
+@pytest.mark.parametrize("case", GOLD["joins"], ids=lambda c: f"{c['prev']}+{c['next']}")
+def test_gold_joins(case):
+    out = Joiner([]).join(case["prev"], case["next"])
+    glued = not out[len(case["prev"]):].startswith(" ")
+    assert glued == (case["want"] == "glue")
+
+
+@pytest.mark.parametrize(("raw", "want"), GLYPHS)
+def test_gold_glyphs(raw, want):
+    assert clean(normalize_glyphs(raw)) == want
+
+
+@pytest.mark.parametrize("case", GOLD["despace"], ids=lambda c: c["in"])
+def test_gold_despace(case):
+    assert despace_line(case["in"]) == case["want"]
+
+
+@pytest.mark.parametrize("case", [c for c in GOLD["pdf"] if "contains" in c], ids=lambda c: c["file"])
+def test_gold_pdf_glyphs(case):
+    lines = [b.text for b in extract_pdf((PDF / case["file"]).read_bytes())]
+    assert any(case["contains"] in clean(normalize_glyphs(t)) for t in lines)
