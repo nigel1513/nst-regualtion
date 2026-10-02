@@ -28,8 +28,8 @@ app.command("process")(wiring.process_command())
 def db_bootstrap(superuser_dsn: str = typer.Option(None, envvar="REG_SUPERUSER_URL")) -> None:
     s = get_settings()
     app_url, mig_url = urlparse(s.database_url), urlparse(s.migrator_url)
-    bootstrap(superuser_dsn, app_url.path.lstrip("/"), mig_url.password, app_url.password)
-    typer.echo("bootstrap 완료: reg_migrator, reg_app, schema regulation")
+    bootstrap(superuser_dsn, app_url.path.lstrip("/") or "nst_regulation", mig_url.password, app_url.password)
+    typer.echo(f"bootstrap 완료: DB {app_url.path.lstrip('/')}, 역할 reg_migrator·reg_app, 스키마 regulation·law·ops")
 
 
 @db.command("upgrade")

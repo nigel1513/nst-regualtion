@@ -5,9 +5,9 @@ from reg.platform.db.bootstrap import bootstrap
 from reg.platform.db.migrate import upgrade
 
 
-def _dsn(c: PostgresContainer, user: str, pw: str) -> str:
+def _dsn(c: PostgresContainer, user: str, pw: str, db: str | None = None) -> str:
     host, port = c.get_container_host_ip(), c.get_exposed_port(5432)
-    return f"postgresql://{user}:{pw}@{host}:{port}/{c.dbname}"
+    return f"postgresql://{user}:{pw}@{host}:{port}/{db or c.dbname}"
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -26,8 +26,8 @@ def pg():
 @pytest.fixture(scope="session")
 def migrated(pg):
     su = _dsn(pg, "su", "su")
-    bootstrap(su, "nais", "mig", "app")
-    mig, app = _dsn(pg, "reg_migrator", "mig"), _dsn(pg, "reg_app", "app")
+    bootstrap(su, "nst_regulation", "mig", "app")
+    mig, app = _dsn(pg, "reg_migrator", "mig", "nst_regulation"), _dsn(pg, "reg_app", "app", "nst_regulation")
     upgrade(mig)
     return app, mig
 

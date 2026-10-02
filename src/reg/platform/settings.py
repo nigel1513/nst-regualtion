@@ -10,8 +10,8 @@ USER_AGENT = "NST-Regulation-Collector/0.1 (+contact: bigdatanigel1513@gmail.com
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="REG_", env_file=".env", extra="ignore")
 
-    database_url: str = "postgresql://reg_app:reg@127.0.0.1:21055/nais"
-    migrator_url: str = "postgresql://reg_migrator:reg@127.0.0.1:21055/nais"
+    database_url: str = "postgresql://reg_app:reg@127.0.0.1:21055/nst_regulation"
+    migrator_url: str = "postgresql://reg_migrator:reg@127.0.0.1:21055/nst_regulation"
     s3_endpoint: str = "http://127.0.0.1:21053"
     s3_bucket: str = "regulation"
     s3_access_key: str = ""
