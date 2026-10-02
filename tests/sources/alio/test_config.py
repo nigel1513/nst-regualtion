@@ -14,7 +14,8 @@ def test_alio_yaml_lists_nst_and_25_institutes():
     rows = yaml.safe_load((ROOT / "config/sources/alio.yaml").read_text(encoding="utf-8"))
     codes = [r["code"] for r in rows]
     assert len(rows) == 26 and len(set(codes)) == 26
-    assert sorted(r["code"] for r in rows if r.get("active", True)) == sorted(PILOTS)
+    # 사용자 결정 2026-10-02: ALIO id가 있는 25곳 모두 수집 (NSR은 ALIO 미공시)
+    assert sorted(r["code"] for r in rows if r.get("active", True)) == sorted(r["code"] for r in rows if r["alio_apba_id"])
     for code, (apba, name) in PILOTS.items():
         r = next(x for x in rows if x["code"] == code)
         assert (r["alio_apba_id"], r["alio_name"], r["name"]) == (apba, name, name)
