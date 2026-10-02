@@ -33,10 +33,27 @@ def reg_process():
 
         return run()
 
+    @task(**ONCE)
+    def annex_render() -> dict:
+        """새로 적재된 현행 버전의 별표 영역을 PNG로 미리 만든다 (M6-6, CPU)."""
+        from reg.core.annex_tasks import render_current
+
+        return render_current()
+
+    @task(pool="gpu_pool", **ONCE)
+    def annex_tables() -> dict:
+        """별표 표를 MinerU로 HTML 변환 (M6-6). GPU PC가 꺼져 있으면 건너뛰고 다음 실행에서 다시 한다."""
+        from reg.core.annex_tasks import convert_tables
+
+        return convert_tables()
+
     p = process_all()
     q = quality_summary()
+    r = annex_render()
+    t = annex_tables()
     p >> q
-    [p, q] >> watcher()
+    p >> r >> t
+    [p, q, r, t] >> watcher()
 
 
 reg_process()

@@ -9,6 +9,7 @@ ALLOWED = {
     "reg.sources.alio.tasks": {"active_institutions", "collect_institution", "reconcile"},
     "reg.sources.lawgo.tasks": {"sync_daily", "sync_full", "link", "promote"},
     "reg.core.ingest.tasks": {"process_all", "quality_summary"},
+    "reg.core.annex_tasks": {"render_current", "convert_tables"},  # M6-6 별표 이미지·표
     "reg.ocr.tasks": {"run_pending"},
     "reg.graph.tasks": {"sync"},
     "reg.alerts.tasks": {"scan", "notify"},

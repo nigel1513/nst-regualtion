@@ -25,7 +25,7 @@ def works(conn, institution: str | None, kind: str | None, q: str | None) -> lis
         "   LIMIT 1) x) AS version"
         " FROM regulation.work w LEFT JOIN regulation.institution i ON i.id = w.institution_id"
         " WHERE (%(inst)s::text IS NULL OR i.code = %(inst)s)"
-        "   AND (%(kind)s::text IS NULL OR (%(kind)s = 'law') = (w.id LIKE 'kr/law/%%'))"
+        "   AND (%(kind)s::text IS NULL OR (%(kind)s = 'law') = (w.id LIKE 'kr/law/%%' OR w.id LIKE 'kr/admrul/%%'))"
         "   AND (%(q)s::text IS NULL OR w.title ILIKE %(q)s ESCAPE '\\')"
         " ORDER BY i.code NULLS LAST, w.title LIMIT 1000",
         {"inst": institution, "kind": kind, "q": _like(q) if q else None}).fetchall()

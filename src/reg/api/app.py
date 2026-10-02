@@ -12,6 +12,7 @@ from psycopg_pool import ConnectionPool
 from pydantic import BaseModel, Field
 
 from reg.api import queries as Q
+from reg.api.annex_routes import router as annex_router
 from reg.platform.storage.blob import BlobStore
 
 QA_SLOTS = 3  # 동시에 생성하는 답변 수 (vLLM 한 대, DB 풀 8개 중 일부만 쓴다)
@@ -48,6 +49,7 @@ def create_app(dsn: str, blob: BlobStore, search_deps: dict | None = None) -> Fa
     app.state.qa_slots = threading.BoundedSemaphore(QA_SLOTS)
     app.state.blob = blob
     app.state.search = search_deps or {}
+    app.include_router(annex_router)
 
     def conn(request: Request):
         with request.app.state.pool.connection() as c:

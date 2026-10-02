@@ -135,3 +135,9 @@ export type LawAnnex = {
   view_url: string;
 };
 export type LawCite = { start: number; end: number; law_id: string; article_id: number | null };
+
+export type AnnexInfo = {
+  version: string; path: string; page: number;
+  segments: { n: number; page: number; url: string }[];
+  table: { status: string; url: string | null };
+};
