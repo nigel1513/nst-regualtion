@@ -30,7 +30,7 @@ EXPECTED = {
     "reg_ocr": {"assets": ["regulation_structured"], "tasks": {"run_pending": (D, 2), "announce": (D, 0)}},
     "reg_publish": {"assets": ["regulation_structured"],
                     "tasks": {"graph_sync": (D, 2), "alerts_scan": (D, 2), "embed_check": ("gpu_pool", 6),
-                              "index_build": ("gpu_pool", 6), "index_gate": (D, 0), "index_publish": (D, 1),
+                              "index_build": ("gpu_pool", 6), "index_gate": (D, 3), "index_publish": (D, 1),
                               "daily_summary": (D, 1), "watcher": (D, 0)}},
     "reg_notify": {"cron": "5 * * * *", "tasks": {"notify": (D, 2)}},
     "reg_maintenance": {"cron": "0 4 * * *", "tasks": {"maintenance": (D, 1)}},

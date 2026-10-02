@@ -40,9 +40,14 @@ def reg_publish():
         rid = (built or {}).get("release_id")
         if rid is None:
             skip("새 release 없음 (변화 없는 날)")
-        from reg.index.tasks import gate
+        from airflow.exceptions import AirflowFailException
 
-        gate(int(rid))  # 게이트 불통과는 예외로 알린다 (overview §2.6)
+        from reg.index.tasks import GateFailed, gate
+
+        try:
+            gate(int(rid))  # 게이트 불통과는 예외로 알린다 (overview §2.6)
+        except GateFailed as e:  # 품질 미달은 다시 해도 같다 → 재시도 없이 실패 (release는 FAILED로 남음)
+            raise AirflowFailException(str(e)) from e
         return int(rid)
 
     @task(**ONCE)

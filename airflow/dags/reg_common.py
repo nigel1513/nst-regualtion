@@ -62,7 +62,8 @@ INDEX = {"retries": 6, "retry_delay": timedelta(minutes=30), "execution_timeout"
 LIGHT = {"retries": 2, "retry_delay": timedelta(minutes=10), "execution_timeout": timedelta(minutes=30)}
 ONCE = {"retries": 1, "retry_delay": timedelta(minutes=5), "execution_timeout": timedelta(minutes=30)}
 MARK = {"retries": 0, "execution_timeout": timedelta(minutes=5)}
-GATE = {"retries": 0, "execution_timeout": timedelta(minutes=30)}  # 게이트 결과는 재시도해도 같다 (M6-4)
+GATE = {"retries": 3, "retry_delay": timedelta(minutes=30), "execution_timeout": timedelta(minutes=30)}
+# 게이트: 임베딩·리랭크 서버 장애(ProviderError)는 재시도, 품질 미달(GateFailed)은 재시도 없이 실패 (M6-4 통합)
 
 
 def cron(expr: str) -> CronTriggerTimetable:
