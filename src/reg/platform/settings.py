@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     rerank_model: str = "bge-reranker"
     llm_url: str = "http://192.168.0.2:8001"
     llm_model: str = "llm"
+    mineru_url: str = ""  # GPU PC MinerU V1 API, 예: http://192.168.0.2:8004 (M6-5 OCR, M6-6 별표 표)
+    mineru_api_key: str = ""
 
 
 @lru_cache
