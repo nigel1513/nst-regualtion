@@ -10,7 +10,9 @@
 import hashlib
 import json
 import time
+import unicodedata
 from dataclasses import dataclass
+from html.parser import HTMLParser
 from typing import Self
 from urllib.parse import urljoin, urlsplit
 
@@ -225,4 +227,101 @@ def mineru_available(base_url: str, api_key: str = "", timeout: float = HEALTH_T
         return c.available()
 
 
-# text_lines, table_rows: Task 2에서 이 아래에 구현한다.
+# ── middle_json(MiddleJson 2.0) → 읽는 순서의 줄 ───────────────────────────
+SKIP_BLOCKS = {"header", "footer", "page_number", "aside_text"}  # 쪽 장식: 본문에 섞지 않는다
+NON_TEXT_BODIES = {"image_body", "chart_body", "equation", "code_body", "algorithm_body"}
+INLINE_SPANS = {"text", "equation_inline", "code_inline", "hyperlink"}
+
+
+def _norm(s: str) -> str:
+    return " ".join(unicodedata.normalize("NFC", s).split())
+
+
+def _spans(spans: list) -> str:
+    out = []
+    for s in spans:
+        c = s.get("content")
+        out.append(_spans(c) if isinstance(c, list) else (c or ""))
+    return "".join(out)
+
+
+class _Rows(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.rows: list[list[str]] = []
+        self.row: list[str] | None = None
+        self.cell: list[str] | None = None
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "tr":
+            self.row = []
+        elif tag in ("td", "th") and self.row is not None:
+            self.cell = []
+        elif tag == "br" and self.cell is not None:
+            self.cell.append(" ")
+
+    def handle_endtag(self, tag):
+        if tag in ("td", "th") and self.cell is not None and self.row is not None:
+            self.row.append(_norm("".join(self.cell)))
+            self.cell = None
+        elif tag == "tr" and self.row is not None:
+            self.rows.append(self.row)
+            self.row = None
+
+    def handle_data(self, data):
+        if self.cell is not None:
+            self.cell.append(data)
+
+
+def table_rows(html: str) -> list[str]:
+    """table_body → 행마다 '칸 | 칸'. HTML이 아니면(공간 투영 텍스트) 줄 그대로. 빈 행은 뺀다."""
+    p = _Rows()
+    p.feed(html)
+    p.close()
+    if not p.rows:
+        return [n for ln in html.splitlines() if (n := _norm(ln))]
+    return [" | ".join(r) for r in p.rows if any(r)]
+
+
+def _block_lines(block: dict) -> list[str]:
+    t, c = block.get("type"), block.get("content")
+    if t in SKIP_BLOCKS or t in NON_TEXT_BODIES:
+        return []
+    if t == "table_body" and isinstance(c, str):
+        return table_rows(c)
+    if isinstance(c, str):
+        raw = c
+    elif isinstance(c, list) and all(isinstance(x, dict) and x.get("type") in INLINE_SPANS for x in c):
+        raw = _spans(c)
+    elif isinstance(c, list):  # 부모 블록(table·list·index·image…): 자식 블록을 차례로
+        return [ln for child in c if isinstance(child, dict) for ln in _block_lines(child)]
+    else:
+        return []
+    return [n for ln in raw.splitlines() if (n := _norm(ln))]
+
+
+def _scale(b, size: tuple[float, float] | None) -> list[float] | None:
+    if not size or not isinstance(b, list | tuple) or len(b) != 4:
+        return None
+    w, h = size
+    return [round(b[0] * w, 1), round(b[1] * h, 1), round(b[2] * w, 1), round(b[3] * h, 1)]
+
+
+def text_lines(middle_json: dict, page_sizes: dict[int, tuple[float, float]]) -> list[dict]:
+    """MiddleJson 2.0 → [{text, page(1부터), bbox(원본 PDF pt, 왼쪽 위 원점) | None}] 읽는 순서.
+
+    - 머리글·꼬리글·쪽번호·여백 글은 뺀다.
+    - 문단 안 줄바꿈은 줄로 나누되 같은 문단 상자를 준다.
+    - 표는 행마다 한 줄이다. 그림·수식 본문은 뺀다.
+    - 쪽 크기를 모르면 bbox는 None이다(지어내지 않는다).
+    """
+    out = []
+    for page in middle_json.get("pages") or []:
+        idx = int(page.get("page_idx", 0))
+        size = page_sizes.get(idx)
+        for block in sorted(page.get("blocks") or [], key=lambda b: b.get("index", 0)):
+            if block.get("type") in SKIP_BLOCKS:
+                continue
+            bbox = _scale(block.get("bbox"), size)
+            out.extend({"text": ln, "page": idx + 1, "bbox": bbox} for ln in _block_lines(block))
+    return out
