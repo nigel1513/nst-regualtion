@@ -2,7 +2,7 @@
 #   llm    : EXAONE-3.5-7.8B-Instruct-AWQ  -> :8001  (/v1/chat/completions)
 #   embed  : BAAI/bge-m3 (1024 dim)        -> :8002  (/v1/embeddings)
 #   rerank : BAAI/bge-reranker-v2-m3       -> :8003  (/rerank, /score)
-# VRAM: embed 0.10 + rerank 0.10 + llm 0.60 = 0.80 (~19.6GB), 나머지는 화면 출력·여유분
+# VRAM: embed 0.10 + rerank 0.10 + llm 0.40 = 0.60 (+ gpu-mineru vlm 0.20 = 0.80), 나머지는 화면 출력·MinerU 소형 모델
 # 시작 순서를 embed -> rerank -> llm 으로 고정: vLLM이 기동 시 남은 VRAM을 확인하므로 동시 기동 시 충돌함
 # 포트는 내부망에 공개됨. Windows 방화벽에서 플랫폼 서버(192.168.0.3)만 허용할 것:
 #   New-NetFirewallRule -DisplayName "vLLM (nst server only)" -Direction Inbound -Protocol TCP -LocalPort 8001-8003 -RemoteAddress 192.168.0.3 -Action Allow
@@ -51,7 +51,7 @@ services:
     command: >
       --model LGAI-EXAONE/EXAONE-3.5-7.8B-Instruct-AWQ --served-model-name llm
       --trust-remote-code
-      --gpu-memory-utilization 0.60 --max-model-len 32768
+      --gpu-memory-utilization 0.40 --max-model-len 16384
     depends_on:
       rerank: { condition: service_healthy }
 
