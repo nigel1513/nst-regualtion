@@ -1,0 +1,9 @@
+# infra/airflow/Dockerfile.dockerignore  (BuildKit: 이 Dockerfile 전용 무시 목록 — apps/의 1GB를 문맥에서 뺀다)
+*
+!pyproject.toml
+!src/
+!config/
+!airflow/dags/
+!infra/airflow/requirements-batch.txt
+!infra/airflow/init.sh
+**/__pycache__

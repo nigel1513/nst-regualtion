@@ -2,3 +2,10 @@
 __pycache__/
 .venv/
 node_modules/
+.superpowers/
+.pytest_cache/
+infra/storage/s3.json
+.run/
+infra/dashboards/htpasswd
+.env*
+!.env.example

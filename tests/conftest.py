@@ -1,0 +1,111 @@
+import pytest
+from testcontainers.community.postgres import PostgresContainer
+
+from reg.platform.db.bootstrap import bootstrap
+from reg.platform.db.migrate import upgrade
+
+
+def _dsn(c: PostgresContainer, user: str, pw: str, db: str | None = None) -> str:
+    host, port = c.get_container_host_ip(), c.get_exposed_port(5432)
+    return f"postgresql://{user}:{pw}@{host}:{port}/{db or c.dbname}"
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _sources():
+    from reg.wiring import register_sources
+
+    register_sources()
+
+
+@pytest.fixture(scope="session")
+def pg():
+    with PostgresContainer("postgres:16", username="su", password="su", dbname="nais") as c:
+        yield c
+
+
+@pytest.fixture(scope="session")
+def migrated(pg):
+    su = _dsn(pg, "su", "su")
+    bootstrap(su, "nst_regulation", "mig", "app")
+    mig, app = _dsn(pg, "reg_migrator", "mig", "nst_regulation"), _dsn(pg, "reg_app", "app", "nst_regulation")
+    from reg.wiring import migration_locations
+
+    upgrade(mig, migration_locations())
+    return app, mig
+
+
+@pytest.fixture
+def conn(migrated):
+    from reg.platform.db.conn import connect
+
+    c = connect(migrated[0])
+    yield c
+    c.rollback()
+    with c.cursor() as cur:  # 테스트 간 격리: 데이터만 비운다
+        cur.execute(
+            "TRUNCATE ops.pipeline_run, ops.embedding_cache, ops.email_delivery, ops.notification, ops.change_impact, ops.owner_assignment, ops.qa_log, ops.release_item, ops.release, regulation.reference, regulation.review_task, regulation.law_seed, regulation.provision_change, regulation.version_provision, regulation.provision_version,"
+            " regulation.provision, regulation.amendment_history, regulation.work_version, regulation.work,"
+            " ops.outbox, regulation.alio_rule_file, regulation.alio_rule,"
+            " regulation.law_watch, ops.request_log, ops.fetch_run,"
+            " regulation.source_document, regulation.institution CASCADE"
+        )
+    c.commit()
+    c.close()
+
+
+@pytest.fixture(scope="session")
+def os_url():
+    import time
+
+    import httpx
+    from testcontainers.core.container import DockerContainer
+
+    c = (DockerContainer("nais-opensearch:2.19.1-nori").with_exposed_ports(9200)
+         .with_env("discovery.type", "single-node").with_env("DISABLE_SECURITY_PLUGIN", "true")
+         .with_env("DISABLE_INSTALL_DEMO_CONFIG", "true").with_env("OPENSEARCH_JAVA_OPTS", "-Xms512m -Xmx512m"))
+    with c:
+        url = f"http://{c.get_container_host_ip()}:{c.get_exposed_port(9200)}"
+        for _ in range(90):
+            try:
+                if httpx.get(f"{url}/_cluster/health", timeout=2).status_code == 200:
+                    break
+            except httpx.HTTPError:
+                pass
+            time.sleep(1)
+        yield url
+
+
+@pytest.fixture
+def loaded(conn, tmp_path):
+    """천문연 여비규정(실파일)을 처리까지 마친 DB 연결."""
+    from datetime import date
+
+    from reg.core.ingest.process import process_once
+    from reg.platform.storage.blob import LocalBlobStore
+    from tests.test_process import FX, seed_alio
+
+    blob = LocalBlobStore(tmp_path)
+    seed_alio(conn, blob, (FX / "samples" / "kasi-yeobi-339.pdf").read_bytes())
+    process_once(conn, blob, today=date(2026, 10, 2))
+    return conn
+
+
+@pytest.fixture(scope="session")
+def neo4j_driver():
+    import time
+
+    from neo4j import GraphDatabase
+    from testcontainers.core.container import DockerContainer
+
+    c = DockerContainer("neo4j:5.26-community").with_exposed_ports(7687).with_env("NEO4J_AUTH", "neo4j/testpass1234")
+    with c:
+        uri = f"bolt://{c.get_container_host_ip()}:{c.get_exposed_port(7687)}"
+        drv = GraphDatabase.driver(uri, auth=("neo4j", "testpass1234"))
+        for _ in range(120):
+            try:
+                drv.verify_connectivity()
+                break
+            except Exception:
+                time.sleep(1)
+        yield drv
+        drv.close()

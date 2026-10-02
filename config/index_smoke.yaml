@@ -1,0 +1,28 @@
+# 색인 품질 게이트 고정 질의 (batch spec 6.2). eval/qa_cases.yaml 문항의 질문·기대 조를 그대로 옮겼다.
+# 각 질의의 상위 5개 검색 결과에 work_contains를 id에 포함한 규범문서의 article 조가 있어야 게시한다.
+# 실패하는 질의가 생기면 기준을 낮추지 말고 원인(누락·파싱)을 먼저 본다. 문항을 바꿀 때는 qa_cases에서 고른다.
+- id: kasi-yeobi-ok   # kasi-yeobi-late는 원문에 규정 용어(증빙서)가 없어 LLM 검색어 없이 5위 밖 (2026-10-02 실데이터)
+  query: 한국천문연구원 직원입니다. 출장 끝나고 5일 지났는데 아직 증빙서를 안 냈어요.
+  institution: KASI
+  work_contains: KASI/여비규정
+  article: a27
+- id: nst-domestic-late
+  query: NST 국내출장 마친 지 12일 지났는데 정산 신청을 못 했습니다. 괜찮나요?
+  institution: NST
+  work_contains: NST/여비규정
+  article: a9-2
+- id: etri-report-deadline
+  query: 한국전자통신연구원 출장복명서 제출 기한이 며칠인가요?
+  institution: ETRI
+  work_contains: ETRI/출장요령
+  article: a11
+- id: kist-hotel-late
+  query: KIST 출장 중 숙박비 상한을 넘겨 썼는데 여행 끝나고 10일 지났어요. 정산 신청 가능한가요?
+  institution: KIST
+  work_contains: KIST/여비규정
+  article: a14
+- id: nst-disaster-leave
+  query: 연구회 직원이 수해를 입으면 재해구호휴가를 며칠 받을 수 있나요?
+  institution: NST
+  work_contains: NST/복무규정
+  article: a26

@@ -1,0 +1,51 @@
+# 질의응답 평가 문항 (spec 12). 정답 조문은 2026-10-02 적재 실데이터의 현행 버전에서 확인함.
+# expect.status 가 목록이면 그중 하나면 정답 (관련 규정 없음 → 찾지 못함 또는 판단불가 답변)
+# expect.article = 근거 1~2위에 있어야 하는 조, expect.work_contains = 그 규범문서 id에 포함될 문자열
+- id: kasi-yeobi-late
+  question: 천문연 소속인데 출장 다녀온 지 10일 지났고 지출결의를 아직 안 했어요. 문제가 없을까요?
+  expect: {status: answered, institution: KASI, work_contains: KASI/여비규정, article: a27, verdict: 미충족}
+- id: kasi-yeobi-ok
+  question: 한국천문연구원 직원입니다. 출장 끝나고 5일 지났는데 아직 증빙서를 안 냈어요.
+  expect: {status: answered, institution: KASI, work_contains: KASI/여비규정, article: a27, verdict: 충족}
+- id: nst-domestic-ok
+  question: 연구회 국내출장 다녀온 지 8일 지났는데 여비 정산 신청을 아직 안 했어요.
+  expect: {status: answered, institution: NST, work_contains: NST/여비규정, article: a9-2, verdict: 충족}
+- id: nst-domestic-late
+  question: NST 국내출장 마친 지 12일 지났는데 정산 신청을 못 했습니다. 괜찮나요?
+  expect: {status: answered, institution: NST, work_contains: NST/여비규정, article: a9-2, verdict: 미충족}
+- id: nst-abroad-late
+  question: 국가과학기술연구회 국외출장 다녀온 지 4주 지났는데 여비 정산 신청을 안 했어요.
+  expect: {status: answered, institution: NST, work_contains: NST/여비규정, article: a13-2, verdict: 미충족}
+- id: nst-abroad-report
+  question: 연구회 국외출장 출장복명서는 언제까지 내야 하나요? 다녀온 지 2주 지났어요.
+  expect: {status: answered, institution: NST, work_contains: NST/여비규정, article: a8, verdict: 충족}
+- id: etri-report-late
+  question: ETRI 출장 다녀온 지 12일 지났는데 출장복명서를 아직 안 냈어요.
+  expect: {status: answered, institution: ETRI, work_contains: ETRI/출장요령, article: a11, verdict: 미충족}
+- id: etri-report-deadline
+  question: 한국전자통신연구원 출장복명서 제출 기한이 며칠인가요?
+  expect: {status: answered, institution: ETRI, work_contains: ETRI/출장요령, article: a11}
+- id: kist-hotel-late
+  question: KIST 출장 중 숙박비 상한을 넘겨 썼는데 여행 끝나고 10일 지났어요. 정산 신청 가능한가요?
+  expect: {status: answered, institution: KIST, work_contains: KIST/여비규정, article: a14, verdict: 미충족}
+- id: kist-abroad-hotel-ok
+  question: 키스트 해외출장 중 숙박비를 초과 지출했고 여행 끝난 지 5일 지났어요.
+  expect: {status: answered, institution: KIST, work_contains: KIST/여비규정, article: a29-3, verdict: 충족}
+- id: kasi-abroad-report-late
+  question: 천문연 국외출장 결과보고서를 귀임 후 20일이 지났는데 아직 안 냈어요.
+  expect: {status: answered, institution: KASI, work_contains: 국외출장, article: a8, verdict: 미충족}
+- id: nst-disaster-leave
+  question: 연구회 직원이 수해를 입으면 재해구호휴가를 며칠 받을 수 있나요?
+  expect: {status: answered, institution: NST, work_contains: NST/복무규정, article: a26}
+- id: no-inst-1
+  question: 출장 다녀온 지 10일 지났는데 증빙을 안 냈어요. 괜찮나요?
+  expect: {status: need_institution}
+- id: no-inst-2
+  question: 연차휴가 사용 촉구를 받으면 며칠 안에 사용 시기를 정해야 하나요?
+  expect: {status: need_institution}
+- id: none-1
+  question: 천문연 직원이 반려동물을 데리고 출근해도 되나요?
+  expect: {status: [not_found, answered], institution: KASI, verdict: 판단불가}
+- id: none-2
+  question: 연구회 사무실 커피머신 사용 규칙이 있나요?
+  expect: {status: [not_found, answered], institution: NST, verdict: 판단불가}
