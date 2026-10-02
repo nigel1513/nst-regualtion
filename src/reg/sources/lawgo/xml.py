@@ -225,3 +225,70 @@ def parse_law_xml(data: bytes) -> ParsedDoc:
         provs.append(Prov(path, "supplement", "부칙", text=clean(s.findtext("부칙내용") or ""),
                           meta={"date": d, "number": _txt(s, "부칙공포번호") or None}))
     return ParsedDoc(clean(info.findtext("법령명_한글") or ""), None, [], provs, meta)
+
+
+CIRCLED = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳"
+RE_ADM_ART = re.compile(r"^제\s*(\d+)\s*조(?:\s*의\s*(\d+))?\s*(?:\(([^()]*)\))?\s*")
+RE_ADM_CH = re.compile(r"^제\s*(\d+)\s*(장|절)\s*(.*)$")
+RE_ADM_PARA = re.compile(r"(?:^|\n)\s*([①-⑳])\s*")
+
+
+def parse_admrul_xml(data: bytes) -> ParsedDoc:
+    """lawService target=admrul XML → ParsedDoc. <조문내용>에 조 전체가 문자열로 있다: 조·항까지만 나눈다 (판정 R14)."""
+    root = ET.fromstring(data)
+    info = root.find("행정규칙기본정보")
+    if info is None:
+        raise ResponseChanged("admrul 본문 응답 구조 변경: <행정규칙기본정보> 없음")
+    meta = {"admrul_id": _txt(info, "행정규칙ID"), "promulgated_on": _iso(_txt(info, "발령일자")),
+            "effective_on": _iso(_txt(info, "시행일자")), "amendment_kind": _txt(info, "제개정구분명") or None,
+            "kind": _txt(info, "행정규칙종류") or None, "promulgation_no": _txt(info, "발령번호") or None,
+            "ministry": _txt(info, "소관부처명") or None}
+    provs: list[Prov] = []
+    chapter = None
+
+    def add(p: Prov, raw: str) -> None:
+        p.text, notes = split_notes(raw)
+        p.annotations += notes
+        if p.text in ("삭제", "삭제."):
+            p.deleted = True
+        provs.append(p)
+
+    for i, e in enumerate(root.findall("조문내용"), 1):
+        body = (e.text or "").strip()
+        if not body:
+            continue
+        m = RE_ADM_ART.match(body)
+        ch = RE_ADM_CH.match(body.splitlines()[0].strip())
+        if ch and not m:
+            if ch[2] == "장":
+                chapter = f"c{int(ch[1])}"
+                provs.append(Prov(chapter, "chapter", f"제{int(ch[1])}장", heading=clean(ch[3]) or None))
+            elif chapter:
+                provs.append(Prov(f"{chapter}-s{int(ch[1])}", "section", f"제{int(ch[1])}절",
+                                  heading=clean(ch[3]) or None, parent=chapter))
+            continue
+        if not m:
+            add(Prov(f"body{i}", "article", "본문", parent=chapter), body)
+            continue
+        key = f"a{int(m[1])}" + (f"-{int(m[2])}" if m[2] else "")
+        label = f"제{int(m[1])}조" + (f"의{int(m[2])}" if m[2] else "")
+        parts = RE_ADM_PARA.split(body[m.end():])
+        add(Prov(key, "article", label, heading=clean(m[3] or "") or None, parent=chapter), parts[0])
+        for j in range(1, len(parts) - 1, 2):
+            add(Prov(f"{key}.p{CIRCLED.index(parts[j]) + 1}", "paragraph", parts[j], parent=key), parts[j + 1])
+    sup = root.find("부칙")
+    if sup is not None:
+        seen: dict[str, int] = {}
+        cur: dict[str, str] = {}
+        for c in sup:  # <부칙공포일자><부칙공포번호><부칙내용>이 형제로 반복된다
+            cur[c.tag] = c.text or ""
+            if c.tag != "부칙내용":
+                continue
+            d = _iso(clean(cur.get("부칙공포일자", "")))
+            base = f"supp@{d}" if d else f"supp#{len(seen) + 1}"
+            seen[base] = seen.get(base, 0) + 1
+            provs.append(Prov(base if seen[base] == 1 else f"{base}~{seen[base]}", "supplement", "부칙",
+                              text=clean(cur["부칙내용"]),
+                              meta={"date": d, "number": clean(cur.get("부칙공포번호", "")) or None}))
+            cur = {}
+    return ParsedDoc(_txt(info, "행정규칙명"), None, [], provs, meta)
