@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     llm_model: str = "llm"
     mineru_url: str = ""  # GPU PC MinerU V1 API, 예: http://192.168.0.2:8004 (M6-5 OCR, M6-6 별표 표)
     mineru_api_key: str = ""
+    airflow_log_dir: str = ""  # reg_maintenance가 30일 지난 Airflow 태스크 로그를 지울 폴더 (compose: /opt/airflow/logs)
+    converter_url: str = ""  # 비어 있으면 DockerConverter — docker run, 호스트 CLI —, 있으면 HttpConverter (compose 안)
 
 
 @lru_cache
