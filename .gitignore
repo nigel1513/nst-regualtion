@@ -6,3 +6,4 @@ node_modules/
 .pytest_cache/
 infra/storage/s3.json
 .run/
+infra/dashboards/htpasswd
