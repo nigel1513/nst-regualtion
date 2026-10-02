@@ -31,7 +31,7 @@
 ## 1. 전체 흐름
 
 ```
-[02:00 KST] reg_collect_daily
+[02:00 KST] reg_alio_daily
   ├─ institutions_load        config/institutions.yaml → institution
   ├─ alio_collect[기관별]      목록→지문 비교→상세·파일 다운로드 → alio_rule, alio_rule_file, source_document, SeaweedFS
   │                            └ 새 파일마다 outbox: regulation.source_fetched
@@ -70,6 +70,182 @@ reg_publish
 
 ---
 
+## 1A. 모듈 구조 (출처별 분리)
+
+### 1A.1 왜 나누나
+
+외부 사이트는 서로 다르게, 예고 없이 바뀐다.
+- ALIO는 JSON 필드명이나 파일 다운로드 방식이 바뀔 수 있다.
+- law.go.kr는 DRF 파라미터, XML 구조, OC 키 정책이 바뀔 수 있다.
+
+한 출처가 바뀌었을 때 **그 출처의 모듈만 열어 고치고, 그 모듈의 테스트만 다시 돌리면 되는 구조**가 목표다.
+
+현재 구조의 문제:
+- `collect/`에 ALIO(`alio.py`, `alio_sync.py`)와 law.go.kr(`lawgo.py`, `law_sync.py`)가 섞여 있다.
+- `structure/law_xml.py`(법령 XML 파서)가 내부규정 파서 옆에 있다.
+- `process.py`가 두 출처의 처리 함수를 직접 import한다(`HANDLERS` 딕셔너리).
+- 마이그레이션이 하나의 이력이라 법령 테이블만 따로 바꾸기 어렵다.
+
+### 1A.2 계층과 의존 방향
+
+```
+                 ┌──────────────── apps ────────────────┐
+                 │  api · qa · cli · airflow/dags        │
+                 └───────┬───────────────┬──────────────┘
+                         │               │
+      ┌──── sources ─────┴──┐   ┌── derived ──────────┐
+      │ sources/alio        │   │ index (OpenSearch)  │
+      │ sources/lawgo       │   │ graph (Neo4j)       │
+      │ (sources/… 추가 가능) │   │ alerts              │
+      └─────────┬───────────┘   └─────────┬───────────┘
+                │                         │
+      ┌─────────┴──── core (규범 도메인) ──┴─────────────┐
+      │ model · structure(조문 파서) · effective(시행일) │
+      │ ingest(적재·계보) · refs(참조) · quality          │
+      └─────────┬──────────────────────────────────────┘
+                │
+      ┌─────────┴──── platform (공통 기반) ───────────────┐
+      │ settings · db · outbox · storage(SeaweedFS)        │
+      │ http(예의 지키는 클라이언트·요청 로그) · runs(실행 이력) │
+      │ formats(HWP·HWPX·PDF 텍스트 추출, 형식 판별)          │
+      └──────────────────────────────────────────────────┘
+```
+
+**의존 규칙** (테스트로 강제한다: `import-linter` 계약을 pytest에서 실행)
+
+1. 화살표는 아래로만 간다. `platform`은 아무것도 import하지 않는다. `core`는 `platform`만 import한다.
+2. **출처 모듈끼리는 서로 import하지 않는다.** `sources/alio`와 `sources/lawgo`는 서로를 모른다.
+3. `core`는 출처를 모른다.
+   - 출처 모듈이 시작될 때 자기 처리기를 `core.ingest`의 등록부(registry)에 올린다.
+   - `core`가 출처 이름이나 출처 함수를 직접 부르지 않는다.
+4. 내부규정 ↔ 법령 연계(§3A.5)는 lawgo 모듈의 **공개 읽기 API**(`sources.lawgo.api`)만 쓴다. 법령 테이블을 다른 모듈이 직접 조회하지 않는다.
+
+### 1A.3 출처 모듈과 core 사이의 계약
+
+출처 모듈은 두 가지만 core에 넘긴다. 이 계약이 바뀌지 않는 한, 출처 모듈 안은 마음대로 고쳐도 된다.
+
+```python
+# core/ingest/contract.py
+@dataclass
+class PreparedVersion:          # 출처가 만들어 넘기는 "적재할 한 판본"
+    work_id: str                # 안정 id: kr/reg/KASI/여비규정, kr/law/010719
+    work_kind: str              # INTERNAL_REG | 법률 | 대통령령 | …
+    title: str
+    institution_code: str | None
+    source_document_id: int     # 보관 원본
+    doc: ParsedDoc              # core.structure로 만든 조항 트리
+    effective: Effective        # core.effective로 판정한 시행일
+    external_ids: dict          # {"alio_seq": "186618"} | {"law_id": "010719", "mst": "253527"}
+    links: dict                 # 원본 URL들 (§3A.6)
+
+class SourceHandler(Protocol):
+    topic: str                  # 이 출처가 남기는 outbox 주제
+    group_field: str            # 묶음 처리 기준 필드 (seq, law_id)
+    def prepare(self, conn, blob, payload: dict, today: date) -> PreparedVersion | None: ...
+
+# core/ingest/registry.py
+def register(handler: SourceHandler) -> None: ...
+```
+
+- `core.ingest.process_once`(지금의 `process.py`)는 등록부를 보고 대기 이벤트를 출처별 처리기에 넘긴다. 돌려받은 `PreparedVersion`을 적재한 뒤 계보·참조·품질·개정 이벤트를 처리한다.
+- **outbox 주제와 payload는 버전이 있는 계약이다.**
+  - `alio.file_fetched.v1 {seq, file_no, source_document_id}`
+  - `lawgo.version_fetched.v1 {law_id, mst, source_document_id}`
+  - 필드를 바꿀 때는 v2를 추가하고, 기존 이벤트를 다 소비할 때까지 v1 처리기를 남긴다.
+
+### 1A.4 디렉터리 구조 (목표)
+
+```
+src/reg/
+  platform/
+    settings.py  db/  outbox.py  storage/  http.py(구 polite.py)  runs.py  sniff.py
+    formats/      hwp.py  hwpx.py  pdf.py  convert.py(보기용 PDF 변환기 호출)
+  core/
+    model.py  structure/(parse.py, text.py)  effective.py
+    ingest/       contract.py  registry.py  loader.py  process.py(구 process.py의 공통부)
+    refs.py  quality.py  views/anchor.py
+    migrations/   regulation 스키마 공통 테이블
+  sources/
+    alio/
+      README.md         ALIO API 명세·응답 예시·알려진 특이점·사이트 변경 시 점검표
+      client.py         findRuleList / findRuleDtl / rulefiledown 호출만 (구 collect/alio.py)
+      sync.py           목록 지문 비교·상세·파일 다운로드·보관 (구 alio_sync.py)
+      reconcile.py      폐지 감지 (§3.3, 신규)
+      handler.py        SourceHandler 구현: 파일 → 추출 → core.structure → PreparedVersion
+      ids.py            ALIO 규정 → work_id 규칙 (구 work_key_for_regulation)
+      config.py         institutions.yaml 읽기, REG_ALIO_* 설정
+      tasks.py          Airflow·CLI 진입점 (collect_institution, reconcile)
+      migrations/       alio_rule, alio_rule_file
+    lawgo/
+      README.md         DRF 명세(lawSearch·lawService·lsHstInf), OC 키 정책, 응답 예시, 점검표
+      client.py         DRF 호출만 (search, service, history, 페이지 넘김) (구 collect/lawgo.py)
+      xml.py            법령 XML → 조문 트리 (구 structure/law_xml.py)
+      mirror.py         law 스키마 적재: law_master / law_version / article (§3A.3)
+      sync.py           일 변경분·전체 대조 (§3A.4) (구 law_sync.py 대체)
+      urls.py           원본 링크 생성 (§3A.6) — 형식이 바뀌면 여기만 고친다
+      api.py            다른 모듈용 공개 읽기 API: find_law(name), article_at(law_id, path, date), links(...)
+      link.py           내부규정 참조 → 법령 조문 외래키 연결 (§3A.5)
+      promote.py        인용된 법령을 regulation.work로 승격 + outbox 발행
+      handler.py        SourceHandler 구현: 미러 판본 → PreparedVersion
+      config.py         promote 대상(laws.yaml), REG_LAWGO_* (OC 키, 요청 간격)
+      tasks.py          Airflow·CLI 진입점
+      migrations/       law 스키마 전체 (별도 Alembic 이력, law.alembic_version)
+  index/  graph/  alerts/  qa/  api/        (지금 구조 유지, 이름만 정리: search → index)
+  cli.py           하위 명령을 모듈별로 등록: reg alio …, reg law …, reg process, reg index …
+airflow/dags/
+  reg_alio_daily.py  reg_law_daily.py  reg_law_full.py  reg_process.py  reg_publish.py  reg_notify.py  reg_maintenance.py
+config/
+  sources/alio.yaml     (구 institutions.yaml)
+  sources/lawgo.yaml    (구 laws.yaml: 승격 대상 + 미러 범위)
+  admins.yaml
+tests/
+  platform/  core/  sources/alio/  sources/lawgo/  index/  graph/  alerts/  qa/  api/
+  sources/alio/fixtures/   실제 응답 JSON·HWP·PDF 표본
+  sources/lawgo/fixtures/  실제 lawSearch·lawService·lsHstInf 응답 XML/JSON
+```
+
+### 1A.5 모듈별 소유권 (유지보수 단위)
+
+| 모듈 | 소유 저장소 | 설정 | DAG | 바뀌는 계기 |
+|---|---|---|---|---|
+| `sources/alio` | `regulation.alio_rule`, `alio_rule_file` | `config/sources/alio.yaml`, `REG_ALIO_*` | `reg_alio_daily` | ALIO API·파일 형식 변경, 기관 추가 |
+| `sources/lawgo` | **`law` 스키마 전체** | `config/sources/lawgo.yaml`, `REG_LAWGO_*` | `reg_law_daily`, `reg_law_full` | DRF 변경, OC 키, 링크 형식 |
+| `core` | `regulation`의 work·버전·조항·참조·검수 테이블, outbox | — | `reg_process` | 조문 파서·시행일 규칙 개선 |
+| `index` / `graph` / `alerts` | OpenSearch 색인 / Neo4j / 알림 테이블 | `REG_OS_*` / `REG_NEO4J_*` / `REG_SMTP_*` | `reg_publish`, `reg_notify` | 검색 튜닝, 그래프 모델, 알림 정책 |
+
+- **테이블은 소유 모듈만 쓴다.** 예를 들어 `law` 스키마에 쓰는 코드는 `sources/lawgo` 안에만 있다.
+- **마이그레이션도 모듈별 Alembic 이력이다.** 법령 테이블을 바꿔도 내부규정 마이그레이션 이력과 섞이지 않는다.
+  - `reg db upgrade`가 platform → core → 각 출처 순으로 모두 실행한다.
+
+### 1A.6 출처 모듈마다 갖출 것 (유지보수 장치)
+
+1. **README**: 호출하는 엔드포인트, 파라미터, 응답 예시, 알려진 특이점(예: ALIO `bFiles`에 개정 이력 전체가 있음, HWP 서로게이트 쌍), 사이트가 바뀌었을 때 점검표.
+2. **기록된 응답으로 하는 계약 테스트**: `fixtures/`의 실제 응답으로 client·파서를 테스트한다. 네트워크 없이 돈다.
+3. **실연결 확인(canary)**
+   - 일 배치 첫 태스크로 각 출처에 최소 요청 1~2개를 보낸다.
+   - 응답 구조(필드명·형식)가 기대와 같은지 확인한다.
+   - 다르면 전체 수집을 하지 않고 "ALIO 응답 구조 변경: `list[].title` 없음"처럼 원인이 보이는 메시지로 실패시킨다. 잘못된 데이터가 쌓이는 것을 막는다.
+4. **모듈 버전**: 출처별 파서 버전(`alio.parser_version`, `lawgo.parser_version`)을 판본에 기록한다(§4.2). 한 출처의 파서만 바꿔도 그 출처만 재파싱할 수 있다.
+5. **독립 실행**: `reg alio collect --institution KASI`, `reg law sync --date 2026-10-01`, `reg law full`, `reg law link`처럼 모듈별 CLI가 있다. DAG가 없어도 그 모듈만 돌려 볼 수 있다.
+
+### 1A.7 지금 파일 → 새 위치
+
+| 지금 | 새 위치 |
+|---|---|
+| `collect/polite.py`, `runs.py`, `sniff.py`, `archive.py`, `storage/blob.py`, `outbox.py`, `settings.py`, `db/` | `platform/` |
+| `extract/hwp.py`, `hwpx.py`, `pdf.py`, `views/converter.py` | `platform/formats/` |
+| `collect/alio.py`, `alio_sync.py`, `process.prepare_source_fetched`, `loader.work_key_for_regulation` | `sources/alio/` |
+| `collect/lawgo.py`, `law_sync.py`, `structure/law_xml.py`, `process.prepare_law_fetched` | `sources/lawgo/` |
+| `structure/model.py`, `parse.py`, `text.py`, `effective.py`, `load/loader.py`, `refs.py`, `quality.py`, `process.py`(공통부) | `core/` |
+| `search/` | `index/` (이름 정리) |
+
+- 옮기는 작업은 **동작을 바꾸지 않는 리팩터링**으로 먼저 끝낸다. 기존 테스트 196개가 그대로 통과하는 것을 기준으로 한다.
+- 그 다음에 법령 미러·폐지 감지·Airflow 같은 새 기능을 올린다.
+
+### 1A.8 나중에 더 떼어낼 때
+
+다른 시스템(예: nst-nexus)도 법령 미러를 쓰게 되면, `sources/lawgo`를 uv workspace의 별도 패키지(`packages/law-mirror`)로 옮겨 독립 배포한다. 위 의존 규칙을 지키고 있으면 import 경로만 바뀐다.
+
 ## 2. Airflow 배치
 
 ### 2.1 배포
@@ -92,7 +268,7 @@ reg_publish
 |---|---|---|---|
 | `reg_law_daily` | 매일 01:00 KST | 국내 현행 법령 변경분 미러링 → 내부규정 연계 → 인용 법령 승격 (§3A) | 1 |
 | `reg_law_full` | 수동 (최초 1회), 이후 매주 일요일 00:00 대조 | 현행 법령 전체 목록과 미러를 대조해 누락·불일치 보정 | 1 |
-| `reg_collect_daily` | 매일 02:00 KST | 기관 목록 갱신 → ALIO 수집(기관별 매핑) → 폐지 대조 | 1 (max_active_runs=1) |
+| `reg_alio_daily` | 매일 02:00 KST | 기관 목록 갱신 → ALIO 수집(기관별 매핑) → 폐지 대조 | 1 (max_active_runs=1) |
 | `reg_process` | Asset `regulation_raw` 갱신 시 + 매일 03:30 안전망 | outbox 소비, 품질 집계 | 1 |
 | `reg_publish` | Asset `regulation_structured` 갱신 시 | 그래프·영향 분석·색인·게시·평가 | 1 |
 | `reg_notify` | 매시 05분 | 알림 생성·메일 발송 | 1 |
@@ -127,7 +303,7 @@ DAG를 하나로 묶지 않고 나눈 이유는 다음과 같다.
 ### 2.4 DAG 코드 모양 (예시)
 
 ```python
-# airflow/dags/reg_collect_daily.py
+# airflow/dags/reg_alio_daily.py
 from airflow.sdk import Asset, dag, task
 from pendulum import datetime
 
@@ -135,21 +311,21 @@ RAW = Asset("regulation_raw")
 
 @dag(schedule="0 2 * * *", start_date=datetime(2026, 10, 1, tz="Asia/Seoul"), catchup=False,
      max_active_runs=1, default_args={"retries": 3, "retry_exponential_backoff": True})
-def reg_collect_daily():
+def reg_alio_daily():
     @task
     def institutions() -> list[str]:
-        from reg.pipeline import load_institutions_task
-        return load_institutions_task()            # 활성 기관 코드 목록
+        from reg.sources.alio.tasks import active_institutions
+        return active_institutions()            # 활성 기관 코드 목록
 
     @task(pool="alio_pool", execution_timeout=timedelta(minutes=60))
     def alio(code: str) -> dict:
-        from reg.pipeline import collect_alio_task
-        return collect_alio_task(code)             # {"rules": n, "new_files": m, ...}
+        from reg.sources.alio.tasks import collect_institution
+        return collect_institution(code)             # {"rules": n, "new_files": m, ...}
 
     @task
     def reconcile(stats: list[dict]) -> dict:
-        from reg.pipeline import reconcile_alio_task
-        return reconcile_alio_task(stats)
+        from reg.sources.alio.tasks import reconcile
+        return reconcile(stats)
 
     @task(outlets=[RAW])
     def done(stats: dict) -> dict:
@@ -157,10 +333,10 @@ def reg_collect_daily():
 
     done(reconcile(alio.expand(code=institutions())))
 
-reg_collect_daily()
+reg_alio_daily()
 ```
 
-`reg/pipeline.py`(신규)는 기존 CLI 함수들을 감싼 얇은 진입점이다. 하는 일은 연결 열기, 실행 이력 기록, 결과 요약 반환뿐이다. CLI(`reg collect alio`)와 DAG가 같은 함수를 호출한다.
+각 모듈의 `tasks.py`(§1A.4)는 얇은 진입점이다. 하는 일은 연결 열기, 실행 이력 기록, 결과 요약 반환뿐이다. CLI(`reg alio collect`)와 DAG가 같은 함수를 호출한다.
 
 ---
 
@@ -502,12 +678,14 @@ outbox(source_fetched / law_fetched)
 | D-9 | 법령 미러 범위 | 현행 법령 전체(법률·대통령령·총리령·부령) + 연혁 판본 누적. 행정규칙·자치법규는 제외(후속) |
 | D-10 | 검색·질의응답·그래프에 넣을 법령 | 내부규정이 인용한 법령 + `config/laws.yaml` 지정 법령만 승격 (전체는 법령 DB 조회·링크용) |
 | D-11 | law.go.kr OC 키 | 운영 키 발급 필요 (사용자) |
+| D-12 | 모듈 분리 수준 | **한 저장소 안의 하위 패키지 + import 규칙 테스트**(§1A). 다른 시스템이 법령 미러를 쓰게 되면 그때 별도 패키지로 |
 
 ---
 
 ## 11. 구현 순서 (승인 후 계획서 작성)
 
-1. 마이그레이션 0008(§5.4)과 `reg/pipeline.py` 진입점. CLI가 이 진입점을 쓰도록 정리한다.
+0. 모듈 재배치 리팩터링 (§1A.7, 동작 변경 없음, 기존 테스트 전부 통과) + import 규칙 테스트 + 출처별 README·계약 테스트
+1. 마이그레이션 0008(§5.4)과 모듈별 `tasks.py` 진입점. CLI와 DAG가 같은 진입점을 쓰도록 정리한다.
 1A. 법령 미러: `law` 스키마, 변경 목록·전체 목록 수집기, 조문 적재, 연계(외래키)·승격, 원본 링크 API·뷰어 패널 (§3A)
 2. 임베딩 캐시와 품질 게이트, 변화 없는 날 건너뛰기 (§6.2)
 3. 폐지 감지 (§3.3)
