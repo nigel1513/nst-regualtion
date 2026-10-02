@@ -1,7 +1,9 @@
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+ROOT = Path(__file__).resolve().parents[3]  # 저장소 루트 (config/, docs/)
 USER_AGENT = "NST-Regulation-Collector/0.1 (+contact: bigdatanigel1513@gmail.com)"
 
 

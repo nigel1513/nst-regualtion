@@ -4,21 +4,13 @@ from urllib.parse import urlparse
 import typer
 import yaml
 
-from reg.sources.alio.client import AlioClient
-from reg.sources.alio.sync import load_institutions, sync_institution
-from reg.sources.lawgo.sync import sync_laws
-from reg.sources.lawgo.client import LawGoClient
-from reg.platform.http import PoliteClient
-from reg.platform.runs import db_logger, finish_run, open_log_conn, start_run
+from reg import wiring
 from reg.platform.db.bootstrap import bootstrap
 from reg.platform.db.conn import connect
 from reg.platform.db.migrate import upgrade
-from reg.core.ingest.process import process_once, rebuild_all
-from reg.platform.settings import get_settings
-from reg.platform.storage.blob import S3BlobStore
-from reg.platform.convert import DockerConverter
+from reg.platform.settings import ROOT, get_settings
+from reg.platform.storage.blob import blob_store
 
-ROOT = Path(__file__).resolve().parents[2]
 app = typer.Typer(no_args_is_help=True)
 db = typer.Typer(no_args_is_help=True, help="DB 역할·스키마·마이그레이션")
 bucket = typer.Typer(no_args_is_help=True, help="원본 보관 버킷")
@@ -26,11 +18,10 @@ collect = typer.Typer(no_args_is_help=True, help="ALIO·law.go.kr 수집")
 app.add_typer(db, name="db")
 app.add_typer(bucket, name="bucket")
 app.add_typer(collect, name="collect")
-
-
-def _blob() -> S3BlobStore:
-    s = get_settings()
-    return S3BlobStore(s.s3_endpoint, s.s3_bucket, s.s3_access_key, s.s3_secret_key)
+wiring.register_sources()
+for _name, _sub in wiring.subcommands():
+    app.add_typer(_sub, name=_name)
+app.command("process")(wiring.process_command())
 
 
 @db.command("bootstrap")
@@ -49,75 +40,25 @@ def db_upgrade() -> None:
 
 @bucket.command("ensure")
 def bucket_ensure() -> None:
-    _blob().ensure_bucket()
+    blob_store().ensure_bucket()
     typer.echo(f"bucket 준비: {get_settings().s3_bucket}")
-
-
-def _run(source: str, scope: str | None, body) -> None:
-    dsn = get_settings().database_url
-    conn, log_conn = connect(dsn), open_log_conn(dsn)
-    run_id = start_run(conn, source, scope)
-    try:
-        stats = body(conn, db_logger(log_conn, run_id))
-    except Exception as e:
-        finish_run(conn, run_id, "failed", {}, f"{type(e).__name__}: {e}")
-        typer.echo(f"실패 (run {run_id}): {e}", err=True)
-        raise typer.Exit(1)
-    except BaseException as e:  # Ctrl-C, SIGTERM: 실행 상태를 남기고 그대로 전파
-        finish_run(conn, run_id, "failed", {}, type(e).__name__)
-        raise
-    else:
-        finish_run(conn, run_id, "succeeded", stats)
-        typer.echo(f"완료 (run {run_id}): {stats}")
-    finally:
-        log_conn.close()
-        conn.close()
 
 
 @collect.command("alio")
 def collect_alio(institution: str = typer.Option(None, help="기관 코드 (예: KASI)"),
                  limit: int = typer.Option(None, help="기관당 규정 수 상한 (시험용)")) -> None:
-    def body(conn, log):
-        http = PoliteClient("alio", get_settings().alio_min_interval, log=log)
-        alio, blob, total = AlioClient(http), _blob(), {}
-        for inst in load_institutions(conn, ROOT / "config/institutions.yaml"):
-            if institution and inst["code"] != institution:
-                continue
-            total[inst["code"]] = sync_institution(conn, alio, blob, inst, limit=limit)
-        return total
-    _run("alio", institution, body)
+    """`reg alio collect`의 별칭 (기존 명령 유지)."""
+    from reg.sources.alio.cli import collect
+
+    collect(institution=institution, limit=limit)
 
 
 @collect.command("law")
 def collect_law() -> None:
-    def body(conn, log):
-        s = get_settings()
-        client = LawGoClient(PoliteClient("lawgo", s.lawgo_min_interval, log=log), oc=s.lawgo_oc)
-        names = yaml.safe_load((ROOT / "config/laws.yaml").read_text(encoding="utf-8"))
-        names += [r["name"] for r in conn.execute("SELECT name FROM regulation.law_seed ORDER BY name").fetchall()
-                  if r["name"] not in names]  # 참조에서 발견된 법령 (spec 6.1)
-        return sync_laws(conn, client, _blob(), names)
-    _run("lawgo", None, body)
+    """`reg law collect`의 별칭 (기존 명령 유지)."""
+    from reg.sources.lawgo.cli import collect
 
-
-@app.command("process")
-def process_cmd(limit: int = typer.Option(100, help="한 번에 처리할 이벤트 수"),
-                all_: bool = typer.Option(False, "--all", help="남은 이벤트가 없을 때까지 반복"),
-                rebuild: bool = typer.Option(False, "--rebuild", help="구조화 결과를 지우고 처음부터 다시 처리"),
-                no_convert: bool = typer.Option(False, "--no-convert", help="HWP 보기용 PDF 변환 생략")) -> None:
-    def body(conn, log):
-        loop = all_ or rebuild
-        if rebuild:
-            rebuild_all(conn)
-        converter = None if no_convert else DockerConverter()
-        total = {"claimed": 0, "ok": 0, "failed": 0, "parked": 0}
-        while True:
-            st = process_once(conn, _blob(), limit=limit, converter=converter)
-            for k in total:
-                total[k] += st[k]
-            if not loop or st["claimed"] == 0 or st["ok"] == 0:
-                return total
-    _run("process", None, body)
+    collect()
 
 
 @app.command("api")
@@ -125,43 +66,15 @@ def api_cmd(host: str = "0.0.0.0", port: int = 21061) -> None:
     import uvicorn
 
     from reg.api.app import create_app
-    from reg.platform.llm import EmbeddingProvider, LLMProvider, RerankProvider
     from reg.index.os import OpenSearch
+    from reg.platform.llm import EmbeddingProvider, LLMProvider, RerankProvider
 
     s = get_settings()
     # 질의 시점: 임베딩이 안 되면 바로 BM25로 넘어가도록 짧게, 답변 생성은 프록시 제한(60초) 안에서 끝나도록
     deps = {"os": OpenSearch(s.os_url), "embedder": EmbeddingProvider(s.embed_url, s.embed_model, timeout=5, tries=1),
             "reranker": RerankProvider(s.rerank_url, s.rerank_model, timeout=10),
             "llm": LLMProvider(s.llm_url, s.llm_model, timeout=25), "llm_model": s.llm_model}
-    uvicorn.run(create_app(s.database_url, _blob(), deps), host=host, port=port, log_level="info")
-
-
-index = typer.Typer(no_args_is_help=True, help="검색 색인(게시 버전)")
-app.add_typer(index, name="index")
-
-
-@index.command("build")
-def index_build(no_publish: bool = typer.Option(False, "--no-publish")) -> None:
-    from reg.platform.llm import EmbeddingProvider
-    from reg.index.indexer import build_release
-    from reg.index.os import OpenSearch
-
-    s = get_settings()
-    conn = connect(s.database_url)
-    st = build_release(conn, OpenSearch(s.os_url), EmbeddingProvider(s.embed_url, s.embed_model), s.embed_model,
-                       publish=not no_publish)
-    typer.echo(f"release {st}")
-
-
-@index.command("status")
-def index_status() -> None:
-    from reg.index.os import OpenSearch
-
-    s = get_settings()
-    conn = connect(s.database_url)
-    for r in conn.execute("SELECT id, state, os_index, stats, created_at FROM regulation.release ORDER BY id DESC LIMIT 5"):
-        typer.echo(f"{r['id']} {r['state']} {r['os_index']} {r['stats']}")
-    typer.echo(f"alias → {OpenSearch(s.os_url).alias_target()}")
+    uvicorn.run(create_app(s.database_url, blob_store(), deps), host=host, port=port, log_level="info")
 
 
 evalc = typer.Typer(no_args_is_help=True, help="평가")
@@ -173,9 +86,9 @@ def eval_qa(limit: int = typer.Option(None, help="앞에서 N문항만"),
             out: Path = typer.Option(ROOT / "docs/reports/2026-10-02-qa-eval.md")) -> None:
     from datetime import datetime
 
-    from reg.qa.evaluate import run_eval
-    from reg.platform.llm import EmbeddingProvider, LLMProvider, RerankProvider
     from reg.index.os import OpenSearch
+    from reg.platform.llm import EmbeddingProvider, LLMProvider, RerankProvider
+    from reg.qa.evaluate import run_eval
 
     s = get_settings()
     conn = connect(s.database_url)
@@ -199,110 +112,10 @@ def eval_qa(limit: int = typer.Option(None, help="앞에서 N문항만"),
     for c, row in zip(cases, r["cases"]):
         lg = logs.get(row["qa_id"]) or {}
         top = (lg.get("retrieved") or [{}])[0]
-        mark = lambda v: "-" if v is None else ("O" if v else "X")  # noqa: E731
+        mark = lambda v: "-" if v is None else ("O" if v else "X")
         lines.append(f"| {c['id']} | {c['expect']['status']} | {row['status']} | {mark(row['citation_ok'])} | "
                      f"{mark(row['verdict_ok'])} {lg.get('verdict') or ''} | {top.get('version_id', '')} {top.get('path', '')} |")
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text("\n".join(lines) + "\n", encoding="utf-8")
     typer.echo({k: v for k, v in r.items() if k != "cases"})
     typer.echo(f"보고서: {out}")
-
-
-graph = typer.Typer(no_args_is_help=True, help="Neo4j 참조 그래프 (PostgreSQL에서 파생)")
-app.add_typer(graph, name="graph")
-
-
-def _neo4j(s):
-    from neo4j import GraphDatabase
-
-    return GraphDatabase.driver(s.neo4j_url, auth=(s.neo4j_user, s.neo4j_password))
-
-
-@graph.command("sync")
-def graph_sync() -> None:
-    from reg.graph.sync import graph_lock, sync_graph
-
-    s = get_settings()
-    conn = connect(s.database_url)
-    with _neo4j(s) as drv, graph_lock(conn):
-        typer.echo(f"graph {sync_graph(conn, drv)}")
-
-
-alerts = typer.Typer(no_args_is_help=True, help="개정 영향 분석·담당자 알림")
-app.add_typer(alerts, name="alerts")
-
-
-@alerts.command("scan")
-def alerts_scan(no_sync: bool = typer.Option(False, "--no-sync", help="그래프 재투영 없이 스캔")) -> None:
-    """그래프를 현행 기준으로 다시 투영한 뒤 대기 중인 개정 이벤트의 영향을 분석한다."""
-    from reg.alerts.scan import scan_once
-    from reg.graph.sync import graph_lock, sync_graph
-
-    s = get_settings()
-    conn = connect(s.database_url)
-    with _neo4j(s) as drv, graph_lock(conn):
-        if not no_sync:
-            typer.echo(f"graph {sync_graph(conn, drv)}")
-        total = {"claimed": 0, "ok": 0, "failed": 0, "impacts": 0}
-        while (st := scan_once(conn, drv))["claimed"]:
-            total = {k: total[k] + st[k] for k in total}
-        typer.echo(f"scan {total}")
-
-
-@alerts.command("notify")
-def alerts_notify() -> None:
-    """새 영향에 알림을 만들고, 보낼 때가 된 메일을 보낸다 (높음 즉시, 그 밖 매일 08시 이후 한 번)."""
-    from datetime import datetime
-    from zoneinfo import ZoneInfo
-
-    from reg.alerts.notify import SmtpMailer, build_notifications, send_due
-
-    s = get_settings()
-    conn = connect(s.database_url)
-    admins = yaml.safe_load((ROOT / "config/admins.yaml").read_text(encoding="utf-8")) or {}
-    typer.echo(f"notifications +{build_notifications(conn, admins)}")
-    now = datetime.now(ZoneInfo("Asia/Seoul")).replace(tzinfo=None)
-    typer.echo(f"send {send_due(conn, SmtpMailer(s.smtp_host, s.smtp_port, s.smtp_from), now, web=s.web_url)}")
-
-
-owners = typer.Typer(no_args_is_help=True, help="규정별 담당자")
-app.add_typer(owners, name="owners")
-
-
-@owners.command("import")
-def owners_import(path: str) -> None:
-    """CSV(work_id,email,name,org_unit,role)로 담당자를 등록·갱신한다."""
-    import csv
-
-    from reg.alerts.notify import import_owners
-
-    s = get_settings()
-    conn = connect(s.database_url)
-    with open(path, encoding="utf-8-sig", newline="") as f:
-        typer.echo(f"owners {import_owners(conn, list(csv.DictReader(f)))}")
-
-
-@alerts.command("backtest")
-def alerts_backtest(limit: int = typer.Option(0, help="재생할 버전 수 (0이면 전체)")) -> None:
-    """적재된 과거 개정을 재생해 영향 탐지를 사후 검증하고 보고서를 쓴다 (알림 없음)."""
-    from datetime import datetime
-
-    from reg.alerts.backtest import backtest
-    from reg.graph.sync import graph_lock, sync_graph
-
-    s = get_settings()
-    conn = connect(s.database_url)
-    with _neo4j(s) as drv, graph_lock(conn):
-        g = sync_graph(conn, drv)
-        r = backtest(conn, drv, limit or None)
-    path = ROOT / f"docs/reports/{datetime.now():%Y-%m-%d}-impact-backtest.md"
-    lines = [f"# 개정 영향 탐지 사후 검증 ({datetime.now():%Y-%m-%d %H:%M})", "",
-             f"- 그래프: 규범문서 {g['works']} · 조항 {g['provisions']} · 참조 관계 {g['relations']}",
-             f"- 재생한 개정 버전: {r['versions']} · 탐지한 영향: {r['impacts']} · 영향받은 규범문서: {r['works_affected']}",
-             f"- 심각도: {r['by_severity']}", f"- 유형: {r['by_kind']}", "",
-             "재생 결과는 RESOLVED(backtest)로 저장되어 알림이 나가지 않는다. 그래프는 현행 참조 기준이다.", "",
-             "| 원인 | 조 | 변경 | 영향 규정 | 조 | 관계 | 심각도 |", "|---|---|---|---|---|---|---|"]
-    lines += [f"| {e['cause_work_id']} | {e['cause_path']} | {e['cause_change']} | {e['affected_work_id']} |"
-              f" {e['affected_path']} | {e['rel_type']} | {e['severity']} |" for e in r["examples"]]
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    typer.echo(f"backtest {({k: v for k, v in r.items() if k != 'examples'})}\n보고서: {path}")

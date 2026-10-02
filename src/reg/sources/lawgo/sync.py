@@ -1,8 +1,8 @@
 from reg.platform import outbox
 from reg.platform.archive import store
-from reg.sources.lawgo.client import LawGoClient, norm_name
 from reg.platform.sniff import FileKind
 from reg.platform.storage.blob import BlobStore
+from reg.sources.lawgo.client import LawGoClient, norm_name
 
 XML = FileKind("application/xml", "xml")
 SERVICE_URL = "https://www.law.go.kr/DRF/lawService.do?target=law&type=XML&MST={}"

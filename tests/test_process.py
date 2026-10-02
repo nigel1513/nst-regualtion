@@ -72,17 +72,18 @@ def test_broken_file_fails_then_parks(conn, tmp_path):
 def test_review_each_event_commits_independently(conn, tmp_path, monkeypatch):
     import psycopg
 
-    from reg.core.ingest import process as P
+    from reg.core.ingest import registry
+    from reg.core.ingest.contract import SourceHandler
 
     blob = LocalBlobStore(tmp_path)
     seed_alio(conn, blob, (FX / "samples" / "kasi-yeobi-339.pdf").read_bytes())
     conn.execute("INSERT INTO regulation.outbox (topic, payload) VALUES ('regulation.law_fetched', '{}')")
     conn.commit()
-    real = P.HANDLERS["regulation.law_fetched"]
+    real = registry.handlers()["regulation.law_fetched"]
 
     def boom(*a, **k):
         raise KeyboardInterrupt
-    monkeypatch.setitem(P.HANDLERS, "regulation.law_fetched", boom)
+    registry.register(SourceHandler("regulation.law_fetched", "law_id", boom))
     import pytest
     with pytest.raises(KeyboardInterrupt):
         process_once(conn, blob, today=TODAY)
@@ -90,7 +91,7 @@ def test_review_each_event_commits_independently(conn, tmp_path, monkeypatch):
     other = psycopg.connect(conn.info.dsn + " password=app")
     n = other.execute("SELECT count(*) FROM regulation.outbox WHERE processed_at IS NOT NULL").fetchone()[0]
     other.close()
-    monkeypatch.setitem(P.HANDLERS, "regulation.law_fetched", real)
+    registry.register(real)
     assert n == 1
 
 
@@ -109,7 +110,7 @@ def test_events_of_one_work_are_rebuilt_once(conn, tmp_path, monkeypatch):
 
 
 def test_document_without_readable_articles_goes_to_review_queue(conn, tmp_path, monkeypatch):
-    from reg.core.ingest import process as P
+    from reg.sources.alio import handler as P
     from reg.core.model import Block
 
     blob = LocalBlobStore(tmp_path)

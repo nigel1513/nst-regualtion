@@ -4,10 +4,10 @@ from pathlib import Path
 import yaml
 
 from reg.platform import outbox
-from reg.sources.alio.client import AlioClient, RuleDetail
 from reg.platform.archive import store
 from reg.platform.sniff import sniff
 from reg.platform.storage.blob import BlobStore
+from reg.sources.alio.client import AlioClient, RuleDetail
 
 DOWNLOAD_URL = "https://www.alio.go.kr/download/rulefiledown.json?fileNo={}"
 

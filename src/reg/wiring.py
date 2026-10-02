@@ -1,0 +1,25 @@
+"""앱 계층 조립: 출처 처리기 등록, 하위 CLI 목록, 마이그레이션 위치."""
+from reg.core.ingest import registry
+
+
+def register_sources() -> None:
+    from reg.sources import alio, lawgo
+
+    for h in alio.HANDLERS + lawgo.HANDLERS:
+        registry.register(h)
+
+
+def subcommands() -> list:
+    from reg.alerts.cli import alerts, owners
+    from reg.graph.cli import graph
+    from reg.index.cli import index
+    from reg.sources.alio.cli import alio
+    from reg.sources.lawgo.cli import law
+
+    return [("alio", alio), ("law", law), ("index", index), ("graph", graph), ("alerts", alerts), ("owners", owners)]
+
+
+def process_command():
+    from reg.core.cli import process_cmd
+
+    return process_cmd

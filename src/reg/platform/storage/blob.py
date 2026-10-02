@@ -59,3 +59,11 @@ class S3BlobStore:
             return True
         except ClientError:
             return False
+
+
+def blob_store(s=None) -> "S3BlobStore":
+    """설정의 원본 보관소(SeaweedFS S3)."""
+    from reg.platform.settings import get_settings
+
+    s = s or get_settings()
+    return S3BlobStore(s.s3_endpoint, s.s3_bucket, s.s3_access_key, s.s3_secret_key)

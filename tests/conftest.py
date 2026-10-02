@@ -10,6 +10,13 @@ def _dsn(c: PostgresContainer, user: str, pw: str) -> str:
     return f"postgresql://{user}:{pw}@{host}:{port}/{c.dbname}"
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _sources():
+    from reg.wiring import register_sources
+
+    register_sources()
+
+
 @pytest.fixture(scope="session")
 def pg():
     with PostgresContainer("postgres:16", username="su", password="su", dbname="nais") as c:

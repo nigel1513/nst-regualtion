@@ -31,3 +31,24 @@ def db_logger(conn, run_id: int) -> Callable[[RequestLog], None]:
                      " waited_ms, error) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
                      (run_id, r.source, r.url, r.status, r.bytes, r.elapsed_ms, r.waited_ms, r.error))
     return log
+
+
+def run_logged(source: str, scope: str | None, body):
+    """수집·처리 한 번을 regulation.fetch_run에 기록하며 실행한다. body(conn, log) -> stats."""
+    from reg.platform.db.conn import connect
+    from reg.platform.settings import get_settings
+
+    dsn = get_settings().database_url
+    conn, log_conn = connect(dsn), open_log_conn(dsn)
+    run_id = start_run(conn, source, scope)
+    try:
+        stats = body(conn, db_logger(log_conn, run_id))
+    except BaseException as e:  # Ctrl-C·SIGTERM 포함: 실행 상태를 남기고 그대로 전파
+        finish_run(conn, run_id, "failed", {}, f"{type(e).__name__}: {e}")
+        raise
+    else:
+        finish_run(conn, run_id, "succeeded", stats)
+        return run_id, stats
+    finally:
+        log_conn.close()
+        conn.close()
