@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     rerank_model: str = "bge-reranker"
     llm_url: str = "http://192.168.0.2:8001"
     llm_model: str = "llm"
+    airflow_log_dir: str = ""  # reg_maintenance가 30일 지난 Airflow 태스크 로그를 지울 폴더 (compose: /opt/airflow/logs)
 
 
 @lru_cache
