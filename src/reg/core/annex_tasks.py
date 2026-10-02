@@ -30,3 +30,30 @@ def render_current(limit: int = 500) -> dict:
                 st["failed"] += 1
                 st["errors"] = (st["errors"] + [f"{vid}: {type(e).__name__}: {e}"[:200]])[:20]
         return dict(st)
+
+
+def convert_tables(limit: int = 50) -> dict:
+    """현행 판본 별표의 표를 MinerU로 HTML로 바꾼다. 주소가 없으면 건너뛰고, 꺼져 있으면 그 자리에서 멈춘다."""
+    from reg.core.annex_mineru import mineru_source
+    from reg.core.annex_tables import convert_version
+    from reg.platform.storage.blob import blob_store
+
+    with open_conn() as conn, task_run("core.annex_tables", conn) as st:
+        source = mineru_source()
+        if source is None:
+            st["skipped"] = "REG_MINERU_URL 없음"
+            return dict(st)
+        blob = blob_store()
+        st.update({"versions": 0, "ok": 0, "no_table": 0, "failed": 0, "unavailable": 0})
+        for vid in current_versions(conn, 10_000):
+            if st["versions"] >= limit:
+                break
+            r = convert_version(conn, blob, vid, source)
+            if r["annexes"] == 0:
+                continue  # 이미 끝난 판본은 상한에 세지 않는다
+            st["versions"] += 1
+            for k in ("ok", "no_table", "failed", "unavailable"):
+                st[k] += r[k]
+            if r["unavailable"]:
+                break  # GPU PC가 꺼져 있다: 다음 실행에서 다시
+        return dict(st)
