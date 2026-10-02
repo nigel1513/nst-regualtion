@@ -29,7 +29,7 @@ def test_build_and_publish(loaded, os_url):
     assert os.count(st["index"]) == st["chunks"]
     r = loaded.execute("SELECT state FROM ops.release WHERE id = %s", (st["release_id"],)).fetchone()
     assert r["state"] == "PUBLISHED"
-    st2 = build_release(loaded, os, FakeEmbedder(), "fake")
+    st2 = build_release(loaded, os, FakeEmbedder(), "fake", force=True)
     assert os.alias_target() == st2["index"]
     states = [x["state"] for x in loaded.execute("SELECT state FROM ops.release ORDER BY id").fetchall()]
     assert states[-2:] == ["RETIRED", "PUBLISHED"]

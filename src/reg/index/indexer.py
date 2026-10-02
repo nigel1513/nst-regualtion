@@ -1,5 +1,6 @@
 """release 빌드 (spec 6.2): 청크 → (묶음마다) 캐시 조회·없는 것만 임베딩 → bulk → 건수 확인.
 모든 벡터를 한꺼번에 들고 있지 않는다. 게시는 release.publish_release가 한다."""
+import hashlib
 import json
 
 from reg.index.cache import embed_cached, text_hash
@@ -24,14 +25,41 @@ def _provisions(conn, version_id: str) -> list[dict]:
         " WHERE vp.work_version_id = %s ORDER BY vp.ord", (version_id,)).fetchall()
 
 
-def doc_state(v: dict):
-    """색인 문서의 (version_state, effective_to). Task 3에서 폐지 규칙을 넣는다."""
-    return v["version_state"], v["effective_to"]
+INDEX_FORMAT = "chunks-v1+abolished-v1"   # 청크·매핑·문서 필드 규칙이 바뀌면 올린다 → 지문이 달라져 다시 빌드
+
+FINGERPRINT_SQL = """
+SELECT count(*) AS n, coalesce(md5(string_agg(concat_ws('|', v.id, v.title,
+         coalesce(v.effective_from::text, '-'), coalesce(v.effective_to::text, '-'), v.version_state,
+         coalesce(v.parser_version, '-'), w.kind, w.status, coalesce(w.abolished_on::text, '-'),
+         coalesce(i.code, '-'),
+         (SELECT coalesce(md5(string_agg(vp.provision_version_id::text, ',' ORDER BY vp.ord)), '-')
+            FROM regulation.version_provision vp WHERE vp.work_version_id = v.id)),
+       E'\\n' ORDER BY v.id)), '') AS h
+FROM regulation.work_version v JOIN regulation.work w ON w.id = v.work_id
+LEFT JOIN regulation.institution i ON i.id = w.institution_id
+WHERE v.version_state <> 'UNDATED'
+"""
 
 
 def fingerprint(conn, model_name: str) -> str:
-    """Task 3에서 구현한다. 그 전까지는 건너뛰기가 일어나지 않도록 빈 문자열."""
-    return ""
+    """마지막 게시 이후 색인 내용이 바뀔 수 있는 모든 입력의 지문 (spec 6.2 새 release 조건)."""
+    r = conn.execute(FINGERPRINT_SQL).fetchone()
+    return hashlib.sha256(f"{INDEX_FORMAT}|{model_name}|{r['n']}|{r['h']}".encode()).hexdigest()
+
+
+def doc_state(v: dict):
+    """폐지(ABOLISHED)된 규범문서: 현행·미래 버전을 ABOLISHED로, 시행 끝을 폐지일로 자른다.
+    현행 검색(version_state=CURRENT)에서 빠지고, 폐지일 전 기준일 검색에서는 계속 찾힌다.
+    폐지 후보(ABOLISHED_CANDIDATE)는 확정 전이므로 그대로 둔다."""
+    state, to = v["version_state"], v["effective_to"]
+    if v.get("work_status") != "ABOLISHED":
+        return state, to
+    end = v.get("abolished_on")
+    if end is not None and (to is None or to > end):
+        to = end
+    if state in ("CURRENT", "FUTURE"):
+        state = "ABOLISHED"
+    return state, to
 
 
 def _last_published(conn) -> dict | None:
