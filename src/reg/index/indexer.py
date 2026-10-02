@@ -10,9 +10,15 @@ from reg.index.release import publish_release
 
 BULK = 500
 
+# 법령·행정규칙은 기관 대신 institution='LAW', 이름은 소관부처(M6-1이 work.external_ids.ministry로 넘긴다)
+IS_LAW = "(w.id LIKE 'kr/law/%' OR w.id LIKE 'kr/admrul/%')"
+
 VERSIONS_SQL = (
     "SELECT v.id, v.work_id, v.title, v.effective_from, v.effective_to, v.version_state, w.kind,"
-    " w.status AS work_status, w.abolished_on, i.code AS institution"
+    " w.status AS work_status, w.abolished_on,"
+    f" CASE WHEN {IS_LAW} THEN 'LAW' ELSE i.code END AS institution,"
+    f" CASE WHEN {IS_LAW} THEN w.external_ids->>'ministry' ELSE i.name END AS institution_name,"
+    f" CASE WHEN {IS_LAW} THEN '{{}}'::text[] ELSE coalesce(i.aliases, '{{}}') END AS institution_aliases"
     " FROM regulation.work_version v JOIN regulation.work w ON w.id = v.work_id"
     " LEFT JOIN regulation.institution i ON i.id = w.institution_id WHERE v.version_state <> 'UNDATED'"
     " ORDER BY v.id")
@@ -25,13 +31,14 @@ def _provisions(conn, version_id: str) -> list[dict]:
         " WHERE vp.work_version_id = %s ORDER BY vp.ord", (version_id,)).fetchall()
 
 
-INDEX_FORMAT = "chunks-v1+abolished-v1"   # 청크·매핑·문서 필드 규칙이 바뀌면 올린다 → 지문이 달라져 다시 빌드
+INDEX_FORMAT = "chunks-v1+abolished-v1+institution-v1"   # 청크·매핑·문서 필드 규칙이 바뀌면 올린다 → 지문이 달라져 다시 빌드
 
 FINGERPRINT_SQL = """
 SELECT count(*) AS n, coalesce(md5(string_agg(concat_ws('|', v.id, v.title,
          coalesce(v.effective_from::text, '-'), coalesce(v.effective_to::text, '-'), v.version_state,
          coalesce(v.parser_version, '-'), w.kind, w.status, coalesce(w.abolished_on::text, '-'),
-         coalesce(i.code, '-'),
+         coalesce(i.code, '-'), coalesce(i.name, '-'), coalesce(array_to_string(i.aliases, ','), '-'),
+         coalesce(w.external_ids->>'ministry', '-'),
          (SELECT coalesce(md5(string_agg(vp.provision_version_id::text, ',' ORDER BY vp.ord)), '-')
             FROM regulation.version_provision vp WHERE vp.work_version_id = v.id)),
        E'\\n' ORDER BY v.id)), '') AS h
@@ -100,7 +107,9 @@ def build_release(conn, os, embedder, model_name: str, publish: bool = True, for
                 hashes.add(h)
                 batch.append((h, {"chunk_id": c.chunk_id, "release_id": str(rid), "work_id": c.work_id,
                                   "version_id": c.version_id, "path": c.path, "path_label": c.path_label,
-                                  "institution": v["institution"], "work_kind": v["kind"], "title": v["title"],
+                                  "institution": v["institution"],
+                                  "institution_name": v["institution_name"],
+                                  "institution_aliases": list(v["institution_aliases"] or []), "work_kind": v["kind"], "title": v["title"],
                                   "text": c.text, "context_text": c.context_text,
                                   "effective_from": v["effective_from"].isoformat() if v["effective_from"] else None,
                                   "effective_to": eff_to.isoformat() if eff_to else None,

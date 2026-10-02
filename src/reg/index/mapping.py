@@ -19,7 +19,9 @@ def index_body(dim: int) -> dict:
         "mappings": {"dynamic": "strict", "properties": {
             "chunk_id": {"type": "keyword"}, "release_id": {"type": "keyword"}, "work_id": {"type": "keyword"},
             "version_id": {"type": "keyword"}, "path": {"type": "keyword"}, "path_label": ko,
-            "institution": {"type": "keyword"}, "work_kind": {"type": "keyword"},
+            "institution": {"type": "keyword"},
+            "institution_name": {**ko, "fields": {"kw": {"type": "keyword"}}},   # 정식명·소관부처명 (overview §2.8)
+            "institution_aliases": {"type": "keyword"}, "work_kind": {"type": "keyword"},
             "title": {**ko, "fields": {"kw": {"type": "keyword"}}}, "text": ko, "context_text": ko,
             "effective_from": {"type": "date"}, "effective_to": {"type": "date"}, "version_state": {"type": "keyword"},
             "embedding": {"type": "knn_vector", "dimension": dim,
