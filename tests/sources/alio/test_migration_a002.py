@@ -21,19 +21,26 @@ def test_review_task_accepts_abolished_and_keeps_old_kinds(conn):
     conn.rollback()
 
 
+def _kinds(check: str) -> set[str]:
+    """CHECK 정의 속 허용 종류 집합 (다른 모듈 이력이 종류를 더하면 순서는 바뀔 수 있다)."""
+    import re
+
+    return set(re.findall(r"'([A-Za-z_]+)'", check))
+
+
 def test_add_kind_block_is_idempotent(migrated, conn):
-    before = _kind_check(conn)
+    before = _kinds(_kind_check(conn))
     conn.rollback()
     with psycopg.connect(migrated[1], autocommit=True) as mig:   # 다른 트랙이 먼저 추가했거나 두 번 돌아도 그대로
         mig.execute(ADD_KIND)
         mig.execute(ADD_KIND)
-    assert _kind_check(conn) == before
+    assert _kinds(_kind_check(conn)) == before
     conn.rollback()
     with psycopg.connect(migrated[1], autocommit=True) as mig:   # 내림 → 다시 올림이 원래 제약으로 돌아온다
         mig.execute(DROP_KIND)
         assert "ABOLISHED" not in _kind_check(mig.cursor(row_factory=psycopg.rows.dict_row))
         mig.execute(ADD_KIND)
-    assert _kind_check(conn) == before
+    assert _kinds(_kind_check(conn)) == before
 
 
 def test_alio_rule_has_abolish_ledger_columns(conn):
