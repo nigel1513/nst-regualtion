@@ -11,12 +11,14 @@ def register_sources() -> None:
 
 def subcommands() -> list:
     from reg.alerts.cli import alerts, owners
+    from reg.core.quality_cli import quality
     from reg.graph.cli import graph
     from reg.index.cli import index
     from reg.sources.alio.cli import alio
     from reg.sources.lawgo.cli import law
 
-    return [("alio", alio), ("law", law), ("index", index), ("graph", graph), ("alerts", alerts), ("owners", owners)]
+    return [("alio", alio), ("law", law), ("index", index), ("graph", graph), ("alerts", alerts), ("owners", owners),
+            ("quality", quality)]
 
 
 def process_command():

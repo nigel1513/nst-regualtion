@@ -74,3 +74,8 @@ class Joiner:
         if last in self.vocab:
             return prev + " " + nxt
         return prev + nxt
+
+
+def lexicon() -> dict[str, int]:
+    """어절 사전 (Task 3에서 패키지 사전으로 바꾼다)."""
+    return {}
