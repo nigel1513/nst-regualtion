@@ -110,7 +110,7 @@ def test_decide_rejects_invalid_states(conn):
 
 
 def test_rerun_same_day_is_idempotent(conn):
-    _, gone = candidate(conn)
+    candidate(conn)
     again = run_day(conn, 2, ["2"])
     assert again["projection"] == {"status_changed": 0, "tasks_opened": 0, "tasks_dismissed": 0}
     assert str(rule(conn, "1")["missing_since"]) == "2026-10-02"
