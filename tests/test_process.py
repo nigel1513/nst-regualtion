@@ -2,9 +2,9 @@ import json
 from datetime import date
 from pathlib import Path
 
+from reg.core.ingest.process import process_once
 from reg.platform.archive import store
 from reg.platform.sniff import FileKind
-from reg.core.ingest.process import process_once
 from reg.platform.storage.blob import LocalBlobStore
 
 FX = Path(__file__).parent / "fixtures"
@@ -12,8 +12,9 @@ TODAY = date(2026, 10, 2)
 
 
 def seed_alio(conn, blob, content: bytes, file_name="여비규정(2024년도 1월 개정).pdf", ord_=0):
-    conn.execute("INSERT INTO regulation.institution (code, name, kind, alio_apba_id, alio_name)"
-                 " VALUES ('KASI','한국천문연구원','GRI','C0266','한국천문연구원') ON CONFLICT DO NOTHING")
+    conn.execute("INSERT INTO regulation.institution (code, name, kind, alio_apba_id, alio_name, aliases)"
+                 " VALUES ('KASI','한국천문연구원','GRI','C0266','한국천문연구원', '{천문연구원,천문연}')"
+                 " ON CONFLICT DO NOTHING")
     inst = conn.execute("SELECT id FROM regulation.institution WHERE code='KASI'").fetchone()["id"]
     conn.execute("INSERT INTO regulation.alio_rule (seq, institution_id, title, revised_on, posted_on)"
                  " VALUES ('186618', %s, '여비규정', '2024-01-17', '2016-10-17') ON CONFLICT DO NOTHING", (inst,))
@@ -110,8 +111,8 @@ def test_events_of_one_work_are_rebuilt_once(conn, tmp_path, monkeypatch):
 
 
 def test_document_without_readable_articles_goes_to_review_queue(conn, tmp_path, monkeypatch):
-    from reg.sources.alio import handler as P
     from reg.core.model import Block
+    from reg.sources.alio import handler as P
 
     blob = LocalBlobStore(tmp_path)
     seed_alio(conn, blob, (FX / "samples" / "kasi-yeobi-339.pdf").read_bytes())

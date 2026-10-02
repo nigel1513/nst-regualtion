@@ -1,9 +1,9 @@
 from datetime import date
 
 from reg.core.ingest.process import process_once
+from reg.platform.storage.blob import LocalBlobStore
 from reg.qa.analyze import analyze
 from reg.qa.evidence import expand
-from reg.platform.storage.blob import LocalBlobStore
 from tests.test_process import FX, seed_alio
 
 
@@ -35,7 +35,8 @@ class FakeLLM:
 
 def test_analyze_rules_and_llm_terms():
     llm = FakeLLM({"question_type": "기한", "terms": ["여비 정산", "증빙 제출"]})
-    a = analyze(llm, "천문연 소속인데 출장 다녀온 지 10일 지났고 지출결의를 아직 안 했어요")
+    a = analyze(llm, "천문연 소속인데 출장 다녀온 지 10일 지났고 지출결의를 아직 안 했어요",
+                {"KASI": ["한국천문연구원", "천문연", "KASI"]})
     assert (a.institution, a.elapsed_days, a.question_type) == ("KASI", 10, "기한")
     assert "증빙 제출" in a.terms
     b = analyze(FakeLLM(fail=True), "2023년 3월 5일 기준으로 2주 지났는데 괜찮나요")
@@ -69,12 +70,12 @@ def test_calendar_dates_are_not_elapsed_days():
 
 
 def test_cross_work_citation_uses_the_version_valid_at_as_of(conn, tmp_path):
+    from reg.core.effective import Effective
+    from reg.core.ingest.loader import add_version, rebuild_work, upsert_work
+    from reg.core.model import ParsedDoc, Prov
     from reg.platform.archive import store
     from reg.platform.sniff import FileKind
-    from reg.core.ingest.loader import add_version, rebuild_work, upsert_work
     from reg.qa.evidence import _version_at
-    from reg.core.effective import Effective
-    from reg.core.model import ParsedDoc, Prov
 
     blob = LocalBlobStore(tmp_path)
     upsert_work(conn, "kr/law/L9", "법률", "가상법", None, {})
