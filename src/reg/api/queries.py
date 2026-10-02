@@ -18,7 +18,7 @@ def _like(q: str) -> str:
 
 def works(conn, institution: str | None, kind: str | None, q: str | None) -> list[dict]:
     rows = conn.execute(
-        "SELECT w.id, w.title, w.kind, i.code AS institution,"
+        "SELECT w.id, w.title, w.kind, i.code AS institution, w.status, w.abolished_on,"
         " (SELECT row_to_json(x) FROM (SELECT v.id, v.effective_from, v.version_state, v.effective_status,"
         "   v.validation_status, v.amendment_no FROM regulation.work_version v WHERE v.work_id = w.id"
         "   ORDER BY (v.version_state = 'CURRENT') DESC, v.effective_from DESC NULLS LAST, v.created_at DESC"
@@ -33,7 +33,8 @@ def works(conn, institution: str | None, kind: str | None, q: str | None) -> lis
 
 
 def work(conn, work_id: str) -> dict | None:
-    return conn.execute("SELECT w.id, w.title, w.kind, i.code AS institution FROM regulation.work w"
+    return conn.execute("SELECT w.id, w.title, w.kind, i.code AS institution, w.status, w.abolished_on"
+                        " FROM regulation.work w"
                         " LEFT JOIN regulation.institution i ON i.id = w.institution_id WHERE w.id = %s",
                         (work_id,)).fetchone()
 
