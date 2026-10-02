@@ -288,11 +288,38 @@ def extract_refs(p: Prov, ctx: RefContext | None = None) -> list[RefCandidate]:
             target = art
         add(RefCandidate(p.path, s, m.end(), tok, _rel(text, m.end(), False), "internal", None, target))
 
-    # 5) 위임 (Task 6에서 이름 있는 위임·이름만 쓴 참조·IMPLEMENTS를 더한다)
+    # 5) 위임: 이름이 있으면 그 규정으로(WORK), 없으면 대상 없음. 따옴표 안 인용은 위임이 아니다 (R6)
+    #    이름만 쓴 참조(6)보다 먼저 한다: '인사관리요령에서 정한다'는 위임이지 단순 근거가 아니다
+    for m in RE_DELEG_NAMED.finditer(text):
+        name = m[1]
+        two = re.search(r"(?:^|\s)(?:이|본|동|같은|관련|해당|각|다른)\s$", text[max(0, m.start() - 5):m.start()])
+        if _in_quotes(text, m.start()) or two or SELF_WORDS.match(name) or GENERIC.match(name) \
+                or not free(m.start(), m.end()):
+            continue
+        add(RefCandidate(p.path, m.start(), m.end(), m[0], "DELEGATION", "delegation_named", name, None, 0.8,
+                         "rule:delegation"))
     for m in RE_DELEG.finditer(text):
-        if not free(m.start(), m.end()):
+        if _in_quotes(text, m.start()) or not free(m.start(), m.end()):
             continue
         out.append(RefCandidate(p.path, m.start(), m.end(), m[0], "DELEGATION", "delegation", None, None))
+
+    # 6) 조 번호 없이 이름만 쓴 근거·준용·위임: '여비규정에 의하여', '회계규정에서 위임한' → 규범 전체(WORK)
+    for m in RE_NAME_WORK.finditer(text):
+        if not free(m.start(1), m.end(1)) or RE_ART.match(text, m.end(1) + 1) or _in_quotes(text, m.start(1)):
+            continue
+        name = m[1]
+        two = re.search(r"(?:^|\s)(?:이|본|동|같은|관련|관계|해당|각|다른|위)\s$", text[max(0, m.start(1) - 5):m.start(1)])
+        if two or SELF_WORDS.match(name) or GENERIC.match(name) or len(name) < 3:
+            continue
+        add(RefCandidate(p.path, m.start(1), m.end(1), name, _rel(text, m.end(1), True), "named", name, None, 0.7,
+                         "rule:name-work"))
+
+    # 7) 목적 조문의 근거 규범, 'X에서 위임한' → IMPLEMENTS (이 문서가 그 규범을 시행한다, R6)
+    purpose = p.path == "a1" or (p.heading or "").strip() == "목적"
+    for r in out:
+        if r.kind in ("named", "external") and ((purpose and RE_PURPOSE_BASIS.match(text[r.end:r.end + 20]))
+                                                or RE_WIIM.match(text[r.end:r.end + 12])):
+            r.rel_type = "IMPLEMENTS"
     return sorted(out, key=lambda r: r.start)
 
 
@@ -309,10 +336,21 @@ def match_title(name: str, titles: dict[str, list[str]], prefixes: frozenset[str
     return []
 
 
+def institution_prefixes(conn, institution_id: int | None, definitions: dict[str, str]) -> frozenset[str]:
+    """이름 앞에 붙어도 떼어 볼 기관 접두어: 정식명·코드·약칭(aliases)·문서의 기관 정의·일반 호칭 (R5)."""
+    if institution_id is None:
+        return frozenset()
+    inst = conn.execute("SELECT code, name, aliases FROM regulation.institution WHERE id = %s",
+                        (institution_id,)).fetchone()
+    names = {norm_title(inst["name"]), inst["code"], *INST_WORDS, *(norm_title(a) for a in inst["aliases"] or [])}
+    names |= {norm_title(k) for k, v in definitions.items() if norm_title(v) == norm_title(inst["name"])}
+    return frozenset(names)
+
+
 def resolve_and_store(conn, work_id: str) -> dict:
     conn.execute("DELETE FROM regulation.reference WHERE work_id = %s", (work_id,))
     work = conn.execute("SELECT * FROM regulation.work WHERE id = %s", (work_id,)).fetchone()
-    titles = {}
+    titles: dict[str, list[str]] = {}
     for w in conn.execute("SELECT id, title FROM regulation.work WHERE id LIKE 'kr/law/%%' OR institution_id = %s",
                           (work["institution_id"],)).fetchall():
         titles.setdefault(norm_title(w["title"]), []).append(w["id"])
@@ -331,35 +369,64 @@ def resolve_and_store(conn, work_id: str) -> dict:
         key = (r["effective_from"] or date.min, r["v"])
         if r["pv"] not in latest or key > latest[r["pv"]]:
             latest[r["pv"]] = key
-    st = {"refs": 0, "resolved": 0, "unresolved": 0, "seeds": 0}
+    texts = [pv["text"] for pv in pvs]
+    ctx = RefContext(collect_abbreviations(texts))
+    prefixes = institution_prefixes(conn, work["institution_id"], collect_definitions(texts))
+    other_paths: dict[str, set] = {}
+
+    def paths_of(wid: str) -> set:
+        if wid not in other_paths:
+            other_paths[wid] = {r["path"] for r in conn.execute(
+                "SELECT pv.path FROM regulation.work_version v JOIN regulation.version_provision vp"
+                " ON vp.work_version_id = v.id JOIN regulation.provision_version pv ON pv.id = vp.provision_version_id"
+                " WHERE v.work_id = %s AND v.version_state = 'CURRENT'", (wid,)).fetchall()}
+        return other_paths[wid]
+
+    def has(paths: set, tpath: str | None) -> bool:
+        return tpath is None or tpath in paths or tpath.split(".")[0] in paths
+
+    st = {"refs": 0, "resolved": 0, "unresolved": 0, "seeds": 0, "named": 0}
     for pv in pvs:
         prov = Prov(pv["path"], pv["unit"], pv["number_label"], pv["heading"], pv["text"], pv["parent_path"])
         paths = vpaths.get(latest[pv["id"]][1], set()) if pv["id"] in latest else set()
-        for r in extract_refs(prov):
+        for r in extract_refs(prov, ctx):
             tw, tpath, kind, res = None, r.target_path, "NONE", "RESOLVED"
             if r.kind == "internal":
                 tw, kind = work_id, "PROVISION"
-                res = "RESOLVED" if tpath in paths or tpath.split(".")[0] in paths else "UNRESOLVED"
+                res = "RESOLVED" if has(paths, tpath) else "UNRESOLVED"
             elif r.kind == "annex":
                 tw, kind = work_id, "ANNEX"
                 res = "RESOLVED" if tpath in paths else "UNRESOLVED"
-            elif r.kind in ("external", "named", "named_annex", "delegation_named"):
-                hits = titles.get(norm_title(r.name), [])
+            elif r.kind != "delegation":  # external, named, named_annex, delegation_named
+                hits = titles.get(norm_title(r.name), []) if r.kind == "external" \
+                    else match_title(r.name, titles, prefixes)
                 if len(hits) == 1:
-                    tw, kind = hits[0], "PROVISION" if tpath else "WORK"
+                    tw = hits[0]
+                    target_paths = paths if tw == work_id else paths_of(tw)
+                    if r.kind == "named_annex":
+                        kind = "ANNEX"
+                        res = "RESOLVED" if tpath in target_paths else "UNRESOLVED"
+                    else:
+                        kind = "PROVISION" if tpath else "WORK"
+                        res = "RESOLVED" if not tpath or has(target_paths, tpath) or tw.startswith("kr/law/") \
+                            else "UNRESOLVED"
                 elif len(hits) > 1:
                     kind, res = "EXTERNAL_UNRESOLVED", "AMBIGUOUS"
+                elif r.extractor == "rule:name-work" and not re.search(r"(?:법|법률|령)$", r.name):
+                    continue  # '심사기준에 따라' 같은 일반 낱말일 수 있다: 해석 못 한 이름만 참조는 남기지 않는다 (R5)
                 else:
                     kind, res = "EXTERNAL_UNRESOLVED", "UNRESOLVED"
-                    if looks_like_law(r.name):
+                    if looks_like_law(r.name) and r.name not in BARE_LAW and len(norm_title(r.name)) >= 3:
                         cur = conn.execute("INSERT INTO regulation.law_seed (name, origin, first_seen_work_id)"
                                            " VALUES (%s, 'reference', %s) ON CONFLICT DO NOTHING", (r.name, work_id))
                         st["seeds"] += cur.rowcount
+                st["named"] += r.kind != "external"
             conn.execute(
                 "INSERT INTO regulation.reference (work_id, source_pv_id, evidence_text, span_start, span_end, rel_type,"
-                " target_kind, target_work_id, target_path, target_name, resolution) VALUES"
-                " (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
-                (work_id, pv["id"], r.evidence, r.start, r.end, r.rel_type, kind, tw, tpath, r.name, res))
+                " target_kind, target_work_id, target_path, target_name, resolution, confidence, extractor) VALUES"
+                " (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                (work_id, pv["id"], r.evidence, r.start, r.end, r.rel_type, kind, tw, tpath, r.name, res,
+                 r.confidence, r.extractor))
             st["refs"] += 1
             st["resolved" if res == "RESOLVED" else "unresolved"] += 1
     return st

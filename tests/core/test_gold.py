@@ -136,3 +136,8 @@ def check_ref_case(case):
 @pytest.mark.parametrize("case", [c for c in GOLD["refs"] if c["id"] in REFS_TASK5], ids=lambda c: c["id"])
 def test_gold_refs_extraction(case):
     check_ref_case(case)
+
+
+@pytest.mark.parametrize("case", [c for c in GOLD["refs"] if c["id"] not in REFS_TASK5], ids=lambda c: c["id"])
+def test_gold_refs_relations(case):
+    check_ref_case(case)

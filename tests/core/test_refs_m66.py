@@ -69,3 +69,21 @@ def test_match_title_exact_or_institution_prefix_only():
     pre = frozenset({"한국천문연구원", "KASI", "연구원"})
     assert match_title("한국천문연구원 회계규정", titles, pre) == ["kr/reg/KASI/회계규정"]
     assert match_title("공무원 여비 규정", titles, pre) == []  # 아무 접미부나 맞추지 않는다 (R5)
+
+
+def test_named_delegation_quoted_delegation_and_name_only_basis():
+    refs = extract_refs(P("a7.p1", "수습에 관한 세부사항은 인사관리요령에서 정한다."))
+    assert [(r.kind, r.name, r.rel_type) for r in refs] == [("delegation_named", "인사관리요령", "DELEGATION")]
+    quoted = extract_refs(P("a3.i3", "“원장이 따로 정한다”, “별도로 정한다” 등을 “별도로 정한다”로 통일하여 변경한다.", "item"))
+    assert not [r for r in quoted if r.rel_type == "DELEGATION"]
+    basis = extract_refs(P("a44", "여비라 함은 여비규정에 의하여 지급되는 출장비를 말한다.", "article"))
+    assert [(r.kind, r.name, r.target_path, r.rel_type, r.extractor) for r in basis] == [
+        ("named", "여비규정", None, "BASIS", "rule:name-work")]
+
+
+def test_purpose_clause_and_wiim_are_implements():
+    refs = extract_refs(P("a1", "이 규정은 「국가연구개발혁신법」 제4조에 따라 필요한 사항을 정함을 목적으로 한다.",
+                          "article", "목적"))
+    assert [(r.name, r.rel_type) for r in refs] == [("국가연구개발혁신법", "IMPLEMENTS")]
+    refs = extract_refs(P("a5.i2", "회계규정에서 위임한 사항", "item"))
+    assert [(r.name, r.rel_type) for r in refs] == [("회계규정", "IMPLEMENTS")]
