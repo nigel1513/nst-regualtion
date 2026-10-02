@@ -80,7 +80,7 @@ class AlioClient:
             for r in data["result"]:
                 if r.get("apbaId") != apba_id:
                     continue
-                yield ListRow(str(r["seq"]), r["title"].strip(), r["apbaId"], r.get("insdRuleDivis"),
+                yield ListRow(str(r["seq"]), (r.get("title") or "").strip(), r["apbaId"], r.get("insdRuleDivis"),
                               "|".join(str(r.get(k)) for k in FINGERPRINT_KEYS))
             if page >= int(data["page"]["totalPage"]):
                 return
@@ -88,7 +88,9 @@ class AlioClient:
 
     def detail(self, seq: str) -> RuleDetail:
         d = self._json("/occasional/findRuleDtl.json", {"seq": seq})
-        return RuleDetail(seq, d["title"].strip(), d.get("insdRuleDivis"), _date(d.get("retryRvsnYmd")),
+        # 실데이터에 제목이 null인 규정이 있다 (KRIBB seq 47430): 수집은 이어가고 이름을 표시해 둔다
+        title = (d.get("title") or "").strip() or f"제목 없음 (ALIO seq {seq})"
+        return RuleDetail(seq, title, d.get("insdRuleDivis"), _date(d.get("retryRvsnYmd")),
                           _date(d.get("idate")), parse_bfiles(d.get("bFiles")), d)
 
     def download(self, file_no: str) -> bytes:

@@ -60,3 +60,17 @@ def test_fingerprint_changes_with_posting_and_correction_flags():
     respx.get(f"{BASE}/occasional/findRuleList.json").respond(200, json=data)
     c = next(client().list_rules("한국천문연구원", "C0266")).fingerprint
     assert len({a, b, c}) == 3
+
+
+@respx.mock
+def test_untitled_rows_do_not_stop_collection():
+    """실데이터(KRIBB seq 47430, 2026-10-02): 목록·상세에 title이 null인 규정이 있다."""
+    data = json.loads((FX / "alio_list_kasi_p1.json").read_text())
+    data["data"]["result"][0]["title"] = None
+    respx.get(f"{BASE}/occasional/findRuleList.json").respond(200, json=data)
+    rows = list(client().list_rules("한국천문연구원", "C0266"))
+    assert rows[0].title == ""
+    detail = json.loads((FX / "alio_detail.json").read_text())
+    (detail.get("data") or detail)["title"] = None
+    respx.get(f"{BASE}/occasional/findRuleDtl.json").respond(200, json=detail)
+    assert client().detail("47430").title == "제목 없음 (ALIO seq 47430)"
