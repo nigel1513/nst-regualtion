@@ -15,3 +15,18 @@ def test_gold_file_is_well_formed():
     assert len(GOLD["joins"]) + len(GOLD["despace"]) + len(GOLD["parse"]) + len(GOLD["pdf"]) + len(GOLD["refs"]) >= 30
     assert all((PDF / c["file"]).exists() for c in GOLD["pdf"])
     assert len({r["id"] for r in GOLD["refs"]}) == len(GOLD["refs"])
+
+
+import re
+
+import pytest
+
+from reg.core.extract.pdf import extract_pdf
+
+
+@pytest.mark.parametrize("case", [c for c in GOLD["pdf"] if "order" in c], ids=lambda c: c["file"])
+def test_gold_pdf(case):
+    lines = [b.text for b in extract_pdf((PDF / case["file"]).read_bytes())]
+    pos = [next(i for i, t in enumerate(lines) if t.startswith(h)) for h in case["order"]]
+    assert pos == sorted(pos)
+    assert not [t for t in lines if re.search(case["absent_re"], t)]

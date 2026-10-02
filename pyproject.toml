@@ -17,6 +17,8 @@ dependencies = [
   "uvicorn>=0.54.0",
   "psycopg-pool>=3.3.3",
   "neo4j>=5.20",
+  "pypdfium2>=4.30",
+  "pillow>=10",
 ]
 
 [project.scripts]
