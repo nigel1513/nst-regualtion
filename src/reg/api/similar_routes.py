@@ -102,3 +102,33 @@ def similar(request: Request, pv: int, limit: int = Query(5, ge=1, le=20)):
               "href": _href(d["work_id"], d.get("article_path") or "")} for s, d in picked]
     return {"source": {"pv_id": src["id"], "work_id": src["work_id"], "institution": src["institution"],
                        "label": src["label"], "title": src["title"]}, "items": items}
+
+
+@router.get("/api/v1/provision/compare")
+def provision_compare(request: Request, pv: int):
+    """규정 보기 → 기관 비교: 조항의 규정·소속 조·주제와, 그 조(또는 그 아래 항·호)를 근거로 뽑은 비교값.
+    "나란히 보기"가 주제·항목을 고르고, 오른쪽 레일이 같음/다름을 붙일 때 쓴다."""
+    from reg.compare.config import load
+
+    with request.app.state.pool.connection() as c:
+        src = _source(c, pv)
+        if not src:
+            raise HTTPException(404, "조항을 찾을 수 없습니다")
+        art = src["path"].split(".")[0]
+        topics = [r["topic"] for r in c.execute(
+            "SELECT topic FROM regulation.work_topic WHERE work_id = %s ORDER BY rank, topic", (src["work_id"],)).fetchall()]
+        rows = c.execute(
+            "SELECT topic, item, value, value_norm, path FROM regulation.compare_cell"
+            " WHERE work_id = %s AND method <> 'absent' AND (path = %s OR starts_with(path, %s)) ORDER BY topic, item",
+            (src["work_id"], art, art + ".")).fetchall()
+    cfg = load()
+    cells = []
+    for r in rows:
+        if not cfg.has_topic(r["topic"]) or not any(i.id == r["item"] for i in cfg.items.get(r["topic"], [])):
+            continue
+        it = cfg.item(r["topic"], r["item"])
+        cells.append({"topic": r["topic"], "topic_label": cfg.topic(r["topic"]).label, "item": r["item"],
+                      "item_label": it.label, "unit": it.unit, "value": r["value"], "value_norm": r["value_norm"],
+                      "path": r["path"]})
+    return {"pv_id": src["id"], "work_id": src["work_id"], "institution": src["institution"], "article_path": art,
+            "topics": topics, "cells": cells}
