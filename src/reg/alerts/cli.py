@@ -11,16 +11,16 @@ owners = typer.Typer(no_args_is_help=True, help="규정별 담당자")
 
 
 @alerts.command("scan")
-def alerts_scan(no_sync: bool = typer.Option(False, "--no-sync", help="그래프 재투영 없이 스캔")) -> None:
-    """그래프를 현행 기준으로 다시 투영한 뒤 대기 중인 개정 이벤트의 영향을 분석한다."""
+def alerts_scan(no_sync: bool = typer.Option(False, "--no-sync", help="그래프 증분 동기화 없이 스캔")) -> None:
+    """바뀐 규범문서를 그래프에 증분 반영한 뒤 대기 중인 개정 이벤트의 영향을 분석한다."""
     from reg.alerts.scan import scan_once
-    from reg.graph.sync import graph_lock, sync_graph
+    from reg.graph.sync import graph_lock, sync_changed
 
     s = get_settings()
     conn = connect(s.database_url)
     with _neo4j(s) as drv, graph_lock(conn):
         if not no_sync:
-            typer.echo(f"graph {sync_graph(conn, drv)}")
+            typer.echo(f"graph {sync_changed(conn, drv)}")
         total = {"claimed": 0, "ok": 0, "failed": 0, "impacts": 0}
         while (st := scan_once(conn, drv))["claimed"]:
             total = {k: total[k] + st[k] for k in total}
@@ -64,19 +64,20 @@ def alerts_backtest(limit: int = typer.Option(0, help="재생할 버전 수 (0�
     from datetime import datetime
 
     from reg.alerts.backtest import backtest
-    from reg.graph.sync import graph_lock, sync_graph
+    from reg.graph.sync import graph_lock, graph_stats, sync_changed
 
     s = get_settings()
     conn = connect(s.database_url)
     with _neo4j(s) as drv, graph_lock(conn):
-        g = sync_graph(conn, drv)
+        sync_changed(conn, drv)
+        g = graph_stats(drv)
         r = backtest(conn, drv, limit or None)
     path = ROOT / f"docs/reports/{datetime.now():%Y-%m-%d}-impact-backtest.md"
     lines = [f"# 개정 영향 탐지 사후 검증 ({datetime.now():%Y-%m-%d %H:%M})", "",
              f"- 그래프: 규범문서 {g['works']} · 조항 {g['provisions']} · 참조 관계 {g['relations']}",
              f"- 재생한 개정 버전: {r['versions']} · 탐지한 영향: {r['impacts']} · 영향받은 규범문서: {r['works_affected']}",
              f"- 심각도: {r['by_severity']}", f"- 유형: {r['by_kind']}", "",
-             "재생 결과는 RESOLVED(backtest)로 저장되어 알림이 나가지 않는다. 그래프는 현행 참조 기준이다.", "",
+             "재생 결과는 RESOLVED(backtest)로 저장되어 알림이 나가지 않는다. 영향받는 쪽은 현행 판본의 조항이다.", "",
              "| 원인 | 조 | 변경 | 영향 규정 | 조 | 관계 | 심각도 |", "|---|---|---|---|---|---|---|"]
     lines += [f"| {e['cause_work_id']} | {e['cause_path']} | {e['cause_change']} | {e['affected_work_id']} |"
               f" {e['affected_path']} | {e['rel_type']} | {e['severity']} |" for e in r["examples"]]

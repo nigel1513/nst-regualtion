@@ -161,3 +161,34 @@ def test_reference_to_a_path_no_version_has_becomes_missing_node(conn, tmp_path,
     rebuild(conn, neo4j_driver)
     assert one(neo4j_driver, "MATCH (:Provision {work_id: 'kr/reg/KASI/세칙', path: 'a1'})-[r]->(m:MissingProvision)"
                              " RETURN m.key AS k, r.match AS m") == [{"k": "kr/law/L1|a9", "m": "missing"}]
+
+
+def test_cli_and_task_sync_are_incremental(conn, tmp_path, neo4j_driver, monkeypatch):
+    from typer.testing import CliRunner
+
+    import reg.graph.cli as gcli
+    from reg.graph import tasks as gt
+    from reg.platform.settings import get_settings
+
+    build(conn, tmp_path)
+    url = neo4j_driver.get_server_info().address
+    monkeypatch.setenv("REG_DATABASE_URL", _dsn(conn))
+    monkeypatch.setenv("REG_NEO4J_URL", f"bolt://{url[0]}:{url[1]}")
+    monkeypatch.setenv("REG_NEO4J_PASSWORD", "testpass1234")
+    monkeypatch.setenv("REG_NEO4J_TARGET", "local")
+    get_settings.cache_clear()
+    try:
+        out = CliRunner().invoke(gcli.graph, ["rebuild"])
+        assert out.exit_code == 0 and "works" in out.output, out.output
+        out = CliRunner().invoke(gcli.graph, ["sync", "--works", "kr/law/L1,kr/reg/KASI/여비"])
+        assert out.exit_code == 0 and "'works': 2" in out.output, out.output
+        assert gt.sync()["works"] == 0  # 바뀐 규범문서가 없으면 아무것도 하지 않는다
+    finally:
+        get_settings.cache_clear()
+        conn.execute("DELETE FROM ops.pipeline_run")
+        conn.commit()
+
+
+def _dsn(conn) -> str:
+    i = conn.info
+    return f"postgresql://{i.user}:{i.password}@{i.host}:{i.port}/{i.dbname}"
