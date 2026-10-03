@@ -104,3 +104,8 @@ def test_problem_does_not_repeat_name_already_in_evidence():
     p = R.problem("REFERENCE", {"name": "영년직 연구원 운영지침", "evidence": "「영년직 연구원 운영지침」제3조"})
     assert p.count("영년직") == 1 and p.endswith("「영년직 연구원 운영지침」제3조.")
     assert "「감사규정」 별표 1" in R.problem("REFERENCE", {"name": "감사규정", "evidence": "별표 1"})
+
+
+def test_problem_avoids_particles_after_variable_words():
+    assert R.problem("PARSE", {"check": "gap", "missing": [63, 64, 65, 66]}).endswith("제63조·제64조·제65조 외 1곳.")
+    assert R.problem("EFFECTIVE_DATE", {"basis": "history"}).endswith("(근거: 개정 이력).")

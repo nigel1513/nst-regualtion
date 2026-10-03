@@ -103,6 +103,7 @@ SELECT * FROM law.alembic_version;              -- law_0001
 | `0006` | M4b Q&A | `qa_log` |
 | `0007` | M5a 영향·알림 | `change_impact`, `owner_assignment`, `notification`, `email_delivery` |
 | `0008` | M6-0 | 운영 테이블 10개를 `regulation` → `ops`로 이동. `work.status/abolished_on`, `work_version.parser_version`, `source_document.ocr_*`, `institution.aliases`, `ops.pipeline_run`, `ops.embedding_cache`, 뷰 `v_regulation_master` |
+| `0013` | 검수 화면 (서비스 UI 스펙 §6) | `review_task.status`에 `HOLD`, `review_decision`(사람 결정 보관) + `review_task` BEFORE INSERT 트리거 `review_task_apply_decision` |
 | `a001` | M6-2 | `alio_rule.missing_since` |
 | `a002` | M6-2 | `alio_rule.abolish_state/abolished_on`, `review_task.kind`에 `ABOLISHED` |
 | `law_0001` | M6-1 | `law` 스키마 테이블 7개, `regulation` 쪽 법령 FK 열 4개, `review_task.kind`에 `REF_LAW_AMBIGUOUS`·`REF_LAW_GONE` |
@@ -858,7 +859,7 @@ EXPLAIN SELECT id FROM regulation.work WHERE external_ids ? 'alio_seq' AND exter
 | `target` | text | N | | 대상 키 (버전 id, `source:{id}`, `ref:…`, `work:{id}`) |
 | `work_id` | text | Y | | 관련 규범문서 FK (`ON DELETE CASCADE`) |
 | `detail` | jsonb | N | `'{}'` | 감지 내용 (`{"basis": "history"}`, `{"check": "gap", "missing": [37]}`, `{"name": "상법", "evidence": "「상법」 제169조", "path": "a18.p2"}`) |
-| `status` | text | N | `'OPEN'` | `OPEN` / `RESOLVED` / `DISMISSED` |
+| `status` | text | N | `'OPEN'` | `OPEN` / `HOLD`(보류, 0013) / `RESOLVED` / `DISMISSED` |
 | `assignee` | text | Y | | 담당자 |
 | `decision` | jsonb | Y | | 처리 결정 (예: 자동 반려 `{"auto": "not_candidate"}`) |
 | `created_at` | timestamptz | N | `now()` | |
@@ -875,6 +876,8 @@ EXPLAIN SELECT id FROM regulation.work WHERE external_ids ? 'alio_seq' AND exter
 |---|---|---|---|
 | `review_task_kind_target_key` | (kind, target) | 모든 작성 경로의 `ON CONFLICT (kind, target)` | 같은 문제는 한 행 (멱등) |
 
+- 사람의 처리(`core/review.py`, API `POST /api/v1/review-tasks/{id}/assign|resolve|dismiss|hold|reopen`)는 `decision`에 `{"action", "by", "at", "note"/"reason", "value"}`를 남기고, 같은 내용을 `regulation.review_decision`(PK `(kind, target)`, FK 없음)에도 쓴다. `reg process --rebuild`의 `TRUNCATE … CASCADE`는 이 표를 지우지 않고, 다시 만든 `review_task` 행에 트리거가 담당·상태·결정을 되살린다. 버전 단위(PARSE·CONFLICT·EFFECTIVE_DATE)는 `detail`이 결정 때와 같을 때만 상태를 되살리고(바뀌면 새 문제, 담당만 유지), ABOLISHED는 `alio_rule`이 원장이라 담당만 되살린다.
+- 자동 닫기(`record`·`record_reference_tasks`·`close_low_text`·lawgo `_sync_tasks`·ABOLISHED 투영)는 `OPEN`과 `HOLD`를 닫는다. lawgo `_sync_tasks`는 사람이 해결한 작업(`decision ? 'action'`)을 다시 열지 않는다.
 - `core/quality.py` `record()`의 `UPDATE … WHERE target = %s AND status = 'OPEN'`과 `record_reference_tasks`의 `WHERE kind = 'REFERENCE' AND work_id = %s` 같은 조건은 맞는 인덱스가 없어 순차 스캔이다(3만 행).
 
 ### 4.16 뷰 `regulation.v_regulation_master` — 목록 마스터

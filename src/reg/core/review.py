@@ -151,12 +151,12 @@ def problem(kind: str, d: dict) -> str:
         if d.get("check") == "toc":
             return f"목차와 본문의 조문이 다릅니다: {path_labels(d.get('diff') or [])}."
         miss = [f"a{n}" for n in d.get("missing") or []]
-        return f"조 번호 {path_labels(miss)}가 본문에서 빠졌습니다(구조 파싱 누락 의심)."
+        return f"본문에서 빠진 조 번호가 있습니다(구조 파싱 누락 의심): {path_labels(miss)}."
     if kind == "EFFECTIVE_DATE":
         b = d.get("basis")
         if b in (None, "none"):
             return "시행일 근거를 찾지 못했습니다."
-        return f"시행일을 {BASIS_LABEL.get(b, b)}로만 추정해 확실하지 않습니다."
+        return f"시행일을 하나의 근거로만 추정해 확실하지 않습니다(근거: {BASIS_LABEL.get(b, b)})."
     if kind == "CONFLICT":
         return f"시행일 근거끼리 충돌합니다(채택한 근거: {BASIS_LABEL.get(d.get('basis'), d.get('basis') or '-')})."
     if kind == "LOW_TEXT":

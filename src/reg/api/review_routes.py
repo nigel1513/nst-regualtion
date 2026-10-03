@@ -147,7 +147,7 @@ def _texts(conn, rows: list[dict], ver: dict[int, dict]) -> tuple[dict, dict]:
         "SELECT DISTINCT ON (vp.work_version_id) vp.work_version_id AS v, pv.path, pv.text"
         " FROM regulation.version_provision vp JOIN regulation.provision_version pv ON pv.id = vp.provision_version_id"
         " WHERE vp.work_version_id = ANY(%s) AND pv.path LIKE 'supp%%' AND pv.text LIKE '%%시행%%'"
-        " ORDER BY vp.work_version_id, vp.ord DESC", (dated,)).fetchall()} if dated else {}
+        " ORDER BY vp.work_version_id, (pv.text ~ '시행한다') DESC, vp.ord DESC", (dated,)).fetchall()} if dated else {}
     return prov, supp
 
 
