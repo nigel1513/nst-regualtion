@@ -102,8 +102,8 @@ def eval_qa(limit: int = typer.Option(None, help="앞에서 N문항만"),
     r = run_eval(conn, deps, cases, log=not no_log)
     target = deps["os"].alias_target()
     lines = [f"# 질의응답 평가 ({datetime.now():%Y-%m-%d %H:%M})", "",
-             f"- 모델: {s.llm_model} · 임베딩 {s.embed_model} · 리랭커 {s.rerank_model} · 문항 {r['n']}개"
-             f" · 색인 {target}{' · 읽기 전용(기록 없음)' if no_log else ''}", "",
+             (f"- 모델: {s.llm_model} · 임베딩 {s.embed_model} · 리랭커 {s.rerank_model} · 문항 {r['n']}개"
+              f" · 색인 {target}{' · 읽기 전용(기록 없음)' if no_log else ''}"), "",
              "| 지표 | 값 | 목표 (spec 12) |", "|---|---|---|",
              f"| 상태 일치율 | {r['status_acc']} | - |", f"| 인용 정확도 (답변이 인용한 조문이 기대 조문) | {r['citation_hit']} | ≥ 0.90 |",
              f"| 검색 적중률 (기대 조문이 근거 1·2위) | {r['retrieval_hit']} | - |",

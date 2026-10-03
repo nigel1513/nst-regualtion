@@ -4,12 +4,12 @@ import time
 from contextlib import nullcontext
 from dataclasses import asdict
 
-from reg.search.service import search
 from reg.qa.analyze import analyze
 from reg.qa.answer import generate
 from reg.qa.evidence import expand
 from reg.qa.institutions import load_aliases, resolve_mention
 from reg.qa.mask import mask_pii
+from reg.search.service import search
 
 MIN_SCORE = 0.3
 
