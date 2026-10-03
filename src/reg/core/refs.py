@@ -336,6 +336,18 @@ def extract_refs(p: Prov, ctx: RefContext | None = None) -> list[RefCandidate]:
     return sorted(out, key=lambda r: r.start)
 
 
+# 기관 규정 번호('09-01 ', '0601 ', '지-19 ', '[본원 규정] ')는 본문 인용에 쓰지 않는다
+_TITLE_NUMBER = re.compile(r"^\s*(?:\[[^\]]{1,12}\]\s*|(?:[가-힣]-)?\d{2,4}(?:[-.]\d{1,3}){0,3}\s+)")
+
+
+def title_keys(title: str) -> set[str]:
+    """규정 제목으로 찾을 이름들: 정규화한 제목과, 앞의 기관 규정 번호를 뗀 제목."""
+    keys = {norm_title(title)}
+    if (stripped := _TITLE_NUMBER.sub("", title or "", count=1)) != (title or "") and len(norm_title(stripped)) >= 3:
+        keys.add(norm_title(stripped))
+    return keys
+
+
 def match_title(name: str, titles: dict[str, list[str]], prefixes: frozenset[str] = frozenset()) -> list[str]:
     """이름과 같은 제목. 없으면 기관명 접두어를 뗀 이름으로: '한국천문연구원 회계규정' → '회계규정' (R5).
 
@@ -393,7 +405,8 @@ def resolve_refs(conn, work_id: str) -> tuple[list[ResolvedRef], set[str]]:
     for w in conn.execute("SELECT id, title FROM regulation.work WHERE id LIKE 'kr/law/%%' OR id LIKE 'kr/admrul/%%'"
                           " OR institution_id = %s",
                           (work["institution_id"],)).fetchall():
-        titles.setdefault(norm_title(w["title"]), []).append(w["id"])
+        for key in title_keys(w["title"]):
+            titles.setdefault(key, []).append(w["id"])
     pvs = conn.execute(
         "SELECT DISTINCT pv.* FROM regulation.provision_version pv JOIN regulation.provision p ON p.id = pv.provision_id"
         " WHERE p.work_id = %s ORDER BY pv.id", (work_id,)).fetchall()

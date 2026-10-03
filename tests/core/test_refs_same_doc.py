@@ -140,3 +140,14 @@ def test_resolve_refs_reads_only_and_matches_store(conn, tmp_path):
     assert [(r.evidence, r.target_path, r.resolution) for r in rows] == \
            [(s["evidence_text"], s["target_path"], s["resolution"]) for s in stored]
     assert seeds == set()
+
+
+def test_title_keys_drop_institution_numbering():
+    """KIMS '09-01 급여규정', NIMS '0601 회계규정', KIT '[본원 규정] 회계규정', NIMS '지-19 …' — 본문은 '급여규정'으로 인용한다."""
+    from reg.core.refs import title_keys
+
+    assert title_keys("09-01 급여규정") == {"09-01급여규정", "급여규정"}
+    assert "회계규정" in title_keys("0601 회계규정") and "회계규정" in title_keys("[본원 규정] 회계규정")
+    assert "연구소고문변호사및노무사·회계사활용지침" in title_keys("지-19 연구소 고문 변호사 및 노무사·회계사 활용지침") \
+        or "연구소고문변호사및노무사회계사활용지침" in title_keys("지-19 연구소 고문 변호사 및 노무사·회계사 활용지침")
+    assert title_keys("CCTV 운영규정") == {"CCTV운영규정"}  # 영문 약어 제목은 그대로
