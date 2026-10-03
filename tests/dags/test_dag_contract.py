@@ -15,6 +15,7 @@ ALLOWED = {
     "reg.alerts.tasks": {"scan", "notify"},
     "reg.index.tasks": {"embed_check", "build", "gate", "publish", "prune", "GateFailed"},  # 품질 미달 예외 (재시도 없이 실패)
     "reg.ops.tasks": {"daily_summary", "maintenance"},
+    "reg.compare.tasks": {"classify_topics", "build_compare"},  # 기관 비교 (UI 개편 §4)
     "reg.ops.failures": {"record_task_failure"},   # M6-3 자체 실패 콜백
     "reg.wiring": {"register_sources"},            # process_all 전에 출처 처리기 등록 (M6-0 ruling)
 }

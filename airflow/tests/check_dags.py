@@ -33,6 +33,7 @@ EXPECTED = {
     "reg_publish": {"assets": ["regulation_structured"],
                     "tasks": {"graph_sync": (D, 2), "alerts_scan": (D, 2), "embed_check": ("gpu_pool", 6),
                               "index_build": ("gpu_pool", 6), "index_gate": (D, 3), "index_publish": (D, 1),
+                              "topics_classify": (D, 2), "compare_build": ("gpu_pool", 2),
                               "daily_summary": (D, 1), "watcher": (D, 0)}},
     "reg_notify": {"cron": "5 * * * *", "tasks": {"notify": (D, 2)}},
     "reg_maintenance": {"cron": "0 4 * * *", "tasks": {"maintenance": (D, 1)}},
@@ -47,6 +48,7 @@ TRIGGERS = {("reg_alio_daily", "reconcile"): "all_done", ("reg_alio_daily", "don
             ("reg_alio_daily", "watcher"): "one_failed", ("reg_backfill", "done"): "all_done",
             ("reg_backfill", "watcher"): "one_failed", ("reg_process", "quality_summary"): "all_done",
             ("reg_process", "watcher"): "one_failed", ("reg_publish", "daily_summary"): "all_done",
+            ("reg_publish", "topics_classify"): "all_done",
             ("reg_publish", "watcher"): "one_failed"}
 RETRY_DELAY = {("reg_publish", "embed_check"): timedelta(minutes=30),
                ("reg_publish", "index_build"): timedelta(minutes=30)}
