@@ -457,7 +457,7 @@ graph LR
 | CONTAINS에 `versions[]` | 공유된 부모 판본이 판본마다 다른 자식을 가질 수 있다 | Task 3 |
 | 날짜는 ISO 문자열 | `valid_from` 등을 문자열로 둔다. 사전순 비교 = 날짜 비교이고, API JSON에 그대로 쓸 수 있다 | Cypher 날짜 함수는 쓰지 못한다(Task 3) |
 | 제외 | `UNDATED` 판본, `REJECTED` 참조 | Task 3 |
-| 단위 라벨 | `Provision`에 단위 라벨을 하나 더 붙인다(`Article, Paragraph, Item, Subitem, Annex, Supplement, SuppArticle, Chapter, Section`). 코드에는 `Form`도 있지만 PostgreSQL에서 서식의 unit이 `annex`라 실제로는 **서식도 `Annex`**(path `form…`)다 | 실측: Annex 25,159 = annex 14,209 + form 10,950 |
+| 단위 라벨 | `Provision`에 단위 라벨을 하나 더 붙인다(`Article, Paragraph, Item, Subitem, Annex, Supplement, SuppArticle, Chapter, Section`). PostgreSQL은 서식도 unit `annex`(path `form…`)로 두지만, 그래프는 경로로 갈라 서식에 **`Form`** 라벨을 붙인다(`model.node_label`, 2026-10-03) | 실측: Annex 14,209 · Form 10,950 |
 
 ### B3. 라벨과 속성 (실측 개수: `MATCH (n) UNWIND labels(n) AS l RETURN l, count(*)`)
 

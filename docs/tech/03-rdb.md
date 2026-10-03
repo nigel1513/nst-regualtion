@@ -1886,8 +1886,8 @@ WHERE schemaname = 'regulation' AND relname IN ('reference','provision_change','
 
 | 대상 | 관찰 | 근거 |
 |---|---|---|
-| `work_alio_seq` | `idx_scan` 0. 조회문에 부분 인덱스 조건 `external_ids ? 'alio_seq'`가 없어서 planner가 못 쓴다 (§4.7 EXPLAIN) | `loader.py:24`, `reconcile.py:23,54,85` |
-| `provision_change.work_id` | 인덱스 없음. `rebuild_work`의 `DELETE … WHERE work_id = %s`가 규정마다 27만 행을 순차 스캔. `seq_scan` 96,269회, `seq_tup_read` 약 225억 행 | `EXPLAIN SELECT 1 FROM regulation.provision_change WHERE work_id = …` → Parallel Seq Scan |
+| `work_alio_seq` | (2026-10-03 해결: 조회문에 조건 추가) `idx_scan` 0. 조회문에 부분 인덱스 조건 `external_ids ? 'alio_seq'`가 없어서 planner가 못 쓴다 (§4.7 EXPLAIN) | `loader.py:24`, `reconcile.py:23,54,85` |
+| `provision_change.work_id` | (2026-10-03 해결: 마이그레이션 0009 `provision_change_work`·`reference_work`·`review_task_target`) 인덱스 없음. `rebuild_work`의 `DELETE … WHERE work_id = %s`가 규정마다 27만 행을 순차 스캔. `seq_scan` 96,269회, `seq_tup_read` 약 225억 행 | `EXPLAIN SELECT 1 FROM regulation.provision_change WHERE work_id = …` → Parallel Seq Scan |
 | `reference.work_id` | 인덱스 없음. `resolve_and_store`의 `DELETE … WHERE work_id = %s`가 순차 스캔. `seq_scan` 23,693회, `seq_tup_read` 약 20억 행 | `EXPLAIN SELECT 1 FROM regulation.reference WHERE work_id = …` → Parallel Seq Scan |
 | `review_task.target` 단독, `review_task.work_id` | 인덱스 없음. `record()`의 `WHERE target = %s AND status = 'OPEN'`이 순차 스캔(3만 행) | `EXPLAIN` → Seq Scan |
 | `law.change_log_law`, `law.article_mst` | 쓰는 읽기 쿼리가 아직 코드에 없다 | `grep` |

@@ -55,17 +55,18 @@ flowchart LR
 | [05-services-infra-e2e.md](05-services-infra-e2e.md) | **서비스·인프라·E2E**: 서버·GPU PC 구성과 포트, 버전, API 33개, 화면별 E2E 흐름(조회·참조 팝업·검색·질의응답·개정 알림·일일 배치), 질의응답 평가, 운영, 테스트 |
 | [NAIS 기술 문서](../../../nst-nexus/docs/tech/nais-technical-reference.md) (`/data/project/nst-nexus/docs/tech/nais-technical-reference.md`) | **NAIS**: 구성, 모듈, DB 스키마, `nais-datasets` 색인, 데이터 적재(업로드 → 검증 → 발행 → 준비도 → 색인), E2E, 현황, 계획 |
 
-## 3. 문서 작성 중 확인된 할 일 (모아 보기)
+## 3. 확인된 할 일과 처리 결과 (2026-10-03 갱신)
 
-| # | 내용 | 출처 문서 |
-|---|---|---|
-| 1 | law.go.kr OC 키 승인 대기 — 법령 DAG 3개 일시정지, `law` 스키마 0건 | 02, 03 |
-| 2 | law.go.kr 법령은 현재 코드상 현행 **전체**를 받음 → 필요한 법령만으로 범위 조정 필요 | 02 |
-| 3 | 미해석 참조 65,009건 중 약 41%는 같은 규정 안의 조문·별표 인용 → 파서 쪽 개선 여지 | 02 |
-| 4 | 인덱스 보강: `provision_change.work_id`, `reference.work_id`, `review_task.target`; `work_alio_seq` 부분 인덱스가 쿼리 조건 누락으로 미사용 | 03 |
-| 5 | 정리 대상: 미사용 `regulation.law_watch`, `nais` DB의 옛 `regulation` 스키마, 옛 색인 `nais-regulations-r14`(8.4GB), 멈춘 기록(pipeline_run 162, release 10) | 03, 04 |
-| 6 | 질문 속 기관명("천문연")이 기관 선택 없이 검색할 때 일반 결과에 적용되지 않음 | 05 |
-| 7 | GPU PC OpenSearch 데모 계정 남아 있음, 앱 계정 all_access → 외부 공개 전 정리 필요 | 04 |
-| 8 | OCR 작업이 `gpu_pool`에 묶여 있지 않음; KIMM `.xls` 1건 형식 오인식; 서식이 별표 라벨로 묶임 | 02, 04 |
-| 9 | KRIBB 수집 8회 연속 실패 기록 — 수정 코드가 Airflow 이미지에 들어간 것은 2026-10-03 재빌드부터 | 03 |
-| 10 | NAIS 포털 웹이 mock 모드로 배포되어 있음 (`NEXT_PUBLIC_API_MOCKING=enabled`) | NAIS |
+| # | 내용 | 처리 | 출처 문서 |
+|---|---|---|---|
+| 1 | law.go.kr OC 키 승인 대기 — 법령 DAG 3개 일시정지, `law` 스키마 0건 | **대기** (키 승인 후 `reg law full`) | 02, 03 |
+| 2 | law.go.kr 법령을 현행 전체로 받던 코드 | **해결**: 필요한 법령만 (설정 20 + 규정이 인용한 법령 1,099 + 그 시행령·시행규칙, 대상 이름 2,718). `reg law targets`로 목록 확인 | 02 |
+| 3 | 같은 규정 안 미해석 참조 | **해결**: 해석기·추출기 수정(자기 규정으로 잘못 연결된 약 1,200건 교정 포함), `reg refs reresolve` + 매일 `reg_process`에서 자동 재해석. 본문 속 `【별지 …】`·`■ [별지 …]` 제목 인식(파서 2026.10.7)으로 별표·서식 참조 약 4,100건 추가 해결 예상 — 전체 재파싱 2026-10-03 21:02 시작. 남은 미해석은 대부분 대상이 실제로 없는 경우(원본에 별표 없음 9,277, 다른 판본에만 있음 5,814) | 02 |
+| 4 | 인덱스 보강 | **해결**: 마이그레이션 0009 (`provision_change_work`, `reference_work`, `review_task_target`), ALIO 일련번호 조회가 부분 인덱스 `work_alio_seq`를 쓰도록 수정 | 03 |
+| 5 | 정리 대상: `regulation.law_watch`, `nais` DB의 옛 `regulation` 스키마, 옛 색인 `nais-regulations-r14`(8.4GB), 멈춘 기록(pipeline_run 162, release 10·14) | **사용자 결정 대기** (삭제는 되돌릴 수 없음; 기록 정리 SQL은 권한 제한으로 사용자 실행) | 03, 04 |
+| 6 | 질문 속 기관명 검색 | **해결**: 원인은 리랭커 순위. 기관을 알면 짚은 조문을 1위로, 조문 없이 기관명만 있어도 그 기관으로 좁힘 | 04, 05 |
+| 7 | GPU PC OpenSearch 데모 계정·앱 계정 all_access | **사용자 처리 필요** (Dashboards → Security, 권한 제한으로 대신 못 함) | 04 |
+| 8 | OCR `gpu_pool`, `.xls` 오인식, 서식 라벨 | **해결**: OCR을 `gpu_pool`에, OLE Office 파일(xls·doc)은 HWP로 받지 않음, 그래프에서 서식은 `Form`(10,950) 별표는 `Annex`(14,209) | 02, 04 |
+| 9 | KRIBB 수집 실패 | **해결 확인 대기**: 수정 코드가 Airflow 이미지에 들어감. 재파싱 후 자동 수집 재개 때 확인 | 03 |
+| 10 | NAIS 포털 웹 mock 모드 | NAIS 세션 담당 (알림 완료) | NAIS |
+| 11 | "중중중" 반복 글자 | **해결**: 같은 길이로 3번 이상 반복된 글자만 합침 (실데이터 3개 규정 11개 조문) | 02 |
