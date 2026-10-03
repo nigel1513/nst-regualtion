@@ -33,6 +33,49 @@ def full_cmd() -> None:
     _echo(tasks.sync_full)
 
 
+def targets_report(conn, cfg, top: int | None = None) -> dict:
+    """법령 미러 대상 목록과 사유·인용 수 (읽기만 한다)."""
+    from reg.sources.lawgo.scope import law_plan
+
+    p = law_plan(conn, cfg)
+    mirrored = {r["n"] for r in conn.execute(
+        "SELECT name_norm AS n FROM law.law_master WHERE family = 'law' AND status = '현행'").fetchall()}
+
+    def one(t) -> dict:
+        return {"name": t.name, "reasons": t.reasons, "citations": t.citations, "parent": t.parent,
+                "mirrored": t.norm in mirrored}
+    cited = [t for t in p.targets if "cited" in t.reasons]
+    return {"counts": p.counts() | {"cited_rows": sum(t.citations for t in cited), "max_targets": p.max_targets,
+                                    "mirrored": sum(1 for t in p.targets if t.norm in mirrored)},
+            "targets": [one(t) for t in p.targets[:top]], "dropped": [one(t) for t in p.dropped[:top or 50]]}
+
+
+@law.command("targets")
+def targets_cmd(top: int = typer.Option(None, help="앞에서 이만큼만 출력"),
+                as_json: bool = typer.Option(False, "--json", help="JSON으로 출력")) -> None:
+    """미러할 법령 목록(설정 시드 + 내부규정 인용 + 시행령·시행규칙)과 사유·인용 수. DB를 읽기만 한다."""
+    from reg.platform.runs import open_conn
+    from reg.sources.lawgo.config import load_config
+
+    with open_conn() as conn:
+        conn.execute("SET TRANSACTION READ ONLY")
+        rep = targets_report(conn, load_config(), top)
+        conn.rollback()
+    if as_json:
+        typer.echo(json.dumps(rep, ensure_ascii=False, indent=2))
+        return
+    c = rep["counts"]
+    typer.echo(f"대상 {c['total']}건 (상한 {c['max_targets']}, 넘쳐서 뺀 것 {c['dropped']}) — 설정 {c['config']} ·"
+               f" 인용 {c['cited']} (인용 {c['cited_rows']}회) · 시행령·규칙 {c['child']} · 미러됨 {c['mirrored']}")
+    for i, t in enumerate(rep["targets"], 1):
+        mark = "*" if t["mirrored"] else " "
+        typer.echo(f"{i:5d} {mark} {t['name']}\t{'+'.join(t['reasons'])}\t{t['citations']}")
+    if rep["dropped"]:
+        typer.echo(f"-- 상한으로 뺀 것 (앞 {len(rep['dropped'])}건) --")
+        for t in rep["dropped"]:
+            typer.echo(f"        {t['name']}\t{'+'.join(t['reasons'])}\t{t['citations']}")
+
+
 @law.command("link")
 def link_cmd() -> None:
     """내부규정 인용 → 법령 조문 외래키 (reg process 뒤에)."""

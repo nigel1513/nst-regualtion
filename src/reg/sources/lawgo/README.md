@@ -1,6 +1,6 @@
 # sources/lawgo — law.go.kr 법령 미러
 
-현행 법령 전체와 NST 산하에 필요한 행정규칙을 `law` 스키마(전용 DB `nst_regulation`)에 미러링한다.
+NST·출연연에 필요한 현행 법령(설정 시드 + 내부규정 인용 + 시행령·시행규칙)과 필요한 행정규칙을 `law` 스키마(전용 DB `nst_regulation`)에 미러링한다.
 내부규정 인용을 조문 외래키로 잇고, 인용된 것만 `regulation.work`로 승격한다.
 설계: `docs/superpowers/specs/2026-10-02-batch-pipeline-design.md` §3A · 계획: `docs/superpowers/plans/2026-10-02-m6-1-lawgo.md`
 
@@ -12,6 +12,7 @@
 | `xml.py` | 목록(`parse_list`)·법령 본문(`parse_law_xml`)·행정규칙 본문(`parse_admrul_xml`) 해석 |
 | `mirror.py` | `law` 스키마 쓰기 (이 모듈 밖에서 `law`에 쓰지 않는다) |
 | `sync.py` | 일 변경분·주간 전체 대조·별표 본문·canary·status |
+| `scope.py` | 법령 범위 (설정 `law.include` + 인용 법령형 이름 + 시행령·시행규칙, 상한 `law.max_targets`). `reg law targets`로 확인 |
 | `select.py` | 행정규칙 선별 (인용 이름 + 설정) |
 | `link.py` | `regulation.reference.target_law_id / target_law_article_id` |
 | `promote.py` · `handler.py` | 승격(outbox `regulation.law_fetched`) · 처리기(`PreparedVersion`) |
@@ -45,7 +46,8 @@
 
 ## 실행 순서
 
-1. 최초: `reg law full` (법령 5,627건 본문 ≈ 1시간 40분 + licbyl 목록 398쪽 + 행정규칙 카탈로그 242쪽)
+0. 대상 확인: `reg law targets` (DB 읽기만, API 호출 없음). 설정 시드·인용·시행령/규칙별 수와 상한으로 뺀 것을 보여준다
+1. 최초: `reg law full` (법령 목록 57쪽 + 대상 법령 본문 + licbyl 목록 398쪽 + 행정규칙 카탈로그 242쪽)
 2. 별표 본문 밀린 것: `reg law annex --limit 2000` (실행당 상한, `annex.body_limit_per_run`)
 3. 매일 01:00: `sync_daily` → `reg_process` 뒤 `link` → `promote` → `reg_process`
 4. 매주: `sync_full`
