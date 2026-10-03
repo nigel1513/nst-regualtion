@@ -8,7 +8,7 @@ export function Table({ caption, className, frameClassName, children }: {
 }) {
   return (
     // 표가 상자보다 넓을 때 키보드로도 스크롤할 수 있게 (axe scrollable-region-focusable)
-    <div role="region" aria-label={caption} tabIndex={0} className={cn("w-full overflow-x-auto rounded-md border border-border bg-bg-panel", focusRing, frameClassName)}>
+    <div role="region" aria-label={caption} tabIndex={0} className={cn("relative w-full overflow-x-auto rounded-md border border-border bg-bg-panel", focusRing, frameClassName)}>
       <table className={cn("w-full border-collapse text-small", className)}>
         <caption className="sr-only">{caption}</caption>
         {children}
