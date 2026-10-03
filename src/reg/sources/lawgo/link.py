@@ -98,10 +98,12 @@ def _sync_tasks(conn, tasks: dict[tuple[str, str], tuple[str, dict]]) -> None:
         conn.execute(
             "INSERT INTO regulation.review_task AS t (kind, target, work_id, detail) VALUES (%s,%s,%s,%s)"
             " ON CONFLICT (kind, target) DO UPDATE SET detail = EXCLUDED.detail,"
-            " status = CASE WHEN t.status = 'RESOLVED' THEN 'OPEN' ELSE t.status END,"
-            " resolved_at = CASE WHEN t.status = 'RESOLVED' THEN NULL ELSE t.resolved_at END",
+            " status = CASE WHEN t.status = 'RESOLVED' AND NOT coalesce(t.decision ? 'action', false) THEN 'OPEN'"
+            "  ELSE t.status END,"  # 사람이 해결한 작업(core.review 결정)은 다시 열지 않는다
+            " resolved_at = CASE WHEN t.status = 'RESOLVED' AND NOT coalesce(t.decision ? 'action', false) THEN NULL"
+            "  ELSE t.resolved_at END",
             (kind, target, wid, json.dumps(detail, ensure_ascii=False)))
     keys = [f"{k}|{t}" for k, t in tasks]
     conn.execute("UPDATE regulation.review_task SET status = 'RESOLVED', resolved_at = now()"
-                 " WHERE kind = ANY(%s) AND status = 'OPEN' AND NOT (kind || '|' || target = ANY(%s))",
+                 " WHERE kind = ANY(%s) AND status IN ('OPEN', 'HOLD') AND NOT (kind || '|' || target = ANY(%s))",
                  (list(KINDS), keys))
