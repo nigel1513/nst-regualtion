@@ -197,4 +197,7 @@ def create_app(dsn: str, blob: BlobStore, search_deps: dict | None = None) -> Fa
     from reg.api.provision_routes import router as provision_router  # 참조 팝업
 
     app.include_router(provision_router)
+    from reg.api.graph_routes import router as graph_router  # M7-G 구조 그래프
+
+    app.include_router(graph_router)
     return app
