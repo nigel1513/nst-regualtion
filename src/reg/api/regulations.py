@@ -2,6 +2,9 @@
 
 규범문서는 수백~수천 건이라 한 번에 읽어 파이썬에서 거르고 센다(집계는 자기 축의 필터만 빼고 — 다른 값의 건수도 보이게).
 종류는 제목 끝말로 나눈다: 규정(규정·규칙·정관·강령) / 요령·지침 / 기준·세칙 / 법령(law.go.kr 법령·행정규칙)."""
+import threading
+import time
+
 from fastapi import APIRouter, Query, Request
 
 from reg.api.home import work_href
@@ -24,6 +27,29 @@ SELECT w.id, w.title, w.status, w.abolished_on, i.code AS institution, i.name AS
 FROM regulation.work w LEFT JOIN regulation.institution i ON i.id = w.institution_id
 LEFT JOIN cur ON cur.work_id = w.id
 """
+
+
+_LOCK = threading.Lock()
+CACHE_SECONDS = 60      # 목록 기본 행은 수집·처리 때만 바뀐다: 앱마다 잠깐 기억해 두면 거르기·페이지 이동이 즉시
+
+
+def _base_rows(request: Request) -> tuple[list[dict], dict[str, list[str]] | None, dict[str, str]]:
+    st = request.app.state
+    with _LOCK:
+        hit = getattr(st, "reg_rows", None)
+        if hit and time.monotonic() - hit[0] < CACHE_SECONDS:
+            return hit[1]
+        with st.pool.connection() as c:
+            rows = c.execute(ROWS).fetchall()
+            topics = work_topics(c)
+            names = {r["code"]: r["name"] for r in c.execute(
+                "SELECT code, name FROM regulation.institution WHERE active ORDER BY id").fetchall()}
+        for r in rows:
+            r["kind"] = kind_group(r["id"], r["title"])
+            r["st"] = _status(r)
+            r["topic_keys"] = (topics or {}).get(r["id"], [])
+        st.reg_rows = (time.monotonic(), (rows, topics, names))
+        return rows, topics, names
 
 
 def kind_group(work_id: str, title: str) -> str:
@@ -64,15 +90,7 @@ def regulations(request: Request, q: str | None = Query(None, max_length=100),
                 status: str = Query("current", pattern="^(current|abolished|all)$"),
                 sort: str | None = Query(None, pattern="^(relevance|title|recent|articles|institution)$"),
                 page: int = Query(1, ge=1, le=10_000), size: int = Query(50, ge=1, le=500)):
-    with request.app.state.pool.connection() as c:
-        rows = c.execute(ROWS).fetchall()
-        topics = work_topics(c)
-        names = {r["code"]: r["name"] for r in c.execute(
-            "SELECT code, name FROM regulation.institution WHERE active ORDER BY id").fetchall()}
-    for r in rows:
-        r["kind"] = kind_group(r["id"], r["title"])
-        r["st"] = _status(r)
-        r["topic_keys"] = (topics or {}).get(r["id"], [])
+    rows, topics, names = _base_rows(request)
     terms = _terms(q)
     insts, kinds, tps = set(inst or []), set(kind or []), set(topic or [])
 

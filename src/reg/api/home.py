@@ -12,6 +12,8 @@ from reg.api.topics import has_topics, topic_label
 router = APIRouter()
 
 KIND_LABEL = {"ADDED": "신설", "DELETED": "삭제", "MODIFIED": "개정", "RENUMBERED": "조 이동"}
+SKIP_UNITS = {"chapter", "section", "supplement", "supp_article"}
+RE_NOTE = re.compile(r"\s*<[^>]*>?.*$")
 RE_VALUE = re.compile(r"\d[\d,]*(?:\.\d+)?\s*(?:일|개월|년|시간|분|만원|천원|억원|원|%|퍼센트|명|회|세|km|킬로미터)")
 
 STATS = """
@@ -64,11 +66,13 @@ def summarize_changes(rows: list[dict], limit: int = 3) -> dict:
     label·heading은 소속 조의 라벨이다. 같은 조의 여러 항이 바뀌면 한 번만 쓴다. 조 전체가 생기거나 없어지면 신설·삭제."""
     arts: dict[str, dict] = {}
     for r in sorted(rows, key=lambda x: x.get("ord") if x.get("ord") is not None else 1e9):
-        if r["kind"] == "ANNOTATION_ONLY":
+        # 장·절 제목, 개정마다 붙는 부칙은 "바뀐 조문"이 아니다
+        if r["kind"] == "ANNOTATION_ONLY" or r.get("unit") in SKIP_UNITS or r["path"].startswith("supp"):
             continue
         ap = r["path"].split(".")[0]
         own = ap == r["path"]
-        a = arts.setdefault(ap, {"path": ap, "label": r["label"], "heading": r.get("heading"), "kind": "MODIFIED",
+        heading = RE_NOTE.sub("", r.get("heading") or "").strip() or None   # "<개정 '19.1.21.>" 같은 주석은 뺀다
+        a = arts.setdefault(ap, {"path": ap, "label": r["label"], "heading": heading, "kind": "MODIFIED",
                                  "detail": None, "values": []})
         if own and r["kind"] in ("ADDED", "DELETED", "RENUMBERED"):
             a["kind"] = r["kind"]

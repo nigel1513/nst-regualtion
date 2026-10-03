@@ -105,3 +105,18 @@ def test_summarize_changes_falls_back_to_article_list():
     assert [a["label"] for a in s["articles"]] == ["제1조", "제2조", "제3조"] and s["more"] == 2
     assert s["text"] == "제1조 개정 · 제2조 개정 · 제3조 개정 외 2건"
     assert summarize_changes([], limit=3) == {"articles": [], "more": 0, "text": ""}
+
+
+def test_summarize_changes_skips_chapters_supplements_and_cleans_headings():
+    rows = [{"kind": "MODIFIED", "path": "c3", "unit": "chapter", "from_text": "", "to_text": "", "label": "제3장",
+             "heading": "일비", "ord": 1},
+            {"kind": "ADDED", "path": "supp@2024-01-17", "unit": "supplement", "from_text": None, "to_text": "부칙",
+             "label": "부칙", "heading": None, "ord": 9},
+            {"kind": "ADDED", "path": "supp@2024-01-17/a1", "unit": "supp_article", "from_text": None, "to_text": "시행",
+             "label": "부칙", "heading": None, "ord": 10},
+            {"kind": "MODIFIED", "path": "annex1", "unit": "annex", "from_text": "가", "to_text": "나", "label": "별표 제1호",
+             "heading": "<전면개정 '12.8.27., 개정 '14.6.18.,", "ord": 5},
+            {"kind": "MODIFIED", "path": "a5", "unit": "article", "from_text": "가", "to_text": "나", "label": "제5조",
+             "heading": "여비 <개정 '19.1.21.>", "ord": 3}]
+    s = summarize_changes(rows)
+    assert [(a["label"], a["heading"]) for a in s["articles"]] == [("제5조", "여비"), ("별표 제1호", None)]
