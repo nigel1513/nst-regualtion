@@ -8,7 +8,7 @@ def _doc(*lines):
 
 
 def test_parser_version_bumped():
-    assert PARSER_VERSION == "2026.10.6"
+    assert PARSER_VERSION == "2026.10.7"
 
 
 def test_article_heading_with_inner_parentheses():
