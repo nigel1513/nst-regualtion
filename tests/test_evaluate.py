@@ -40,3 +40,18 @@ def test_citation_metric_uses_the_answer_citations_and_reports_checks(monkeypatc
                                                                      "article": "a27"}}])
     assert r["retrieval_hit"] == 1.0 and r["citation_hit"] == 0.0  # 근거에는 있었지만 답변은 a4를 인용
     assert r["numbers_rate"] == 1.0 and r["consistency_rate"] == 0.0
+
+
+def test_run_eval_passes_log_flag_and_reports_top(monkeypatch):
+    from reg.qa import evaluate as E
+
+    seen = {}
+
+    def fake(*a, **k):
+        seen.update(k)
+        return {"status": "answered", "institution": "KASI", "evidence": [], "answer": {"결론": "충족", "근거": []},
+                "id": None, "retrieved": [{"version_id": "v", "path": "a27.p1", "score": 1.0}]}
+
+    monkeypatch.setattr(E, "ask", fake)
+    r = run_eval(None, {}, [{"id": "x", "question": "q", "expect": {"status": "answered"}}], log=False)
+    assert seen["log"] is False and r["cases"][0]["top"] == "v a27.p1" and r["cases"][0]["verdict"] == "충족"

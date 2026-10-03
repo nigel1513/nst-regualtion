@@ -1,7 +1,7 @@
 """overview §2.8: 청크에 기관 코드·이름·약칭을 남기고, 검색은 코드·정식명·약칭 어느 것으로도 거른다."""
 from reg.index.indexer import INDEX_FORMAT, build_release
 from reg.index.service import search
-from tests.index.fakes import FakeEmbedder
+from tests.index.fakes import FakeEmbedder, make_doc
 
 LAW = "kr/law/000999"
 
@@ -80,16 +80,13 @@ def test_institution_name_in_question_boosts_bm25(osx):
         def embed(self, texts):
             raise ProviderError("down")
 
-    base = {"release_id": "t", "version_id": "v", "path": "a1", "path_label": "제1조", "work_kind": "INTERNAL_REG",
-            "title": "여비규정", "text": "출장 여비는 규정에 따라 정산한다.", "context_text": "여비규정",
-            "effective_from": "2024-01-01", "effective_to": None, "version_state": "CURRENT",
-            "embedding": [0.1, 0.2, 0.3, 0.4], "embedding_model": "t"}
-    docs = [{**base, "chunk_id": "e", "work_id": "kr/reg/ETRI/여비규정", "institution": "ETRI",
-             "institution_name": "한국전자통신연구원", "institution_aliases": ["에트리"]},
-            {**base, "chunk_id": "k", "work_id": "kr/reg/KASI/여비규정", "institution": "KASI",
-             "institution_name": "한국천문연구원", "institution_aliases": ["천문연"]}]
-    osx.create_index("nais-regulations-r903", 4)
-    osx.bulk("nais-regulations-r903", docs)
-    osx.refresh("nais-regulations-r903")
-    r = search(osx, Down(), None, "한국천문연구원 출장 여비 정산", rerank=False, index="nais-regulations-r903")
+    base = make_doc(text="출장 여비는 규정에 따라 정산한다.")
+    docs = [{**base, "doc_id": "e", "article_key": "e|a1", "work_id": "kr/reg/ETRI/여비규정", "institution": "ETRI",
+             "institution_name": "한국전자통신연구원", "institution_aliases": ["에트리"], "breadcrumb": "한국전자통신연구원 > 여비규정"},
+            {**base, "doc_id": "k", "article_key": "k|a1", "work_id": "kr/reg/KASI/여비규정", "institution": "KASI",
+             "institution_name": "한국천문연구원", "institution_aliases": ["천문연"], "breadcrumb": "한국천문연구원 > 여비규정"}]
+    osx.create_index("reg-provisions-r903", 4)
+    osx.bulk("reg-provisions-r903", docs)
+    osx.refresh("reg-provisions-r903")
+    r = search(osx, Down(), None, "한국천문연구원 출장 여비 정산", rerank=False, index="reg-provisions-r903")
     assert r["mode"] == "bm25" and [h["institution"] for h in r["hits"]] == ["KASI", "ETRI"]

@@ -1,4 +1,5 @@
 from reg.index.os import OpenSearch
+from tests.index.fakes import make_doc
 
 
 def test_index_bulk_alias_and_nori(os_url):
@@ -6,22 +7,18 @@ def test_index_bulk_alias_and_nori(os_url):
     if os.alias_target():  # 같은 세션의 다른 테스트가 남긴 색인 정리 (컨테이너는 세션 공유)
         os.delete_index(os.alias_target())
     os.put_pipeline()
-    os.create_index("nais-regulations-rt1", 4)
-    doc = {"chunk_id": "c1", "release_id": "t1", "work_id": "w", "version_id": "w@2024-01-17", "path": "a27",
-           "path_label": "제27조(출장증빙의 제출)", "institution": "KASI", "work_kind": "INTERNAL_REG", "title": "여비규정",
-           "text": "출장자는 출장 종료일 다음 날을 기점으로 7일 이내에 증빙서를 제출하여야 한다.", "context_text": "여비규정 > 보칙",
-           "effective_from": "2024-01-17", "effective_to": None, "version_state": "CURRENT",
-           "embedding": [0.1, 0.2, 0.3, 0.4], "embedding_model": "t"}
-    assert os.bulk("nais-regulations-rt1", [doc]) == 1
-    os.refresh("nais-regulations-rt1")
-    assert os.alias_target() is None and os.swap_alias("nais-regulations-rt1") is None
-    assert os.alias_target() == "nais-regulations-rt1"
+    os.create_index("reg-provisions-rt1", 4)
+    doc = make_doc()
+    assert os.bulk("reg-provisions-rt1", [doc]) == 1
+    os.refresh("reg-provisions-rt1")
+    assert os.alias_target() is None and os.swap_alias("reg-provisions-rt1") is None
+    assert os.alias_target() == "reg-provisions-rt1"
     hits = os.search({"query": {"match": {"text": "증빙서"}}})["hits"]["hits"]   # nori가 '증빙서를'을 '증빙서'로
-    assert hits[0]["_source"]["path"] == "a27"
-    os.create_index("nais-regulations-rt2", 4)
-    assert os.swap_alias("nais-regulations-rt2") == "nais-regulations-rt1" and os.alias_target() == "nais-regulations-rt2"
-    os.delete_index("nais-regulations-rt1")
-    os.delete_index("nais-regulations-rt2")
+    assert hits[0]["_source"]["path"] == "a27.p1"
+    os.create_index("reg-provisions-rt2", 4)
+    assert os.swap_alias("reg-provisions-rt2") == "reg-provisions-rt1" and os.alias_target() == "reg-provisions-rt2"
+    os.delete_index("reg-provisions-rt1")
+    os.delete_index("reg-provisions-rt2")
 
 
 def test_release_tables(conn):

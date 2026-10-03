@@ -1,8 +1,9 @@
-"""OpenSearch HTTP 클라이언트 (SDK 없이). 이 프로젝트 이름(nais-regulations*)만 다룬다."""
+"""OpenSearch HTTP 클라이언트 (SDK 없이). 이 프로젝트 이름(reg-provisions*)만 다룬다."""
 import json
 
 import httpx
 
+from reg.index import analysis
 from reg.index.mapping import ALIAS, PIPELINE, PIPELINE_BODY, index_body
 
 
@@ -20,7 +21,8 @@ class OpenSearch:
 
     def create_index(self, name: str, dim: int) -> None:
         assert name.startswith(ALIAS + "-")
-        self._ok(self.c.put(f"/{name}", json=index_body(dim)))
+        synonyms, userdict = analysis.load()
+        self._ok(self.c.put(f"/{name}", json=index_body(dim, synonyms, userdict)))
 
     def delete_index(self, name: str) -> None:
         assert name.startswith(ALIAS + "-")
@@ -28,7 +30,7 @@ class OpenSearch:
         if r.status_code not in (200, 404):
             self._ok(r)
 
-    def bulk(self, name: str, docs: list[dict], id_field: str = "chunk_id") -> int:
+    def bulk(self, name: str, docs: list[dict], id_field: str = "doc_id") -> int:
         if not docs:
             return 0
         lines = []
@@ -49,7 +51,7 @@ class OpenSearch:
         return self._ok(self.c.get(f"/{name}/_count"))["count"]
 
     def indexes(self) -> list[str]:
-        """이 프로젝트 색인(nais-regulations-*) 이름. 없으면 []."""
+        """이 프로젝트 색인(reg-provisions-*) 이름. 없으면 []."""
         rows = self._ok(self.c.get(f"/_cat/indices/{ALIAS}-*", params={"format": "json", "h": "index"}))
         return sorted(r["index"] for r in rows)
 

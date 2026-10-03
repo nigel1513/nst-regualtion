@@ -2,7 +2,7 @@
 import re
 
 from reg.platform.llm import ProviderError
-from reg.qa.evidence import Evidence
+from reg.qa.evidence import Evidence, sub_label
 
 VERDICTS = ["미충족", "충족", "조건부", "판단불가"]
 ANSWER_SCHEMA = {"type": "object", "required": ["결론", "근거", "설명", "확인_필요", "문의처"], "properties": {
@@ -138,8 +138,12 @@ def verify(answer: dict, evidence: list[Evidence], question_numbers: set[str],
 
 
 def _prompt(question: str, analysis, evidence: list[Evidence], problems: list[str] | None) -> list[dict]:
+    def hint(e: Evidence) -> str:   # 검색이 조 안에서 맞힌 항·호 (M7: 항 단위 근거)
+        labels = [x for x in (sub_label(p) for p in e.matched_paths) if x]
+        return f" · 질문과 맞는 부분: {', '.join(labels)}" if labels else ""
+
     ev = "\n\n".join(f"[{e.id}] {e.title} {e.label} (시행 {e.effective_from or '미상'}"
-                     f"{', ' + e.rel if e.rel else ''})\n{e.text}" for e in evidence)
+                     f"{', ' + e.rel if e.rel else ''}){hint(e)}\n{e.text}" for e in evidence)
     user = f"질문: {question}\n질문 유형: {analysis.question_type}\n\n근거:\n{ev}"
     if problems:
         user += "\n\n이전 답변의 문제: " + ", ".join(problems) + " — 근거 본문을 글자 그대로 인용하고, 근거에 없는 숫자를 쓰지 말 것."

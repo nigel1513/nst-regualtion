@@ -9,6 +9,9 @@ from reg.platform.llm import ProviderError
 
 log = logging.getLogger(__name__)
 
+# ops.release에는 옛 청크 색인(nais-regulations-r*) 줄도 남아 있다. 이 모듈의 판단은 모두 자기 줄만 본다.
+LINE = f"starts_with(os_index, '{ALIAS}-r')"   # LIKE의 % 는 psycopg 매개변수 자리와 겹친다
+
 
 def _release(conn, release_id: int) -> dict:
     r = conn.execute("SELECT id, state, os_index, stats FROM ops.release WHERE id = %s", (release_id,)).fetchone()
@@ -34,7 +37,7 @@ def publish_release(conn, os, release_id: int, require_gate: bool = True) -> dic
         raise RuntimeError(f"release {release_id}: 품질 게이트를 통과하지 않음")
     if os.count(r["os_index"]) != stats.get("chunks"):
         raise RuntimeError(f"release {release_id}: 색인 {r['os_index']} 건수가 빌드 기록과 다름")
-    conn.execute("UPDATE ops.release SET state = 'RETIRED' WHERE state = 'PUBLISHED'")
+    conn.execute(f"UPDATE ops.release SET state = 'RETIRED' WHERE state = 'PUBLISHED' AND {LINE}")
     conn.execute("UPDATE ops.release SET state = 'PUBLISHED', published_at = now() WHERE id = %s", (release_id,))
     try:
         old = os.swap_alias(r["os_index"])
@@ -97,7 +100,7 @@ def gate_release(conn, os, embedder, reranker, release_id: int, smoke: list[dict
     stats = r["stats"] or {}
     if r["state"] != "BUILDING" or not stats.get("built"):
         raise RuntimeError(f"release {release_id} 상태 {r['state']}: 게이트를 볼 수 없음 (다시 빌드)")
-    prev = conn.execute("SELECT stats FROM ops.release WHERE state = 'PUBLISHED' AND id <> %s"
+    prev = conn.execute(f"SELECT stats FROM ops.release WHERE state = 'PUBLISHED' AND id <> %s AND {LINE}"
                         " ORDER BY published_at DESC NULLS LAST, id DESC LIMIT 1", (release_id,)).fetchone()
     chunks = stats["chunks"]
     prev_chunks = (prev["stats"] or {}).get("chunks") if prev else None
@@ -136,14 +139,14 @@ def prune_releases(conn, os, keep_building_hours: int = 6, dry_run: bool = False
     """게시본과 직전 게시본만 남긴다 (spec 6.2 정리). 진행 중인 빌드와 지금 alias 대상은 언제나 남긴다.
     색인 목록을 먼저 읽고 DB·alias를 나중에 읽어, 그 사이 만들어지거나 게시된 색인을 지우지 않는다."""
     names = os.indexes()
-    cur = conn.execute("SELECT os_index FROM ops.release WHERE state = 'PUBLISHED'"
+    cur = conn.execute(f"SELECT os_index FROM ops.release WHERE state = 'PUBLISHED' AND {LINE}"
                        " ORDER BY published_at DESC NULLS LAST, id DESC LIMIT 1").fetchone()
-    prev = conn.execute("SELECT os_index FROM ops.release WHERE state = 'RETIRED' AND published_at IS NOT NULL"
+    prev = conn.execute(f"SELECT os_index FROM ops.release WHERE state = 'RETIRED' AND published_at IS NOT NULL AND {LINE}"
                         " ORDER BY published_at DESC, id DESC LIMIT 1").fetchone()
-    building = conn.execute("SELECT os_index FROM ops.release WHERE state = 'BUILDING'"
+    building = conn.execute(f"SELECT os_index FROM ops.release WHERE state = 'BUILDING' AND {LINE}"
                             " AND created_at > now() - make_interval(hours => %s)", (keep_building_hours,)).fetchall()
     stale_rows = conn.execute(
-        "SELECT id, os_index FROM ops.release WHERE state = 'BUILDING'"
+        f"SELECT id, os_index FROM ops.release WHERE state = 'BUILDING' AND {LINE}"
         " AND created_at <= now() - make_interval(hours => %s) ORDER BY id", (keep_building_hours,)).fetchall()
     keep = {r["os_index"] for r in (cur, prev, *building) if r}
     alias = os.alias_target()

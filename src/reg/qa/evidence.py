@@ -1,5 +1,7 @@
-"""근거 확장 (spec 8.2-5): 조 전체 + 예외 조항 + 참조 대상 — PostgreSQL에서 읽는다."""
-from dataclasses import dataclass
+"""근거 확장 (spec 8.2-5): 조 전체 + 예외 조항 + 참조 대상 — PostgreSQL에서 읽는다.
+M7: 검색이 조 안에서 맞은 항·호(matches)를 matched_paths로 넘겨, 답변이 그 항을 인용하고 화면이 강조하게 한다."""
+import re
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -14,6 +16,25 @@ class Evidence:
     role: str
     effective_from: str | None
     rel: str | None = None
+    matched_paths: list[str] = field(default_factory=list)
+
+
+def sub_label(path: str) -> str:
+    """조 아래 경로의 정식 라벨: a27.p1.i3.s가 → '제1항 제3호 가목' (조 자체는 '')."""
+    out = []
+    for seg in path.split(".")[1:]:
+        if m := re.fullmatch(r"p(\d+)(?:~\d+)?", seg):
+            out.append(f"제{int(m[1])}항")
+        elif m := re.fullmatch(r"i(\d+)(?:-(\d+))?(?:~\d+)?", seg):
+            out.append(f"제{int(m[1])}호" + (f"의{int(m[2])}" if m[2] else ""))
+        elif m := re.fullmatch(r"s([가-힣])(?:~\d+)?", seg):
+            out.append(f"{m[1]}목")
+    return " ".join(out)
+
+
+def _matched(h: dict, art: str) -> list[str]:
+    paths = [m["path"] for m in h.get("matches") or []] or [h["path"]]
+    return list(dict.fromkeys(p for p in paths if p.startswith(art + ".")))
 
 
 def _article_text(conn, version_id: str, article: str) -> tuple[str, str, list[int]] | None:
@@ -55,7 +76,8 @@ def expand(conn, hits: list[dict], limit_articles: int = 4, budget: int = 8000, 
     seen: set[tuple[str, str]] = set()
     used = 0
 
-    def add(version_id: str, article: str, role: str, rel: str | None = None) -> list[int] | None:
+    def add(version_id: str, article: str, role: str, rel: str | None = None,
+            matched: list[str] | None = None) -> list[int] | None:
         nonlocal used
         if (version_id, article) in seen:
             return None
@@ -66,7 +88,8 @@ def expand(conn, hits: list[dict], limit_articles: int = 4, budget: int = 8000, 
         seen.add((version_id, article))
         used += len(got[1])
         out.append(Evidence(f"E{len(out) + 1}", meta["work_id"], version_id, meta["title"], article, got[0], got[1],
-                            role, meta["effective_from"].isoformat() if meta["effective_from"] else None, rel))
+                            role, meta["effective_from"].isoformat() if meta["effective_from"] else None, rel,
+                            matched or []))
         return got[2]
 
     primaries = []
@@ -74,7 +97,7 @@ def expand(conn, hits: list[dict], limit_articles: int = 4, budget: int = 8000, 
         art = h["path"].split("#")[0].split(".")[0]
         if len(primaries) >= limit_articles or (h["version_id"], art) in seen:
             continue
-        pv_ids = add(h["version_id"], art, "primary")
+        pv_ids = add(h["version_id"], art, "primary", matched=_matched(h, art))
         if pv_ids:
             primaries.append((h, art, pv_ids))
     for h, art, pv_ids in primaries:

@@ -92,3 +92,32 @@ def test_db_connection_is_not_held_during_llm_calls(loaded, deps):
 
     r = ask(pool, {**deps, "llm": Watch(good(loaded))}, "천문연 출장 10일 지났어요")
     assert r["status"] == "answered" and held and set(held) == {0}
+
+
+def test_evidence_carries_matched_paragraph(loaded, deps):
+    r = ask(loaded, {**deps, "llm": SeqLLM(good(loaded))}, "천문연 출장 다녀온 지 10일 지났는데 증빙서를 안 냈어요")
+    e = r["evidence"][0]
+    assert e["path"] == "a27" and "a27.p1" in e["matched_paths"]
+
+
+def test_citation_question_puts_cited_article_first(loaded, deps):
+    r = ask(loaded, {**deps, "llm": SeqLLM(None, fail=True)}, "천문연 여비규정 제3조의3 제2항에 따르면 출장 증빙 기한은?")
+    assert r["evidence"][0]["path"] == "a3-3" and r["evidence"][0]["matched_paths"] == ["a3-3.p2"]
+
+
+def test_ask_without_log_writes_nothing(loaded, deps):
+    before = loaded.execute("SELECT count(*) AS n FROM ops.qa_log").fetchone()["n"]
+    r = ask(loaded, {**deps, "llm": SeqLLM(good(loaded))}, "천문연 출장 10일 지났는데 증빙서를 안 냈어요", log=False)
+    assert r["id"] is None and r["retrieved"][0]["path"].startswith("a27")
+    assert loaded.execute("SELECT count(*) AS n FROM ops.qa_log").fetchone()["n"] == before
+
+
+def test_prompt_names_matched_paragraph():
+    from reg.qa.analyze import Analysis
+    from reg.qa.answer import _prompt
+    from reg.qa.evidence import Evidence
+
+    e = Evidence("E1", "w", "v", "여비규정", "a27", "제27조(출장증빙의 제출)", "① 7일 이내", "primary", None, None,
+                 ["a27.p1", "a27.p2.i3"])
+    user = _prompt("q", Analysis("KASI", None, "기한", 10), [e], None)[1]["content"]
+    assert "질문과 맞는 부분: 제1항, 제2항 제3호" in user

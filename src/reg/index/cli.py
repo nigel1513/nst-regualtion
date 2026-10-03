@@ -8,8 +8,9 @@ index = typer.Typer(no_args_is_help=True, help="검색 색인(게시 버전)")
 
 @index.command("build")
 def build_cmd(no_publish: bool = typer.Option(False, "--no-publish", help="빌드·게이트까지만"),
-              force: bool = typer.Option(False, "--force", help="변화가 없어도 새로 만든다")) -> None:
-    st = tasks.build(force=force)
+              force: bool = typer.Option(False, "--force", help="변화가 없어도 새로 만든다"),
+              embed_pause: float = typer.Option(None, "--embed-pause", help="임베딩 요청 사이 쉬는 초 (GPU 양보)")) -> None:
+    st = tasks.build(force=force, **({"embed_pause": embed_pause} if embed_pause is not None else {}))
     if st.get("skipped"):
         typer.echo(f"변화 없음: 게시본 release {st['release_id']} 유지")
         return

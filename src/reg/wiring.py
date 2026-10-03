@@ -17,11 +17,13 @@ def subcommands() -> list:
     from reg.index.cli import index
     from reg.ocr.cli import ocr  # M6-5
     from reg.ops.cli import app as ops  # M6-3
+    from reg.search.cli import search_app  # M7-S
     from reg.sources.alio.cli import alio
     from reg.sources.lawgo.cli import law
 
     return [("alio", alio), ("law", law), ("index", index), ("graph", graph), ("alerts", alerts), ("owners", owners),
-            ("ocr", ocr), ("ops", ops), ("quality", quality), ("annex", annex)]
+            ("ocr", ocr), ("ops", ops), ("quality", quality), ("annex", annex),
+            ("search", search_app)]
 
 
 def process_command():

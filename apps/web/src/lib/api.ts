@@ -41,15 +41,29 @@ export type ReviewTask = {
   detail: Record<string, unknown>; status: string; created_at: string;
 };
 
+export type HMatch = { path: string; label: string | null; unit: string | null; highlight: string | null; score: number; rerank_score?: number };
+export type HUnit = { path: string; unit: string; label: string | null; marker: string | null; heading: string | null; text: string; window: number; parent_path: string | null };
 export type HHit = {
   chunk_id: string; work_id: string; version_id: string; path: string; path_label: string; title: string;
   institution: string | null; text: string; score: number; rerank_score?: number;
+  article_path?: string; full_label?: string | null; institution_name?: string | null; family?: string | null;
+  effective_from?: string | null; matches?: HMatch[]; units?: HUnit[];
 };
-export type HSearch = { mode: "hybrid" | "bm25"; reranked: boolean; release_id: string | null; hits: HHit[] };
+export type LookupHit = {
+  doc_id: string; work_id: string; version_id: string; path: string; article_path: string; unit: string; label: string | null;
+  marker: string | null; full_label: string; title: string; heading: string | null; institution: string | null;
+  institution_name: string | null; family: string | null; text: string; article_text?: string | null; score: number;
+};
+export type Facet = { value: string; count: number; name?: string };
+export type Citation = { institution: string | null; title: string | null; article: number | null; paragraph: number | null; item: number | null; annex: number | null };
+export type HSearch = {
+  mode: "hybrid" | "bm25"; reranked: boolean; release_id: string | null; hits: HHit[];
+  lookup?: LookupHit[]; citation?: Citation | null; facets?: { institution: Facet[]; kind: Facet[]; title: Facet[] };
+};
 
 export type QaEvidence = {
   id: string; work_id: string; version_id: string; title: string; path: string; label: string; text: string;
-  role: string; effective_from: string | null; rel: string | null;
+  role: string; effective_from: string | null; rel: string | null; matched_paths?: string[];
 };
 export type QaAnswer = { 결론: string; 근거: { id: string; 인용: string }[]; 설명: string; 확인_필요: string[]; 문의처: string };
 export type QaResult = {

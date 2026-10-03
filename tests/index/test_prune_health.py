@@ -10,10 +10,10 @@ def _build(conn, os, publish=True):
 
 def test_prune_keeps_published_and_previous(loaded, osx):
     r = [_build(loaded, osx) for _ in range(4)]
-    osx.create_index("nais-regulations-rt1", 4)                       # 이 규칙 밖 이름은 건드리지 않는다
+    osx.create_index("reg-provisions-rt1", 4)                       # 이 규칙 밖 이름은 건드리지 않는다
     out = prune_releases(loaded, osx)
     assert sorted(out["deleted"]) == sorted([r[0]["index"], r[1]["index"]])
-    assert osx.indexes() == sorted([r[2]["index"], r[3]["index"], "nais-regulations-rt1"])
+    assert osx.indexes() == sorted([r[2]["index"], r[3]["index"], "reg-provisions-rt1"])
     assert osx.alias_target() == r[3]["index"]
 
 

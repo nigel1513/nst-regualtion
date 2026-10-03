@@ -36,12 +36,14 @@ def embed_check() -> bool:
     return ok
 
 
-def build(force: bool = False) -> dict:
-    """새 release 색인을 만든다(게시하지 않음). 변화 없는 날은 {"skipped": True, "release_id": 게시본 id}."""
+def build(force: bool = False, embed_pause: float | None = None) -> dict:
+    """새 release 색인을 만든다(게시하지 않음). 변화 없는 날은 {"skipped": True, "release_id": 게시본 id}.
+    embed_pause: 임베딩 요청 사이 쉬는 초 (GPU를 운영 질의와 나눠 쓴다). 없으면 REG_INDEX_EMBED_PAUSE, 기본 0."""
     s = get_settings()
+    pause = float(_os.environ.get("REG_INDEX_EMBED_PAUSE") or 0) if embed_pause is None else embed_pause
     with task_run("index.build") as rec, open_conn() as conn:
-        out = build_release(conn, OpenSearch(s.os_url), EmbeddingProvider(s.embed_url, s.embed_model),
-                            s.embed_model, publish=False, force=force)
+        out = build_release(conn, OpenSearch(s.os_url), EmbeddingProvider(s.embed_url, s.embed_model, batch=32),
+                            s.embed_model, publish=False, force=force, embed_pause=pause)
         rec.update(out)
     return out
 

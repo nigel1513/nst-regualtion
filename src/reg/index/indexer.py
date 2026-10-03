@@ -1,12 +1,13 @@
-"""release 빌드 (spec 6.2): 청크 → (묶음마다) 캐시 조회·없는 것만 임베딩 → bulk → 건수 확인.
+"""release 빌드 (spec 6.2, M7 §2.1): 조항 단위 문서 → (묶음마다) 캐시 조회·없는 것만 임베딩 → bulk → 건수 확인.
 모든 벡터를 한꺼번에 들고 있지 않는다. 게시는 release.publish_release가 한다."""
 import hashlib
 import json
+import time
 
 from reg.index.cache import embed_cached, text_hash
-from reg.index.chunks import chunk_version
 from reg.index.mapping import ALIAS
-from reg.index.release import publish_release
+from reg.index.release import LINE, publish_release
+from reg.index.units import unit_docs
 
 BULK = 500
 
@@ -21,17 +22,17 @@ VERSIONS_SQL = (
     f" CASE WHEN {IS_LAW} THEN '{{}}'::text[] ELSE coalesce(i.aliases, '{{}}') END AS institution_aliases"
     " FROM regulation.work_version v JOIN regulation.work w ON w.id = v.work_id"
     " LEFT JOIN regulation.institution i ON i.id = w.institution_id WHERE v.version_state <> 'UNDATED'"
-    " ORDER BY v.id")
+    " ORDER BY (v.version_state = 'CURRENT') DESC, v.id")   # 현행 먼저: 첫 묶음의 벡터로 색인 차원을 정한다
 
 
 def _provisions(conn, version_id: str) -> list[dict]:
     return conn.execute(
-        "SELECT pv.path, pv.unit, pv.number_label AS label, pv.heading, pv.text, pv.parent_path AS parent"
+        "SELECT pv.id, pv.path, pv.unit, pv.number_label AS label, pv.heading, pv.text, pv.parent_path AS parent"
         " FROM regulation.version_provision vp JOIN regulation.provision_version pv ON pv.id = vp.provision_version_id"
         " WHERE vp.work_version_id = %s ORDER BY vp.ord", (version_id,)).fetchall()
 
 
-INDEX_FORMAT = "chunks-v1+abolished-v1+institution-v1"   # 청크·매핑·문서 필드 규칙이 바뀌면 올린다 → 지문이 달라져 다시 빌드
+INDEX_FORMAT = "provisions-v1+abolished-v1+institution-v1"   # 청크·매핑·문서 필드 규칙이 바뀌면 올린다 → 지문이 달라져 다시 빌드
 
 FINGERPRINT_SQL = """
 SELECT count(*) AS n, coalesce(md5(string_agg(concat_ws('|', v.id, v.title,
@@ -70,20 +71,52 @@ def doc_state(v: dict):
 
 
 def _last_published(conn) -> dict | None:
-    return conn.execute("SELECT id, os_index, stats FROM ops.release WHERE state = 'PUBLISHED'"
+    return conn.execute(f"SELECT id, os_index, stats FROM ops.release WHERE state = 'PUBLISHED' AND {LINE}"
                         " ORDER BY published_at DESC NULLS LAST, id DESC LIMIT 1").fetchone()
 
 
-def _flush(conn, os, embedder, model_name: str, index: str, batch: list[tuple[str, dict]], create: bool) -> int:
-    vecs, miss = embed_cached(conn, embedder, model_name, {h: d["text"] for h, d in batch})
-    if create:
-        os.put_pipeline()
-        os.create_index(index, len(next(iter(vecs.values()))))
-    os.bulk(index, [{**d, "embedding": vecs[h]} for h, d in batch])
-    return miss
+class _Sink:
+    """묶음을 받아 캐시 조회·임베딩·bulk 한다. 색인은 첫 벡터가 나온 묶음에서 그 차원으로 만든다."""
+
+    def __init__(self, conn, os, embedder, model_name: str, index: str, embed_pause: float = 0.0):
+        self.conn, self.os, self.embedder, self.model, self.index = conn, os, embedder, model_name, index
+        self.pause, self.created, self.pending = embed_pause, False, []
+        self.docs = self.vectors = self.embedded = 0
+        self.hashes: set[str] = set()
+
+    def add(self, doc: dict, embed_text: str | None) -> None:
+        self.pending.append((doc, embed_text))
+
+    def flush(self, final: bool = False) -> None:
+        batch, self.pending = self.pending, []
+        texts = {text_hash(t): t for _, t in batch if t}
+        vecs: dict[str, list[float]] = {}
+        if texts:
+            vecs, miss = embed_cached(self.conn, self.embedder, self.model, texts)
+            self.embedded += miss
+            self.hashes |= set(texts)
+            if miss and self.pause:
+                time.sleep(self.pause)       # GPU를 운영 질의와 나눠 쓴다
+        if not self.created:
+            if not vecs and not final:       # 차원을 아직 모른다: 벡터가 나올 때까지 모은다
+                self.pending = batch
+                return
+            self.os.put_pipeline()
+            self.os.create_index(self.index, len(next(iter(vecs.values()))) if vecs else (self.embedder.dim or 1024))
+            self.created = True
+        docs = []
+        for d, t in batch:
+            if t:
+                d = {**d, "embedding": vecs[text_hash(t)]}
+                self.vectors += 1
+            docs.append(d)
+        self.os.bulk(self.index, docs)
+        self.docs += len(docs)
 
 
-def build_release(conn, os, embedder, model_name: str, publish: bool = True, force: bool = False) -> dict:
+def build_release(conn, os, embedder, model_name: str, publish: bool = True, force: bool = False,
+                  embed_pause: float = 0.0) -> dict:
+    t0 = time.monotonic()
     fp = fingerprint(conn, model_name)
     last = _last_published(conn)
     if fp and not force and last and (last["stats"] or {}).get("fingerprint") == fp:
@@ -96,42 +129,27 @@ def build_release(conn, os, embedder, model_name: str, publish: bool = True, for
     conn.commit()
     try:
         versions = conn.execute(VERSIONS_SQL).fetchall()
-        chunks, embedded, abolished = 0, 0, 0
-        hashes: set[str] = set()
-        batch: list[tuple[str, dict]] = []
+        sink = _Sink(conn, os, embedder, model_name, index, embed_pause)
+        abolished = 0
         for v in versions:
             state, eff_to = doc_state(v)
             abolished += state == "ABOLISHED"
-            for c in chunk_version(v["id"], v["work_id"], v["title"], _provisions(conn, v["id"])):
-                h = text_hash(c.text)
-                hashes.add(h)
-                batch.append((h, {"chunk_id": c.chunk_id, "release_id": str(rid), "work_id": c.work_id,
-                                  "version_id": c.version_id, "path": c.path, "path_label": c.path_label,
-                                  "institution": v["institution"],
-                                  "institution_name": v["institution_name"],
-                                  "institution_aliases": list(v["institution_aliases"] or []), "work_kind": v["kind"], "title": v["title"],
-                                  "text": c.text, "context_text": c.context_text,
-                                  "effective_from": v["effective_from"].isoformat() if v["effective_from"] else None,
-                                  "effective_to": eff_to.isoformat() if eff_to else None,
-                                  "version_state": state, "embedding_model": model_name}))
-                if len(batch) >= BULK:
-                    embedded += _flush(conn, os, embedder, model_name, index, batch, create=chunks == 0)
-                    chunks += len(batch)
-                    batch = []
-        if batch:
-            embedded += _flush(conn, os, embedder, model_name, index, batch, create=chunks == 0)
-            chunks += len(batch)
-        if chunks == 0:
-            os.put_pipeline()
-            os.create_index(index, embedder.dim or 1024)
+            meta = {**v, "state": state, "effective_to": eff_to, "release_id": str(rid), "embedding_model": model_name}
+            for u in unit_docs(meta, _provisions(conn, v["id"])):
+                sink.add(u.doc, u.embed_text)
+                if len(sink.pending) >= BULK:
+                    sink.flush()
+        sink.flush(final=True)
+        docs = sink.docs
         os.refresh(index)
-        if os.count(index) != chunks:
-            raise RuntimeError(f"색인 건수 불일치 {os.count(index)} != {chunks}")
+        if os.count(index) != docs:
+            raise RuntimeError(f"색인 건수 불일치 {os.count(index)} != {docs}")
         with conn.cursor() as cur:
             cur.executemany("INSERT INTO ops.release_item (release_id, work_version_id) VALUES (%s, %s)",
                             [(rid, v["id"]) for v in versions])
-        stats = {"chunks": chunks, "unique_texts": len(hashes), "embedded": embedded, "versions": len(versions),
-                 "abolished": abolished, "fingerprint": fp, "built": True}
+        stats = {"chunks": docs, "docs": docs, "vectors": sink.vectors, "unique_texts": len(sink.hashes),
+                 "embedded": sink.embedded, "versions": len(versions), "abolished": abolished, "fingerprint": fp,
+                 "built": True, "seconds": round(time.monotonic() - t0, 1)}
         conn.execute("UPDATE ops.release SET stats = %s WHERE id = %s", (json.dumps(stats), rid))
         conn.commit()
     except Exception as e:
