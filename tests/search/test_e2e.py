@@ -72,3 +72,24 @@ def test_suggest_titles(indexed):
     got = suggest(indexed, "여비")
     assert got and got[0]["title"] == "여비규정" and len({g["work_id"] for g in got}) == len(got)
     assert suggest(indexed, "") == []
+
+
+def test_facets_count_only_mostly_matching_articles(indexed):
+    from reg.search.facets import facets
+
+    narrow = facets(indexed, "출장 증빙서 회계담당부서 제출")["institution"]
+    loose = facets(indexed, "규정")["institution"]
+    assert narrow and loose and narrow[0]["count"] < loose[0]["count"]
+
+
+def test_lookup_title_must_match_all_words(indexed):
+    assert lookup(indexed, "공사관리규정 제27조 제1항", ALIASES)["hits"] == []   # '규정'만 같은 다른 규정은 안 나온다
+
+
+def test_citation_institution_filters_hybrid_results(indexed, loaded):
+    loaded.execute("INSERT INTO regulation.institution (code, name, kind) VALUES ('ETRI', '한국전자통신연구원', 'GRI')")
+    loaded.commit()
+    r = search(indexed, FakeEmbedder(), None, "천문연 여비규정 제27조", aliases={**ALIASES, "ETRI": ["에트리"]},
+               rerank=False)
+    assert r["hits"] and all(h["institution"] in ("KASI", "LAW") for h in r["hits"])
+    assert r["lookup"][0]["path"] == "a27"

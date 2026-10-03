@@ -10,15 +10,17 @@ def search(os, embedder, reranker, q: str, *, institution: str | None = None, as
            kind: str | None = None, unit=None, current_only: bool = True, rerank: bool = True, size: int = 10,
            aliases: dict[str, list[str]] | None = None, facets: bool = True, with_units: bool = True,
            index: str | None = None) -> dict:
-    res = engine(os, embedder, reranker, q, institution=institution, as_of=as_of, kind=kind, rerank=rerank,
-                 size=size, index=index, unit=unit, current_only=current_only, with_units=with_units)
     c = parse_citation(q, aliases)
+    # 번호 인용에 기관이 있으면("천문연 여비규정 27조") 하이브리드·집계도 그 기관으로 거른다 (명시한 기관이 우선)
+    inst = institution or (c.institution if c else None)
+    res = engine(os, embedder, reranker, q, institution=inst, as_of=as_of, kind=kind, rerank=rerank,
+                 size=size, index=index, unit=unit, current_only=current_only, with_units=with_units)
     res["citation"] = c.as_dict() if c else None
     res["lookup"] = []
-    if c is not None and (c.title or c.institution or institution):
-        if institution and not c.institution:
-            c.institution = institution
+    if c is not None and (c.title or inst):
+        if inst and not c.institution:
+            c.institution = inst
         res["lookup"] = lookup(os, c, as_of=as_of, size=3, index=index)["hits"]
     if facets:
-        res["facets"] = facet_counts(os, q, institution, as_of, kind, unit, current_only, index)
+        res["facets"] = facet_counts(os, q, inst, as_of, kind, unit, current_only, index)
     return res

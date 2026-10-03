@@ -5,7 +5,7 @@ export function Highlight({ text }: { text: string }) {
     <>
       {parts.map((p, i) =>
         p.startsWith("<mark>") && p.endsWith("</mark>")
-          ? <mark key={i} className="rounded-sm bg-[var(--mark)] px-0.5 text-inherit">{p.slice(6, -7)}</mark>
+          ? <mark key={i} className="bg-[var(--mark)] text-inherit">{p.slice(6, -7)}</mark>
           : <span key={i}>{p}</span>,
       )}
     </>

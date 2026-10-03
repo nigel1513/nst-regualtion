@@ -25,8 +25,7 @@ def citation_query(c: Citation, as_of: str | None = None) -> dict:
             {"term": {"title.kw": {"value": c.title, "boost": 20}}},
             {"term": {"title.kw": {"value": compact, "boost": 20}}},
             {"match_phrase": {"title": {"query": c.title, "boost": 5}}},
-            {"match": {"title": {"query": c.title, "operator": "and", "boost": 2}}},
-            {"match": {"title": {"query": c.title, "minimum_should_match": "60%"}}}], "minimum_should_match": 1}})
+            {"match": {"title": {"query": c.title, "operator": "and", "boost": 2}}}], "minimum_should_match": 1}})
     return {"bool": {"filter": flt, **({"must": must} if must else {})}}
 
 
