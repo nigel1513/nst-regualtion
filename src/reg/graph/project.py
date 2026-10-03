@@ -12,10 +12,10 @@ from itertools import pairwise
 from reg.graph.model import (
     CONTEXT_UNITS,
     REF_RELS,
-    node_label,
     extract_terms,
     full_label,
     is_definition_article,
+    node_label,
     uses_terms,
 )
 
