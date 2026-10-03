@@ -10,6 +10,8 @@ from reg.core.parse import PARSER_VERSION
 
 _NORM = re.compile(r"[\s·ㆍ‧∙・]")
 RENUMBER_UNITS = {"article", "paragraph", "item"}
+# 부분 인덱스 work_alio_seq는 조건(external_ids ? 'alio_seq')이 쿼리에 있어야 쓰인다
+WORK_BY_ALIO_SEQ = "SELECT id FROM regulation.work WHERE external_ids ? 'alio_seq' AND external_ids->>'alio_seq' = %s"
 
 
 def norm_title(s: str) -> str:
@@ -21,7 +23,7 @@ def text_hash(p: Prov) -> str:
 
 
 def work_key_for_regulation(conn, inst_code: str, inst_id: int, title: str, seq: str) -> str:
-    row = conn.execute("SELECT id FROM regulation.work WHERE external_ids->>'alio_seq' = %s", (seq,)).fetchone()
+    row = conn.execute(WORK_BY_ALIO_SEQ, (seq,)).fetchone()
     if row:
         return row["id"]
     key = f"kr/reg/{inst_code}/{norm_title(title)}"

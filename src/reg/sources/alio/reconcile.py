@@ -20,7 +20,7 @@ SELECT w.id AS work_id, r.seq, r.title, r.missing_since, i.code AS institution,
        ELSE 'ACTIVE' END AS status,
   CASE WHEN r.abolish_state = 'ABOLISHED' THEN r.abolished_on END AS abolished_on
 FROM regulation.alio_rule r
-JOIN regulation.work w ON w.external_ids->>'alio_seq' = r.seq
+JOIN regulation.work w ON w.external_ids ? 'alio_seq' AND w.external_ids->>'alio_seq' = r.seq
 JOIN regulation.institution i ON i.id = r.institution_id
 """
 
@@ -51,7 +51,7 @@ def mark_missing(conn, institution_id: int, started_at: datetime, today: date) -
     out["candidates"] = conn.execute(
         "UPDATE regulation.alio_rule r SET abolish_state = 'CANDIDATE'"
         " WHERE r.institution_id = %s AND r.abolish_state IS NULL AND r.missing_since <= %s"
-        " AND EXISTS (SELECT 1 FROM regulation.work w WHERE w.external_ids->>'alio_seq' = r.seq)",
+        " AND EXISTS (SELECT 1 FROM regulation.work w WHERE w.external_ids ? 'alio_seq' AND w.external_ids->>'alio_seq' = r.seq)",
         (institution_id, today - timedelta(days=CANDIDATE_AFTER_DAYS))).rowcount
     return out
 
