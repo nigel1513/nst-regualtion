@@ -32,8 +32,9 @@ def test_qa_log_table(conn):
 
 
 def test_mention_needs_a_word_boundary(aliases):
-    assert resolve_mention("KISTI 출장 규정", aliases) is None
-    assert resolve_mention("한국과학기술정보연구원 출장", aliases) is None
+    # 2026-10-03부터 KISTI도 활성 기관: KISTI를 KIST로 잘못 읽지 않는지만 본다
+    assert resolve_mention("KISTI 출장 규정", aliases) == "KISTI"
+    assert resolve_mention("한국과학기술정보연구원 출장", aliases) == "KISTI"
     assert resolve_mention("학술연구회 회의", aliases) is None
     assert resolve_mention("KIST 출장비", aliases) == "KIST" and resolve_mention("키스트에서 출장", aliases) == "KIST"
     assert resolve_mention("연구회 규정", aliases) == "NST"
@@ -41,7 +42,10 @@ def test_mention_needs_a_word_boundary(aliases):
 
 def test_aliases_come_from_db_active_institutions(conn, aliases):
     assert aliases["KASI"][0] == "한국천문연구원" and {"천문연", "KASI"} <= set(aliases["KASI"])
-    assert "KISTI" not in aliases   # 비활성 기관은 질문에서 찾지 않는다 (검색할 규정이 없다)
+    assert "NSR" not in aliases   # 비활성 기관은 질문에서 찾지 않는다 (검색할 규정이 없다)
+    conn.execute("UPDATE regulation.institution SET active = false WHERE code = 'KISTI'")
+    conn.commit()
+    assert "KISTI" not in load_aliases(conn)
     conn.execute("UPDATE regulation.institution SET aliases = '{}' WHERE code = 'KASI'")
     conn.execute("UPDATE regulation.institution SET active = true WHERE code = 'KISTI'")
     conn.commit()

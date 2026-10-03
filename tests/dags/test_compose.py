@@ -21,7 +21,9 @@ def cfg():
 
 
 def test_existing_services_kept(cfg):
-    assert {"storage", "opensearch-proxy", "neo4j", "mailpit-proxy", "converter", *AIRFLOW} <= set(cfg["services"])
+    # 2026-10-03: OpenSearch·Neo4j는 GPU PC로 옮겼고 이 서버에는 중계(neo4j-proxy)와 대시보드만 남는다
+    assert {"storage", "neo4j-proxy", "neo4j-browser-proxy", "mailpit-proxy", "converter", "opensearch-dashboards",
+            *AIRFLOW} <= set(cfg["services"])
 
 
 def test_apiserver_on_21062(cfg):
