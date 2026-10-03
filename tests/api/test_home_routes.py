@@ -87,8 +87,8 @@ def test_home_all_lists_institution_table(api):
     assert d["totals"]["current_works"] == 2 and d["totals"]["institutions"] == 2
 
 
-def test_home_topics_omitted_without_topic_table_and_unknown_inst_404(api):
-    assert api.get("/api/v1/home", params={"inst": "TST"}).json()["topics"] is None
+def test_home_topics_empty_before_classification_and_unknown_inst_404(api):
+    assert api.get("/api/v1/home", params={"inst": "TST"}).json()["topics"] == []
     assert api.get("/api/v1/home", params={"inst": "NOPE"}).status_code == 404
 
 

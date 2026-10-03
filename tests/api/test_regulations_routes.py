@@ -62,7 +62,7 @@ def test_list_defaults_to_current_with_facets(api):
     assert {x["value"]: x["count"] for x in f["institution"]} == {"KASI": 1, "TST": 3}
     assert {x["value"]: x["count"] for x in f["kind"]}["guide"] == 1
     assert {x["value"]: x["count"] for x in f["status"]} == {"current": 4, "abolished": 1}
-    assert f["topic"] == [] and d["topics_available"] is False
+    assert f["topic"] == [] and d["topics_available"] is True     # 분류 테이블은 있지만 아직 비었다
 
 
 def test_query_filters_sort_and_relevance(api):
@@ -87,9 +87,9 @@ def test_pagination(api):
 
 
 def test_topic_filter_when_table_exists(api, topic_table):
-    topic_table([("kr/reg/TST/회계규정", "finance"), ("kr/reg/TST/회계처리지침", "finance"),
+    topic_table([("kr/reg/TST/회계규정", "accounting"), ("kr/reg/TST/회계처리지침", "accounting"),
                  ("kr/reg/TST/물품관리기준", "contract")])
-    d = api.get("/api/v1/regulations", params={"topic": "finance"}).json()
+    d = api.get("/api/v1/regulations", params={"topic": "accounting"}).json()
     assert d["topics_available"] is True and sorted(x["title"] for x in d["items"]) == ["회계규정", "회계처리지침"]
-    assert d["items"][0]["topics"][0] == {"topic": "finance", "label": "회계·재무"}
-    assert {x["value"]: x["count"] for x in d["facets"]["topic"]} == {"finance": 2, "contract": 1}
+    assert d["items"][0]["topics"][0] == {"topic": "accounting", "label": "회계·재무"}     # 라벨은 config/topics.yaml
+    assert {x["value"]: x["count"] for x in d["facets"]["topic"]} == {"accounting": 2, "contract": 1}

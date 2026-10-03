@@ -1,15 +1,10 @@
-"""규정 주제(regulation.work_topic) 읽기 도우미 (서비스 UI 개편 §4).
+"""규정 주제(regulation.work_topic, 마이그레이션 0011) 읽기 도우미 (서비스 UI 개편 §4).
 
-주제 분류 테이블과 config/topics.yaml은 기관 비교 작업이 만든다. 아직 없으면 주제는 조용히 빠진다(None/빈 목록).
-라벨은 config/topics.yaml(있으면) → 아래 기본표 → 주제 키 순으로 정한다."""
+work_topic(work_id, topic, score, method, rank)은 reg topics classify가 채운다. 주제 id와 라벨은 config/topics.yaml
+(topics: [{id, label, …}])이 정본이다. 테이블이 없으면(옛 DB) 주제는 조용히 빠진다(None)."""
 from functools import lru_cache
 from pathlib import Path
 
-DEFAULT_LABELS = {
-    "travel": "여비·출장", "finance": "회계·재무", "accounting": "회계·재무", "contract": "계약·구매",
-    "procurement": "계약·구매", "hr": "인사·복무", "personnel": "인사·복무", "research": "연구관리",
-    "security": "보안", "safety": "안전·보건", "techtransfer": "기술사업화", "commercialization": "기술사업화",
-}
 CONFIG = Path(__file__).resolve().parents[3] / "config" / "topics.yaml"
 
 
@@ -38,7 +33,7 @@ def _config_labels() -> dict[str, str]:
 
 
 def topic_label(key: str) -> str:
-    return _config_labels().get(key) or DEFAULT_LABELS.get(key) or key
+    return _config_labels().get(key) or key
 
 
 def has_topics(conn) -> bool:
