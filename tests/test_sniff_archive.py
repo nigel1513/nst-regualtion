@@ -22,3 +22,10 @@ def test_store_dedupes_by_content(conn, tmp_path):
     assert a.is_new and not b.is_new and a.id == b.id
     assert blob.get(a.blob_key) == b"%PDF-1.4 x"
     assert conn.execute("SELECT count(*) AS n FROM regulation.source_document").fetchone()["n"] == 1
+
+
+def test_ole_office_files_are_not_hwp():
+    """HWP 5.0과 MS Office(xls·doc)는 같은 OLE 머리를 쓴다 — KIMM .xls가 HWP로 잘못 받아져 추출에서 실패했다."""
+    assert sniff(OLE, "규정 별표.xls") is None
+    assert sniff(OLE, "서식.doc") is None
+    assert sniff(OLE, "규정.hwp").ext == "hwp"
