@@ -12,7 +12,8 @@ ALLOW = {
     "reg.graph": ["reg.platform", "reg.core", "reg.graph"],
     "reg.ocr": ["reg.platform", "reg.core", "reg.ocr"],
     "reg.alerts": ["reg.platform", "reg.core", "reg.graph", "reg.alerts"],
-    "reg.qa": ["reg.platform", "reg.core", "reg.index", "reg.qa"],
+    "reg.search": ["reg.platform", "reg.core", "reg.index", "reg.search"],
+    "reg.qa": ["reg.platform", "reg.core", "reg.index", "reg.search", "reg.qa"],
 }
 
 
