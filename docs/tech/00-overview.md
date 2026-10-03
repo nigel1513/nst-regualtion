@@ -63,7 +63,7 @@ flowchart LR
 | 2 | law.go.kr 법령을 현행 전체로 받던 코드 | **해결**: 필요한 법령만 (설정 20 + 규정이 인용한 법령 1,099 + 그 시행령·시행규칙, 대상 이름 2,718). `reg law targets`로 목록 확인 | 02 |
 | 3 | 같은 규정 안 미해석 참조 | **해결**: 해석기·추출기 수정(자기 규정으로 잘못 연결된 약 1,200건 교정 포함), `reg refs reresolve` + 매일 `reg_process`에서 자동 재해석. 본문 속 `【별지 …】`·`■ [별지 …]` 제목 인식(파서 2026.10.7)으로 별표·서식 참조 약 4,100건 추가 해결 예상 — 전체 재파싱 2026-10-03 21:02 시작. 남은 미해석은 대부분 대상이 실제로 없는 경우(원본에 별표 없음 9,277, 다른 판본에만 있음 5,814) | 02 |
 | 4 | 인덱스 보강 | **해결**: 마이그레이션 0009 (`provision_change_work`, `reference_work`, `review_task_target`), ALIO 일련번호 조회가 부분 인덱스 `work_alio_seq`를 쓰도록 수정 | 03 |
-| 5 | 정리 대상: `regulation.law_watch`, `nais` DB의 옛 `regulation` 스키마, 옛 색인 `nais-regulations-r14`(8.4GB) | **해결 (2026-10-03 삭제)**: 셋 다 삭제, `law_watch`는 마이그레이션 0010에도 반영. 멈춘 기록(pipeline_run 162, release 10·14) 상태 표시는 선택 사항 | 03, 04 |
+| 5 | 정리 대상: `regulation.law_watch`, `nais` DB의 옛 `regulation` 스키마, 옛 색인 `nais-regulations-r14`(8.4GB) | **해결 (2026-10-03 삭제)**: 셋 다 삭제, `law_watch`는 마이그레이션 0010에도 반영. 멈춘 기록(pipeline_run 162 → failed, release 10 → FAILED, release 14 → RETIRED)도 정리 | 03, 04 |
 | 6 | 질문 속 기관명 검색 | **해결**: 원인은 리랭커 순위. 기관을 알면 짚은 조문을 1위로, 조문 없이 기관명만 있어도 그 기관으로 좁힘 | 04, 05 |
 | 7 | GPU PC OpenSearch 데모 계정·앱 계정 all_access | **보류 (사용자 결정: 지금은 필요 없음)** | 04 |
 | 8 | OCR `gpu_pool`, `.xls` 오인식, 서식 라벨 | **해결**: OCR을 `gpu_pool`에, OLE Office 파일(xls·doc)은 HWP로 받지 않음, 그래프에서 서식은 `Form`(10,950) 별표는 `Annex`(14,209) | 02, 04 |
