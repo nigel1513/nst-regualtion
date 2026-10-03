@@ -19,8 +19,9 @@ def cached_embed(conn, embedder, model: str) -> Callable[[list[str]], list[list[
 
 
 def classify_works(conn, cfg: Config, embed, works: list[WorkText], replace_all: bool = False,
-                   dry_run: bool = False) -> dict:
-    result = classify(works, cfg.topics, embed)
+                   dry_run: bool = False, exemplars: list[WorkText] | None = None) -> dict:
+    """exemplars: 주제 벡터용 규정 모음. 일부(새 규정)만 분류할 때도 전체 현행 규정을 넘긴다(임베딩은 캐시)."""
+    result = classify(works, cfg.topics, embed, exemplars=exemplars)
     stats: dict = {"works": len(works), "by_method": {}, "by_topic": {}}
     for got in result.values():
         stats["by_method"][got[0][2]] = stats["by_method"].get(got[0][2], 0) + 1

@@ -14,6 +14,8 @@ MIN_SIM = 0.45          # 이보다 낮으면 기타 (bge-m3, 2026-10-03 표본�
 SECOND_MARGIN = 0.015   # 둘째 주제는 첫째와 이만큼 가까울 때만
 TITLE_SCORES = (1.0, 0.9)
 EMBED_TEXT_MAX = 600
+DESC_WEIGHT = 0.2       # 주제 벡터에서 설명문의 몫 (나머지는 제목 규칙 규정들의 평균)
+EXEMPLARS = 150         # 주제마다 평균에 쓰는 규정 수 상한 (work id 순)
 _STRIP = re.compile(r"[\s·ㆍ․・‧･]+")
 _WORK_PREFIX = re.compile(r"^kr/reg/[^/]+/")          # 제목을 못 읽어 work id가 제목이 된 규정
 # 목적 조항에서 근거 규정을 인용하는 부분("인사규정 제35조에 의거", "「공익신고자 보호법」에 따라")은 주제가 아니다
@@ -72,9 +74,37 @@ def embed_text(w: WorkText) -> str:
     return f"{w.title}\n{w.first_text}"[:EMBED_TEXT_MAX]
 
 
-def classify(works: list[WorkText], topics, embed, min_sim: float = MIN_SIM,
-             margin: float = SECOND_MARGIN) -> dict[str, list[tuple[str, float, str]]]:
-    """{work_id: [(주제, 점수, 방법)]}. 방법 = title | embedding | none(기타). embed(texts) -> 벡터 목록."""
+def _unit(v: list[float]) -> list[float]:
+    n = math.sqrt(sum(x * x for x in v))
+    return [x / n for x in v] if n else v
+
+
+def topic_vectors(cands, embed, exemplars: list[WorkText], topics) -> list[list[float]]:
+    """주제 벡터 = 설명문 벡터(DESC_WEIGHT) + 제목 규칙으로 그 주제가 된 규정들의 평균 벡터(1 - DESC_WEIGHT).
+    설명문만 쓰면 '…운영지침' 같은 글이 교육·연구로 쏠린다(2026-10-03 표본: 임베딩 단계 23건 중 12건 → 17건)."""
+    desc = [_unit(v) for v in embed([topic_text(t) for t in cands])]
+    pool: dict[str, list[WorkText]] = {}
+    for w in sorted(exemplars, key=lambda w: w.work_id):
+        got = title_topics(w.title, topics)
+        if got and len(pool.setdefault(got[0][0], [])) < EXEMPLARS:
+            pool[got[0][0]].append(w)
+    flat = [w for t in cands for w in pool.get(t.id, [])]
+    vecs = dict(zip([w.work_id for w in flat], embed([embed_text(w) for w in flat]))) if flat else {}
+    out = []
+    for t, d in zip(cands, desc):
+        ex = [_unit(vecs[w.work_id]) for w in pool.get(t.id, [])]
+        if not ex:
+            out.append(d)
+            continue
+        mean = _unit([sum(xs) / len(ex) for xs in zip(*ex)])
+        out.append(_unit([DESC_WEIGHT * a + (1 - DESC_WEIGHT) * b for a, b in zip(d, mean)]))
+    return out
+
+
+def classify(works: list[WorkText], topics, embed, min_sim: float = MIN_SIM, margin: float = SECOND_MARGIN,
+             exemplars: list[WorkText] | None = None) -> dict[str, list[tuple[str, float, str]]]:
+    """{work_id: [(주제, 점수, 방법)]}. 방법 = title | purpose | embedding | none(기타). embed(texts) -> 벡터 목록.
+    exemplars: 주제 벡터를 만들 때 쓰는 규정 모음(기본: works). 새 규정만 분류할 때는 전체 규정을 넘긴다."""
     out: dict[str, list[tuple[str, float, str]]] = {}
     rest: list[WorkText] = []
     for w in works:
@@ -89,7 +119,7 @@ def classify(works: list[WorkText], topics, embed, min_sim: float = MIN_SIM,
             rest.append(w)
     cands = [t for t in topics if t.id != "other"]
     if rest:
-        tv = embed([topic_text(t) for t in cands])
+        tv = topic_vectors(cands, embed, exemplars if exemplars is not None else works, topics)
         wv = embed([embed_text(w) for w in rest])
         for w, v in zip(rest, wv):
             sims = sorted(((_cos(v, x), t.id) for t, x in zip(cands, tv)), reverse=True)

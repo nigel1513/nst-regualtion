@@ -16,7 +16,9 @@ def classify_topics(all_works: bool = False) -> dict:
     emb = EmbeddingProvider(s.embed_url, s.embed_model, batch=32)
     with task_run("compare.classify") as rec, open_conn() as conn:
         ws = work_texts(conn, unclassified=not all_works)
-        out = classify_works(conn, load(), cached_embed(conn, emb, s.embed_model), ws, replace_all=all_works)
+        pool = None if all_works or not ws else work_texts(conn)
+        out = classify_works(conn, load(), cached_embed(conn, emb, s.embed_model), ws, replace_all=all_works,
+                             exemplars=pool)
         out.pop("result")
         rec.update(out)
     return out

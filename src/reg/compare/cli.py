@@ -36,8 +36,9 @@ def classify_cmd(all_: bool = typer.Option(False, "--all", help="모든 현행 �
     t0 = time.monotonic()
     with _conn(dry_run) as conn:
         ws = work_texts(conn, _split(works), unclassified=not (all_ or works))
+        pool = None if all_ and not works else work_texts(conn)
         embed = emb.embed if dry_run else cached_embed(conn, emb, s.embed_model)
-        st = classify_works(conn, load(), embed, ws, replace_all=all_ and not works, dry_run=dry_run)
+        st = classify_works(conn, load(), embed, ws, replace_all=all_ and not works, dry_run=dry_run, exemplars=pool)
     st.pop("result")
     typer.echo({**st, "seconds": round(time.monotonic() - t0, 1)})
 
@@ -58,7 +59,9 @@ def eval_cmd(cases: Path = typer.Option(None, help="정답 표본 (기본 eval/t
     data = [c for c in data if not want or c["set"] in want]
     with _conn(True) as conn:
         ws = {w.work_id: w for w in work_texts(conn, [c["work_id"] for c in data])}
-    got = classify(list(ws.values()), load().topics, EmbeddingProvider(s.embed_url, s.embed_model).embed)
+        pool = work_texts(conn)
+    got = classify(list(ws.values()), load().topics, EmbeddingProvider(s.embed_url, s.embed_model, batch=32).embed,
+                   exemplars=pool)
     by_set: dict[str, list[int]] = {}
     for c in data:
         if c["work_id"] not in got:

@@ -67,3 +67,13 @@ def test_classify_uses_embedding_when_title_is_broken(cfg):
     assert got["kr/reg/X/c"] == [("other", 0.0, "none")]
     # 목적 조항 규칙: 근거 규정(인사규정)과 기관명(안전성평가연구소의 '안전')은 주제로 보지 않는다
     assert got["kr/reg/X/d"] == [("travel", 0.8, "purpose")]
+
+
+def test_topic_vectors_mix_description_with_title_exemplars(cfg):
+    from reg.compare.classify import topic_vectors
+
+    cands = [cfg.topic("travel"), cfg.topic("audit")]
+    ex = [WorkText("kr/reg/X/t", "여비규정", "여비 여비")]
+    tv = topic_vectors(cands, FakeEmbed(), ex, cfg.topics)
+    # 여비·출장은 설명문(여비 1회) + 제목 규칙 규정(여비)의 평균, 감사는 예시가 없어 설명문만
+    assert tv[0][1] > 0.99 and tv[1] == FakeEmbed()([f"{cands[1].label}: {cands[1].description}"])[0]
