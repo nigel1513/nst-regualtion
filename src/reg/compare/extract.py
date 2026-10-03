@@ -148,9 +148,12 @@ _TRIM = re.compile(r"^[\s\"'“”‘’「」『』<>*]+|[\s\"'“”‘’「�
 _NOTE = re.compile(r"\s*[(<\[〈](?:개정|신설|본조신설|전문개정|제목개정|삭제)[^)>\]〉]*[)>\]〉]\s*$")
 
 
+_HEADING = re.compile(r"^\s*[\"“'‘]?\s*제\s*\d+\s*조(?:\s*의\s*\d+)?\s*(?:\([^)]{0,40}\))?\s*")
+
+
 def _clean(q: str) -> str:
     """모델이 덧붙인 따옴표·강조(**)·끝의 개정 주석(원문 본문에는 없다)을 뗀다."""
-    q = (q or "").replace("**", "")
+    q = _HEADING.sub("", (q or "").replace("**", ""))  # 조 머리('제6조(…)')는 본문에 없다
     prev = None
     while prev != q:
         prev, q = q, _NOTE.sub("", _TRIM.sub("", q))

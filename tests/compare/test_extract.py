@@ -119,3 +119,12 @@ def test_out_of_bounds_amount_is_retried():
     cell = extract(llm, item, "KASI", cands)
     assert (cell.method, cell.value_norm, cell.path) == ("llm", "100000", "annex1")
     assert len(llm.calls) == 2 and "보기 어렵다" in llm.calls[1][1]["content"]
+
+
+def test_quote_with_leading_article_heading_is_accepted():
+    """모델이 조 머리('제6조(사전심의위원회 심의대상)')까지 붙여 인용하면 본문과 안 맞아 버려졌다 (KASI 국외출장 사전 심의)."""
+    from reg.compare.extract import _clean, resolve_quote
+
+    text = "국외출장을 가고자 하는 직원은 출장 전에 국외출장 사전심의위원회의 심의를 받아야 한다."
+    q = _clean("제6조(사전심의위원회 심의대상) 국외출장을 가고자 하는 직원은 출장 전에 국외출장 사전심의위원회의 심의를 받아야 한다.")
+    assert resolve_quote(q, "있음", text) == (text, "exact")
