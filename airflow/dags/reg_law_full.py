@@ -1,6 +1,7 @@
 """법령 전체 대조 (매주 일요일 00:00 KST + 최초 적재는 수동 실행, spec §2.2)
 
-현행 법령 전체 목록과 미러를 대조해 누락·불일치를 보정한다. 최초 적재는 수 시간 걸린다(요청 간격 1초).
+현행 법령 전체 목록과 미러를 대조해 누락·불일치·폐지를 보정한다. 본문은 필요한 법령만 받는다
+(`reg law targets`: 설정 시드 + 내부규정 인용 + 시행령·시행규칙). 최초 적재는 수십 분~1시간(요청 간격 1초).
 끝나면 Asset `law_mirror` → reg_process → reg_law_link(link → promote).
 """
 from datetime import timedelta

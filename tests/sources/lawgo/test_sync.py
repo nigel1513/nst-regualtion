@@ -22,7 +22,8 @@ from tests.sources.lawgo.helpers import (
 )
 
 FX = Path(__file__).parent / "fixtures"
-CFG = LawgoConfig(page_size=2, annex_body_limit=10)
+TEST_LAWS = ["가법", "나법", "다법", "라법", "마법", "법1", "법2", "법3"]
+CFG = LawgoConfig(page_size=2, annex_body_limit=10, law_include=TEST_LAWS)
 ART = {1: ("목적", "이 영은 목적을 정한다.")}
 RND = "국가연구개발사업 연구개발비 사용 기준"
 
@@ -103,7 +104,7 @@ def test_full_refuses_short_list_then_abolishes_missing(lconn, blob):
     with pytest.raises(ResponseChanged, match="너무 적습니다"):
         sync_full(Ctx(lconn, fc, blob, CFG))
     assert {r["status"] for r in lconn.execute("SELECT status FROM law.law_master").fetchall()} == {"현행"}
-    st = sync_full(Ctx(lconn, fc, blob, LawgoConfig(page_size=2, abolish_min_ratio=0.5)))
+    st = sync_full(Ctx(lconn, fc, blob, LawgoConfig(page_size=2, abolish_min_ratio=0.5, law_include=TEST_LAWS)))
     assert st["abolished"] == 1 and st["law_new"] == 0
     assert lconn.execute("SELECT status FROM law.law_master WHERE law_id = '000003'").fetchone()["status"] == "폐지"
     assert lconn.execute("SELECT law_id FROM law.change_log WHERE change = 'law_abolished'").fetchone()["law_id"] == "000003"
@@ -176,3 +177,36 @@ def test_full_reactivates_abolished_law_that_reappears_with_same_mst(lconn, blob
     assert st["law_new"] == 0 and st["reactivated"] == 1
     m = lconn.execute("SELECT status, missing_since FROM law.law_master WHERE law_id = '000003'").fetchone()
     assert (m["status"], m["missing_since"]) == ("현행", None)
+
+
+def test_daily_mirrors_only_targeted_laws_and_their_children(lconn, blob):
+    fc = FakeClient()
+    fc.lists[("law", 1, None)] = law_list([lr("11", "000011", "가법", "20261002"), lr("12", "000012", "가법 시행령", "20261002"),
+                                           lr("13", "000013", "무관법", "20261002")])
+    for mst, lid, name in [("11", "000011", "가법"), ("12", "000012", "가법 시행령"), ("13", "000013", "무관법")]:
+        fc.bodies[("law", mst)] = law_body(lid, name, ART)
+    st = sync_daily(Ctx(lconn, fc, blob, LawgoConfig(page_size=10, law_include=["가법"])), date(2026, 10, 1))
+    assert st["law_new"] == 2 and st["errors"] == []
+    assert ("service", "law", "13") not in fc.calls  # 대상이 아닌 법령은 본문을 받지 않는다
+    assert st["law_scope"]["selected"] == 2 and st["law_scope"]["skipped"] == 1
+    assert st["law_scope"]["by_reason"] == {"child": 1, "config": 1}
+
+
+def test_full_mirrors_cited_law_and_keeps_already_mirrored(lconn, blob):
+    load_reg(lconn, blob, "kr/reg/KASI/인사", "인사규정",
+             [Prov("a1", "article", "제1조", "목적", "「인용법」 제1조에 따른다.")])
+    mirror_law(lconn, blob, "000077", "옛이름법", ART, "77")
+    lconn.commit()
+    fc = FakeClient()
+    fc.lists[("law", 1, None)] = law_list([lr("21", "000021", "인용법", "20260630"),
+                                           lr("22", "000022", "인용법 시행규칙", "20260630"),
+                                           lr("23", "000023", "무관법", "20260630"),
+                                           lr("78", "000077", "새이름법", "20261001")])
+    for mst, lid, name in [("21", "000021", "인용법"), ("22", "000022", "인용법 시행규칙"), ("78", "000077", "새이름법")]:
+        fc.bodies[("law", mst)] = law_body(lid, name, ART)
+    st = sync_full(Ctx(lconn, fc, blob, LawgoConfig(page_size=10)))
+    assert st["errors"] == [] and st["law_new"] == 3 and st["abolished"] == 0
+    assert ("service", "law", "23") not in fc.calls
+    assert st["law_scope"]["by_reason"] == {"child": 1, "cited": 1, "mirrored": 1}
+    names = {r["name"] for r in lconn.execute("SELECT name FROM law.law_master WHERE status = '현행'").fetchall()}
+    assert names == {"인용법", "인용법 시행규칙", "새이름법"}

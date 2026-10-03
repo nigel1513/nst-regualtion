@@ -1,6 +1,6 @@
 """법령 일 배치 (매일 01:00 KST, spec §3A.4)
 
-law.go.kr 변경분 미러링. 끝나면 Asset `law_mirror` → reg_process.
+law.go.kr 변경분 미러링 (필요한 법령만, `reg law targets`). 끝나면 Asset `law_mirror` → reg_process.
 내부규정 연계(link)·인용 법령 승격(promote)은 파싱 뒤에 reg_law_link가 한다 (M6-1 순서 계약:
 sync_daily → reg_process 뒤 link → promote → reg_process).
 본문: `reg.sources.lawgo.tasks` (M6-1).
