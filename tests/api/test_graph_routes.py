@@ -9,7 +9,9 @@ from tests.test_graph import build, pv
 
 class DownDriver:
     def session(self):
-        raise RuntimeError("neo4j down")
+        from neo4j.exceptions import ServiceUnavailable
+
+        raise ServiceUnavailable("neo4j down")
 
 
 @pytest.fixture

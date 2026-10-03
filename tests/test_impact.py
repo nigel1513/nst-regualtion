@@ -179,3 +179,16 @@ def test_internal_regulation_amendments_do_not_raise_alerts(conn, tmp_path, neo4
     conn.commit()
     sync_graph(conn, neo4j_driver)
     assert analyze_version(conn, neo4j_driver, "kr/reg/KASI/여비", vid) == []
+
+
+def test_stale_graph_raises_so_the_event_is_retried(conn, tmp_path, neo4j_driver):
+    """재적재로 계보 id가 바뀌었는데 그래프가 그 전 상태면 빈 결과로 끝내지 않는다 (리뷰 C2)."""
+    import pytest
+
+    vid = setup(conn, tmp_path, [Prov("a5", "article", "제5조", "정산", "정산은 10일 이내에 한다."),
+                                 Prov("a6", "article", "제6조", "기록", "기록한다.")])
+    sync_graph(conn, neo4j_driver)
+    rebuild_work(conn, "kr/law/L1", T)
+    conn.commit()
+    with pytest.raises(LookupError, match="오래"):
+        analyze_version(conn, neo4j_driver, "kr/law/L1", vid)

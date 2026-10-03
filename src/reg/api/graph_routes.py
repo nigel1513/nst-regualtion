@@ -6,12 +6,14 @@ import threading
 from datetime import date
 
 from fastapi import APIRouter, HTTPException, Query, Request
+from neo4j.exceptions import AuthError, ServiceUnavailable, SessionExpired, TransientError
 
 from reg.graph.query import expand, lineage, neighborhood, today
 
 router = APIRouter()
 log = logging.getLogger(__name__)
 _lock = threading.Lock()
+GRAPH_DOWN = (ServiceUnavailable, SessionExpired, TransientError, AuthError)
 
 
 def _driver(request: Request):
@@ -27,7 +29,7 @@ def _driver(request: Request):
 def _call(request: Request, fn, *args, **kw):
     try:
         return fn(_driver(request), *args, **kw)
-    except Exception as e:  # 그래프 장애가 API 전체 오류(500)로 번지지 않게
+    except GRAPH_DOWN as e:  # 그래프 장애는 503 (코드 오류는 그대로 500)
         log.warning("graph query failed: %s: %s", type(e).__name__, e)
         raise HTTPException(503, "그래프 서버에 연결할 수 없습니다") from e
 

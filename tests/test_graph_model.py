@@ -31,3 +31,8 @@ def test_definition_article_and_uses():
 def test_definition_with_nested_quotes():
     t = '"추정가격"이라 함은 「국가를 당사자로 하는 계약에 관한 법률」(이하 "법"이라 한다) 제4조에 따른 가격을 말한다.'
     assert [n for n, _ in extract_terms(t)] == ["추정가격"]
+
+
+def test_definition_without_malhanda_does_not_swallow_the_next_term():
+    t = '1. "연구원"이란 직원을 포함한다. 2. "출장"이란 근무지 밖에 가는 것을 말한다.'
+    assert [n for n, _ in extract_terms(t)] == ["출장"]

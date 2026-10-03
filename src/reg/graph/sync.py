@@ -6,11 +6,13 @@
 - `sync_changed`: Work 노드의 지문(fp)이 PostgreSQL과 다른 문서만 증분한다. 그래프가 비었으면 전체 재투영."""
 from contextlib import contextmanager
 
+from psycopg.pq import TransactionStatus
+
 from reg.graph.project import all_work_ids, fingerprints, reference_batches, work_batches
 
 BATCH = 5000
 GRAPH_LOCK = "regulation.graph"
-LABELS = ("Institution", "Work", "Version", "Provision", "Term", "MissingProvision", "GraphSync")
+LABELS = ("Institution", "Work", "Version", "Provision", "Term", "MissingProvision")  # GraphSync 표지는 남긴다
 
 SCHEMA = [
     "CREATE CONSTRAINT provision_pv IF NOT EXISTS FOR (p:Provision) REQUIRE p.pv_id IS UNIQUE",
@@ -39,12 +41,29 @@ REF_TARGET = {"prov": "MATCH (b:Provision {pv_id: r.dst})", "work": "MATCH (b:Wo
 @contextmanager
 def graph_lock(conn):
     """재투영·증분은 하위 그래프를 지웠다 다시 만든다. 그 사이 다른 실행의 영향 분석이 빈 그래프를 읽지 않도록
-    투영과 분석(scan·backtest)을 한 세션 잠금 안에서 한다."""
+    투영과 분석(scan·backtest)을 한 세션 잠금 안에서 한다. 세션 잠금이라 트랜잭션을 끝내도 유지된다."""
+    idle = conn.info.transaction_status == TransactionStatus.IDLE
     conn.execute("SELECT pg_advisory_lock(hashtext(%s))", (GRAPH_LOCK,))
+    if idle:  # 잠금만 잡은 트랜잭션은 닫아 둔다 (뒤의 투영이 스냅샷 트랜잭션을 새로 열 수 있게)
+        conn.commit()
     try:
         yield
     finally:
         conn.execute("SELECT pg_advisory_unlock(hashtext(%s))", (GRAPH_LOCK,))
+
+
+@contextmanager
+def _snapshot(conn):
+    """투영 중 적재(rebuild_work)가 커밋돼도 한 시점의 PostgreSQL을 읽는다 (REPEATABLE READ READ ONLY).
+    호출자가 이미 트랜잭션 안이면(테스트·같은 연결의 미커밋 데이터) 그대로 읽는다."""
+    own = conn.info.transaction_status == TransactionStatus.IDLE
+    if own:
+        conn.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
+    try:
+        yield
+    finally:
+        if own:
+            conn.rollback()
 
 
 def ensure_schema(driver) -> None:
@@ -66,7 +85,9 @@ def _delete_loop(s, match: str, **kw) -> None:
 
 def _write_works(s, conn, ids: list[str]) -> dict:
     st = dict.fromkeys(("works", "versions", "provisions", "contains", "changes", "terms", "uses"), 0)
+    fps = []
     for rows in work_batches(conn, ids):
+        fps += rows.fps
         _write(s, "UNWIND $rows AS r MERGE (i:Institution {code: r.code}) SET i.name = r.name, i.aliases = r.aliases",
                rows.institutions)
         st["works"] += _write(s, "UNWIND $rows AS r CREATE (w:Work {id: r.id}) SET w += r.props"
@@ -94,7 +115,12 @@ def _write_works(s, conn, ids: list[str]) -> dict:
                rows.defines)
         st["uses"] += _write(s, "UNWIND $rows AS r MATCH (p:Provision {pv_id: r.pv}), (t:Term {key: r.key})"
                                 " CREATE (p)-[:USES]->(t)", rows.uses)
-    return st
+    return st, fps
+
+
+def _set_fps(s, fps: list) -> None:
+    """참조까지 다 쓴 뒤에 지문을 남긴다. 중간에 실패하면 fp가 비어 다음 증분이 그 문서를 다시 넣는다."""
+    _write(s, "UNWIND $rows AS r MATCH (w:Work {id: r.id}) SET w.fp = r.fp", fps)
 
 
 def _write_references(s, conn, ids: list[str] | None) -> int:
@@ -111,22 +137,24 @@ def _write_references(s, conn, ids: list[str] | None) -> int:
     return n
 
 
-def _mark(s, mode: str, n: int) -> None:
-    s.run("MERGE (g:GraphSync {id: 'graph'}) SET g.synced_at = datetime(), g.mode = $mode, g.works = $n",
-          mode=mode, n=n).consume()
+def _mark(s, mode: str, n: int, state: str = "done") -> None:
+    s.run("MERGE (g:GraphSync {id: 'graph'}) SET g.synced_at = datetime(), g.mode = $mode, g.works = $n,"
+          " g.state = $state", mode=mode, n=n, state=state).consume()
 
 
 def rebuild(conn, driver) -> dict:
     """전체 재투영. 통계는 같은 입력이면 같다."""
     with driver.session() as s:
+        _mark(s, "rebuild", 0, "in_progress")  # 중간에 실패하면 다음 sync_changed가 전체 재투영을 다시 한다
         for q in LEGACY:
             s.run(q).consume()
         _delete_loop(s, "MATCH (n) WHERE any(l IN labels(n) WHERE l IN $labels OR l STARTS WITH 'Reg')",
                      labels=list(LABELS))
     ensure_schema(driver)
-    with driver.session() as s:
-        st = _write_works(s, conn, all_work_ids(conn))
+    with driver.session() as s, _snapshot(conn):
+        st, fps = _write_works(s, conn, all_work_ids(conn))
         st["relations"] = _write_references(s, conn, None)
+        _set_fps(s, fps)
         _mark(s, "rebuild", st["works"])
     return st
 
@@ -138,17 +166,19 @@ def sync_works(conn, driver, work_ids: list[str]) -> dict:
     """규범문서 단위 증분: 하위 그래프를 지우고 다시 넣는다. PostgreSQL에 없는 문서는 지우기만 한다."""
     ids = sorted(set(work_ids))
     ensure_schema(driver)
-    with driver.session() as s:
+    with driver.session() as s, _snapshot(conn):
         for label in ("Provision", "Version", "Term", "MissingProvision"):
             _delete_loop(s, f"MATCH (n:{label}) WHERE n.work_id IN $ids", ids=ids)
         _delete_loop(s, "MATCH (n:Work) WHERE n.id IN $ids", ids=ids)
         present = [r["id"] for r in conn.execute("SELECT id FROM regulation.work WHERE id = ANY(%s)",
                                                  (ids,)).fetchall()]
-        st = _write_works(s, conn, sorted(present))
+        st, fps = _write_works(s, conn, sorted(present))
         st["relations"] = _write_references(s, conn, ids)
         s.run("MATCH (m:MissingProvision) WHERE NOT (m)--() DELETE m").consume()
+        _set_fps(s, fps)
         st["removed"] = len(ids) - len(present)
-        st["works"] = len(ids)
+        st["written"], st["works"] = st["works"], len(ids)  # works = 다시 맞춘 규범문서 수(지워진 것 포함)
+        _mark(s, "incremental", len(ids))
     return st
 
 
@@ -156,15 +186,15 @@ def sync_changed(conn, driver) -> dict:
     """지문이 바뀐(또는 새로 생기거나 사라진) 규범문서만 증분. 그래프가 비었으면 전체 재투영."""
     with driver.session() as s:
         graph = {r["id"]: r["fp"] for r in s.run("MATCH (w:Work) RETURN w.id AS id, w.fp AS fp")}
-    if not graph:
+        state = s.run("OPTIONAL MATCH (g:GraphSync {id: 'graph'}) RETURN g.state AS st").single()["st"]
+    if not graph or state == "in_progress":
         return {"mode": "rebuild", **rebuild(conn, driver)}
-    pg = fingerprints(conn)
+    with _snapshot(conn):
+        pg = fingerprints(conn)
     changed = sorted({w for w, fp in pg.items() if graph.get(w) != fp} | (set(graph) - set(pg)))
     if not changed:
         return {"mode": "incremental", "works": 0}
     st = sync_works(conn, driver, changed)
-    with driver.session() as s:
-        _mark(s, "incremental", len(changed))
     return {"mode": "incremental", **st, "changed": changed[:50]}
 
 

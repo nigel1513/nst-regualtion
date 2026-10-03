@@ -192,3 +192,39 @@ def test_cli_and_task_sync_are_incremental(conn, tmp_path, neo4j_driver, monkeyp
 def _dsn(conn) -> str:
     i = conn.info
     return f"postgresql://{i.user}:{i.password}@{i.host}:{i.port}/{i.dbname}"
+
+
+def test_failed_sync_leaves_works_to_redo(conn, tmp_path, neo4j_driver, monkeypatch):
+    """지문은 참조까지 다 쓴 뒤에만 남는다: 중간 실패 후 다음 증분이 그 문서를 다시 넣는다 (리뷰 C1)."""
+    import pytest
+
+    import reg.graph.sync as gs
+
+    build(conn, tmp_path)
+    rebuild(conn, neo4j_driver)
+    rebuild_work(conn, "kr/law/L1", T)
+    conn.commit()
+    real = gs._write_references
+    monkeypatch.setattr(gs, "_write_references", lambda *a: (_ for _ in ()).throw(RuntimeError("bolt drop")))
+    with pytest.raises(RuntimeError):
+        sync_changed(conn, neo4j_driver)
+    assert one(neo4j_driver, "MATCH (w:Work {id: 'kr/law/L1'}) RETURN w.fp AS fp") == [{"fp": None}]
+    monkeypatch.setattr(gs, "_write_references", real)
+    assert sync_changed(conn, neo4j_driver)["changed"] == ["kr/law/L1"]
+    assert one(neo4j_driver, "MATCH (:Provision {path: 'a3', work_id: 'kr/reg/KASI/여비'})-[r:BASIS]->()"
+                             " RETURN count(r) AS n")[0]["n"] == 1
+    monkeypatch.setattr(gs, "_write_references", lambda *a: (_ for _ in ()).throw(RuntimeError("bolt drop")))
+    with pytest.raises(RuntimeError):
+        rebuild(conn, neo4j_driver)
+    monkeypatch.setattr(gs, "_write_references", real)
+    assert sync_changed(conn, neo4j_driver)["mode"] == "rebuild"  # 실패한 전체 재투영은 다시 전체로
+
+
+def test_neighborhood_shows_citations_of_other_versions_of_the_same_provision(conn, tmp_path, neo4j_driver):
+    """여비규정(2021)은 법 제5조 v1을 가리킨다. 현행 v2의 관계도에도 '이 조를 인용' 으로 나와야 한다 (리뷰 I2)."""
+    from reg.graph.query import neighborhood
+
+    build(conn, tmp_path)
+    rebuild(conn, neo4j_driver)
+    n = neighborhood(neo4j_driver, pv(conn, "kr/law/L1", "a5"))
+    assert f"pv:{pv(conn, 'kr/reg/KASI/여비', 'a3')}" in {e["source"] for e in n["edges"] if e["type"] == "BASIS"}

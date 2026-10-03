@@ -19,14 +19,16 @@ RELS = "|".join(REF_RELS)
 Q_OUT = (f"UNWIND $ids AS id MATCH (s:Provision {{pv_id: id}})-[r:{RELS}]->(t:Provision)"
          f" OPTIONAL MATCH (c:Provision {{lineage: t.lineage}}) WHERE {VALID.format(v='c')}"
          " WITH s, r, t, head(collect(c)) AS c"
-         " RETURN s.pv_id AS via, type(r) AS rel, 'out' AS direction, r.evidence AS evidence, coalesce(c, t) AS t")
+         " RETURN s.pv_id AS via, type(r) AS rel, 'out' AS direction, r.evidence AS evidence, coalesce(c, t) AS t,"
+         " c IS NULL AS stale")
 # 들어오는 예외·위임: 시작 조항과 그 상위 조(같은 계보의 어느 판본이든)를 가리키는 유효한 조항
 Q_IN = ("UNWIND $ids AS id MATCH (s:Provision {pv_id: id})"
         f" OPTIONAL MATCH (a:Article)-[:CONTAINS*1..3]->(s) WHERE {VALID.format(v='a')} AND s.path STARTS WITH a.path + '.'"
         " WITH s, [s] + collect(a) AS xs UNWIND xs AS x"
         " MATCH (y:Provision {lineage: x.lineage})<-[r:EXCEPTION|DELEGATION]-(t:Provision)"
         f" WHERE {VALID.format(v='t')} AND t.lineage <> s.lineage"
-        " RETURN DISTINCT s.pv_id AS via, type(r) AS rel, 'in' AS direction, r.evidence AS evidence, t")
+        " RETURN DISTINCT s.pv_id AS via, type(r) AS rel, 'in' AS direction, r.evidence AS evidence, t,"
+        " false AS stale")
 Q_PARENT = ("UNWIND $ids AS id MATCH (s:Provision {pv_id: id}) MATCH (a:Article)-[:CONTAINS*1..3]->(s)"
             f" WHERE {VALID.format(v='a')} AND s.path STARTS WITH a.path + '.'"
             " RETURN DISTINCT s.pv_id AS via, a AS t")
@@ -66,9 +68,10 @@ def expand(driver, pv_ids: list[int], as_of: date | str | None = None, depth: in
     seeds = [int(i) for i in pv_ids]
     found: dict[int, dict] = {}
 
-    def add(t, via, reason, rel, direction, hops, evidence=None):
-        item = {**_node(t), "reason": reason, "rel": rel, "direction": direction, "via": via, "hops": hops,
-                "evidence": evidence}
+    def add(t, via, reason, rel, direction, hops, evidence=None, stale=False):
+        """stale: 기준일에 유효한 판본이 없는 대상(그 뒤 삭제 등) — 그래프에 이어진 옛 판본을 표시와 함께 준다."""
+        item = {**_node(t), "reason": reason + (" (기준일에 없음)" if stale else ""), "rel": rel,
+                "direction": direction, "via": via, "hops": hops, "evidence": evidence, "stale": stale}
         cur = found.get(item["pv_id"])
         if item["pv_id"] in seeds or (cur and (cur["hops"], _rank(cur["reason"])) <= (hops, _rank(reason))):
             return False
@@ -85,7 +88,8 @@ def expand(driver, pv_ids: list[int], as_of: date | str | None = None, depth: in
             nxt = []
             for q, reasons in ((Q_OUT, OUT_REASON), (Q_IN, IN_REASON)):
                 for r in s.run(q, ids=frontier, as_of=as_of):
-                    if add(r["t"], r["via"], reasons[r["rel"]], r["rel"], r["direction"], hop, r["evidence"]):
+                    if add(r["t"], r["via"], reasons[r["rel"]], r["rel"], r["direction"], hop, r["evidence"],
+                           r["stale"]) and not r["stale"]:
                         nxt.append(r["t"]["pv_id"])
             frontier = nxt
             if not frontier:
@@ -116,7 +120,10 @@ NB_REL = f"{RELS}|AMENDED_TO|ADDED_IN|DELETED_IN|USES|DEFINES"
 # 한 조항의 이웃: 참조·계보·용어, 그 판본에서의 부모(판본 또는 상위 조항)와 자식(가장 늦은 판본 기준)
 Q_NB = ("MATCH (p:Provision {pv_id: $pv}) CALL (p) {"
         f" MATCH (p)-[r:{NB_REL}]-(x) RETURN r LIMIT $limit"
-        " UNION MATCH (x)-[r:CONTAINS]->(p) RETURN r"
+        " UNION MATCH (x)-[r:CONTAINS]->(p) WHERE NOT x:Version OR x.id = p.version_ids[-1] RETURN r"
+        # 참조는 출처 시행일의 대상 판본에 이어져 있다: 같은 계보의 다른 판본을 가리키는 현행 조항도 '이 조를 인용'
+        f" UNION MATCH (q:Provision {{lineage: p.lineage}})<-[r:{RELS}]-(x:Provision) WHERE q <> p AND x.current"
+        " RETURN r LIMIT $limit"
         " UNION MATCH (p)-[r:CONTAINS]->(x) WHERE $kids AND p.version_ids[-1] IN r.versions RETURN r"
         "} RETURN r, startNode(r) AS a, endNode(r) AS b")
 Q_TERM_DEFS = "MATCH (t:Term {key: $key})<-[r:DEFINES]-(d:Provision) RETURN r, d AS a, t AS b"

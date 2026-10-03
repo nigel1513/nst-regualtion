@@ -1,6 +1,8 @@
 """개정 영향 분석 (spec 9.2, 2026-10-03 §1.3-4): 실질 변경 조항 → Neo4j 법령 구조 그래프 역방향 탐색 → change_impact."""
 import re
 
+from reg.graph.project import fingerprints
+
 # 알림 원인은 law.go.kr에서 받은 상위 규범만 (사용자 결정 2026-10-02, spec §9).
 # 내부규정끼리의 영향(NST ↔ 산하기관, 기관 내 규정 사이)은 당분간 만들지 않는다. 다시 켜려면 여기에 "kr/reg/"를 더한다.
 ALERT_CAUSE_PREFIXES = ("kr/law/", "kr/admrul/")
@@ -62,9 +64,11 @@ def _lineages(conn, version_id: str, paths: set[str]) -> dict[str, int]:
 # 그래프 (spec 2026-10-03 §1): 참조는 출처 판본 시행일의 대상 조항 판본에 이어져 있으므로 바뀐 조항과 그 상위 항·조의
 # 계보(lineage)로 찾는다. 영향받는 쪽은 현행 판본의 조항(current)만.
 # 1단계: 바뀐 조항(또는 그 조)을 가리키는 다른 규범문서의 조항 — 대상 노드에서 출발해 계보 인덱스를 탄다
+# 원인 경로는 참조된 판본의 경로(t.path)가 아니라 이 판본에서 그 계보의 경로(c.key_path): 번호 이동 전후 판본을
+# 함께 가리키는 출처가 한 변경에 두 건으로 잡히지 않게
 Q1 = ("UNWIND $causes AS c MATCH (t:Provision {lineage: c.lineage})<-[r]-(src:Provision)"
       " WHERE type(r) IN $rels AND src.work_id <> c.work AND src.current"
-      " RETURN DISTINCT t.path AS cause_path, c.kind AS change, src.work_id AS work_id, src.path AS path,"
+      " RETURN DISTINCT c.key_path AS cause_path, c.kind AS change, src.work_id AS work_id, src.path AS path,"
       " src.pv_id AS pv_id, type(r) AS rel, r.evidence AS evidence")
 # 어느 판본에도 없는 경로를 가리키던 참조(missing)
 Q1_MISSING = ("UNWIND $causes AS c MATCH (t:MissingProvision {key: c.key})<-[r]-(src:Provision)"
@@ -133,11 +137,17 @@ def analyze_version(conn, driver, work_id: str, version_id: str, status: str = "
     for ch, path, vid in located:
         for key_path in _ancestors(path):  # 그 조항과 상위 항·조
             lin = ch["provision_id"] if key_path == path else lineages[vid].get(key_path)
-            causes.append({"lineage": lin, "key": f"{work_id}|{key_path}", "work": work_id, "path": path,
-                           "kind": ch["kind"]})
+            causes.append({"lineage": lin, "key": f"{work_id}|{key_path}", "key_path": key_path, "work": work_id,
+                           "path": path, "kind": ch["kind"]})
     with driver.session() as s:
-        if not s.run("MATCH (w:Work {id: $w}) RETURN count(w) AS n", w=work_id).single()["n"]:
-            raise LookupError(f"그래프에 {work_id}가 없습니다 (reg graph sync 필요)")
+        g = s.run("OPTIONAL MATCH (w:Work {id: $w}) OPTIONAL MATCH (v:Version {id: $v})"
+                  " RETURN w.id AS w, w.fp AS fp, v.id AS v", w=work_id, v=version_id).single()
+        if g["w"] is None or g["v"] is None:
+            raise LookupError(f"그래프에 {work_id}({version_id})가 없습니다 (reg graph sync 필요)")
+        # 계보 id(provision.id)는 재적재 때마다 바뀐다. 그래프가 PostgreSQL보다 오래됐으면 원인을 못 찾고 빈 결과로
+        # 처리 완료되므로, 다시 시도하게 실패로 알린다
+        if g["fp"] != fingerprints(conn, [work_id]).get(work_id):
+            raise LookupError(f"그래프의 {work_id}가 PostgreSQL보다 오래되었습니다 (reg graph sync 필요)")
         first = []
         if causes:
             with_lineage = [c for c in causes if c["lineage"] is not None]

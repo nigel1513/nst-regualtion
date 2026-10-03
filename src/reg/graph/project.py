@@ -46,6 +46,7 @@ class Rows:
     terms: list = field(default_factory=list)
     defines: list = field(default_factory=list)
     uses: list = field(default_factory=list)
+    fps: list = field(default_factory=list)  # 하위 그래프·참조를 다 쓴 뒤에 Work.fp로 기록한다
 
 
 def fingerprints(conn, work_ids: list[str] | None = None) -> dict[str, str]:
@@ -88,10 +89,11 @@ def work_rows(conn, ids: list[str]) -> Rows:
     for w in works:
         out.works.append({"id": w["id"], "institution": w["code"],
                           "props": {"title": w["title"], "kind": w["kind"], "family": family(w["id"]),
-                                    "status": w["status"], "institution": w["code"], "fp": fps.get(w["id"])}})
+                                    "status": w["status"], "institution": w["code"]}})
         if w["code"]:
             insts[w["code"]] = {"code": w["code"], "name": w["inst_name"], "aliases": list(w["aliases"] or [])}
     out.institutions = list(insts.values())
+    out.fps = [{"id": w["id"], "fp": fps.get(w["id"])} for w in works]
     versions = conn.execute(
         "SELECT id, work_id, effective_from, effective_to, version_state, amendment_kind, promulgated_on"
         " FROM regulation.work_version WHERE work_id = ANY(%s) AND effective_from IS NOT NULL"
@@ -177,6 +179,9 @@ def work_rows(conn, ids: list[str]) -> Rows:
         elif c["kind"] not in ("ADDED", "DELETED") and c["from_pv_id"] in known and c["to_pv_id"] in known:
             out.amended.append({"a": c["from_pv_id"], "b": c["to_pv_id"], "props": {
                 "kind": c["kind"], "from_version": c["from_version_id"], "to_version": c["to_version_id"]}})
+    pvs_by_work: dict[str, list] = defaultdict(list)
+    for pid, w in pv_work.items():
+        pvs_by_work[w].append(pid)
     # 용어: 정의 조(제목에 '정의') 아래 '"X"이란 …을 말한다'. 같은 이름이 여러 판본에 있으면 가장 늦은 정의를 쓴다
     for wid, dpvs in definition_pvs.items():
         terms: dict[str, dict] = {}
@@ -189,8 +194,8 @@ def work_rows(conn, ids: list[str]) -> Rows:
         for t in terms.values():
             out.terms.append({"key": t["key"], "props": t["props"]})
             out.defines += [{"pv": p, "key": t["key"]} for p in sorted(t["pvs"])]
-        for pid, w in pv_work.items():
-            if w != wid or pvs[pid]["unit"] in CONTEXT_UNITS:
+        for pid in pvs_by_work[wid]:
+            if pvs[pid]["unit"] in CONTEXT_UNITS:
                 continue
             for n in uses_terms(pvs[pid]["text"], names):
                 if pid not in terms[n]["pvs"]:
