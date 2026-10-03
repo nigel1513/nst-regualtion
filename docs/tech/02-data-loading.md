@@ -474,7 +474,7 @@ flowchart TD
 
 | 대상 | 해석 | `target_kind` | `resolution` |
 |---|---|---|---|
-| 내부 조문 | 그 조항 판본이 속한 가장 늦은 판본의 경로 목록에 있음 | PROVISION | RESOLVED / UNRESOLVED |
+| 내부 조문 | 인용 조항 판본이 들어 있는 **모든** 판본의 경로 목록 중 하나에 있음 (2026-10-03 전에는 가장 늦은 판본만 봤다) | PROVISION | RESOLVED / UNRESOLVED |
 | 내부 별표 | 같은 방식 | ANNEX | RESOLVED / UNRESOLVED |
 | 이름 → 제목 1건 | 같은 기관 `work` 제목 + `kr/law/`·`kr/admrul/` 제목. 기관 접두어(정식명·코드·약칭·`연구원` 등)를 떼고도 맞춘다(`match_title`) | PROVISION / WORK / ANNEX | 경로가 있으면 RESOLVED. 법령이면 경로 확인 없이 RESOLVED |
 | 이름 → 여러 건 | | EXTERNAL_UNRESOLVED | AMBIGUOUS |
@@ -488,12 +488,14 @@ flowchart TD
   - 폐지·삭제는 `REF_LAW_GONE`, 후보가 여럿이면 `REF_LAW_AMBIGUOUS`이다.
   - 미러가 비어 있어 현재 `target_law_id`가 채워진 행은 0건이다.
 
-### 5.3 일괄 적재 뒤 재해석 (`.run/reresolve.py`, 2026-10-03)
+### 5.3 재해석 (`reg refs reresolve`, `reg_process.refs_reresolve`)
 
-- 처리 순서 때문에 먼저 처리된 규정이 나중에 적재된 규정을 가리키면 UNRESOLVED로 남는다. 그래서 일괄 적재 뒤 한 번 다시 돌렸다.
-- 대상: `resolution <> 'RESOLVED'`인 참조가 있는 work 3,071개. 각 work에 `resolve_and_store` + `record_reference_tasks`를 하고 work마다 커밋했다.
-- 결과(`.run/reresolve.log`, 현재 DB도 같음): **RESOLVED 128,308 / UNRESOLVED 65,009 / AMBIGUOUS 203** (합계 193,520)
-- 이 스크립트는 저장소 코드가 아니라 `.run/`의 일회성 스크립트다. Airflow 진입점은 없다.
+- 처리 순서 때문에 먼저 처리된 규정이 나중에 적재된 규정을 가리키면 UNRESOLVED로 남는다. 해석 규칙을 바꾼 뒤의 옛 결과도 그대로 남는다.
+- `reg.core.refs.reresolve`: 대상 work마다 `resolve_refs`(읽기만)로 다시 해석하고, **결과가 저장된 것과 다를 때만** 지우고 다시 쓴 뒤 `record_reference_tasks`를 한다. work마다 커밋한다. 한 work의 실패는 `failed`·`failed_works`로 세고 계속한다.
+  - 바뀌지 않은 work는 참조 id가 그대로라 그래프 지문도 그대로다. 다음 `reg graph sync`는 바뀐 work만 증분한다.
+- CLI: `reg refs reresolve [--works a,b] [--all] [--dry-run]`. 인자가 없으면 `resolution <> 'RESOLVED'` 참조가 있는 work 전부, `--all`은 모든 work(추출·해석 규칙을 바꾼 뒤). `--dry-run`은 쓰지 않고 바뀔 work·참조 수만 센다. 쓴 뒤에는 `reg graph sync`.
+- Airflow: `reg_process.process_all >> refs_reresolve`(`reg.core.ingest.tasks.reresolve_refs`). `regulation_structured` Asset은 `refs_reresolve`가 알린다. 그래서 `reg_publish.graph_sync`(증분)가 재해석 결과까지 본다. `process_all`이 적재한 것이 없으면(`ok=0`) 건너뛴다.
+- 2026-10-03 일괄 적재 뒤 한 번(옛 `.run/reresolve.py`, 3,071 work): **RESOLVED 128,308 / UNRESOLVED 65,009 / AMBIGUOUS 203** (합계 193,520)
 
 UNRESOLVED 65,009의 구성(현재 DB):
 
@@ -504,6 +506,18 @@ UNRESOLVED 65,009의 구성(현재 DB):
 | 문서 안 별표 경로 없음 | 17,366 | ANNEX (이름 없음 17,265 + 이름 있음 101) |
 | 문서 안 조문 경로 없음 | 9,545 | PROVISION |
 
+- 문서 안(대상 = 자기 work) 미해석 25,281건의 원인(2026-10-03, 읽기 전용 조사):
+
+| 원인 | 건수 | 처리 |
+|---|---:|---|
+| 별표·별지가 판본에 없음: 파일에 없음(따로 붙은 첨부) | 9,277 | 그대로 미해석(맞음) |
+| 별표·별지 머리가 본문·부칙 글 속에 있음(`【별지 제1호 서식】`, `■ [별지 …]`, 줄 중간 `[별표 1]`): 파서가 별표로 나누지 못함 | 4,596 | 파서 문제. `parse.annex_heading`이 `【`·`■`·줄 중간 머리를 받아야 한다(재파싱 필요, 미해결) |
+| 대상이 같은 work의 다른 판본에만 있음(인용 조항이 없는 판본) — 예: `(제4조제2항에서 이동)` 주석, 별지가 빠진 옛 파일 | 5,814 | 그대로 미해석(판본 밖으로 넓히지 않음) |
+| 인용 조항이 들어 있는 다른 판본에는 있음 | 250 | **고침**: 해석이 가장 늦은 판본만 봤다 |
+| 다른 규범의 조·별표를 자기 것으로 읽음: 반각 낫표 `｢｣`, `제40조(직위의 해제), 제41조`, `제64조부터 제68조까지`, `제1항·제5항 및 제36조`, `「인사규정」 별표 1`, `X규정 중 다음과 같이 개정한다` | 약 1,400(추정) | **고침**(추출) |
+| 그 밖: 조문 번호 공백·파싱 누락(조 머리가 항 안에 묻힘), 이름 없이 쓴 법령 조문, 부칙 속 옛 조 번호 | 나머지 | 미해석 |
+
+- 고친 규칙의 영향(읽기 전용 추정: 문서 안 미해석 5,032건이 있는 work 353개를 옛·새 코드로 다시 해석): 문서 안 미해석 5,032 → 4,722(−310). 36건은 같은 문서에서 해석되고, 274건은 다른 규범 참조로 바뀐다(그중 93건 RESOLVED). 반대로 자기 조문으로 잘못 RESOLVED였던 239건이 다른 규범 참조로 바로잡힌다(정밀도). 전체로 늘리면 문서 안 미해석 약 −1,550, 같은 문서 새 해석 약 +180, 잘못된 자기 해석 약 −1,200.
 - 따라서 "대부분 법령 인용"은 정확하지 않다. 외부 미해석은 38,098(58.6%)이고, 그중 법령형 이름이 25,680(39.5%)이다. 문서 내부 조문·별표 미해석도 26,911(41.4%)이다.
 - 미해석 상위 이름: 공직자의 이해충돌 방지법 1,634, 법 1,042, 근로기준법 890, 시행령 810, 법률 630, 산업안전보건법 584, 개인정보 보호법 559.
 - `law_seed`는 3,283개다.
@@ -650,6 +664,7 @@ UNRESOLVED 65,009의 구성(현재 DB):
 | 처리 | `reg process [--limit 100] [--all] [--rebuild] [--no-convert]` | `reg_process.process_all` |
 | OCR | `reg ocr status`, `reg ocr run [--limit 50] [--all]`, `reg ocr enqueue-low-text [--dry-run]` | `reg_ocr.run_pending` |
 | 별표 | `reg annex render [--version V] [--limit 500]`, `reg annex tables [--version V] [--limit 50]`, `reg annex status` | `reg_process.annex_render`, `annex_tables` |
+| 참조 재해석 | `reg refs reresolve [--works a,b] [--all] [--dry-run]` | `reg_process.refs_reresolve` |
 | 품질 | `reg quality report …`, `reg quality build-lexicon`, `reg quality refs-sample` | `reg_process.quality_summary`(집계만) |
 | 그래프 | `reg graph rebuild`, `reg graph sync [--works a,b]`, `reg graph stats` | `reg_publish.graph_sync` |
 | 영향 분석 | `reg alerts scan [--no-sync]`, `reg alerts notify` | `reg_publish.alerts_scan`, `reg_notify` |
@@ -666,7 +681,7 @@ UNRESOLVED 65,009의 구성(현재 DB):
 4. `reg alio reconcile`로 투영한다. 완결 대조는 Airflow `reconcile`이나 `reg alio backfill`이 결과를 넘길 때만 한다.
 5. `reg process --all`
 6. `reg ocr run --all` → `reg process --all` (OCR한 문서를 다시 파싱)
-7. 인용 재해석: `uv run python .run/reresolve.py` (일괄 적재 순서 때문에 남은 UNRESOLVED를 다시 맞춘다)
+7. 인용 재해석: `reg refs reresolve` (일괄 적재 순서 때문에 남은 UNRESOLVED를 다시 맞춘다)
 8. 법령(키 승인 뒤): `reg law full` → `reg process --all` → `reg law link` → `reg law promote` → `reg process --all`
 9. `reg annex render` → `reg annex tables --limit 500` (반복)
 10. `reg graph rebuild`
@@ -690,7 +705,7 @@ UNRESOLVED 65,009의 구성(현재 DB):
    - 등록된 토픽(`source_fetched`, `law_fetched`)의 outbox를 `processed_at=NULL, attempts=0`으로 되돌린 뒤 끝까지 처리한다.
    - OCR 결과(`ocr_blob_key`)와 보기용 PDF는 남는다. 그래서 다시 OCR·변환하지 않는다.
 3. `reg alio reconcile` — TRUNCATE로 사라진 `work.status`·ABOLISHED 검수 작업을 원장에서 되살린다.
-4. `uv run python .run/reresolve.py`
+4. `reg refs reresolve`
 5. (미러가 있으면) `reg law link` → `reg law promote`
 6. `reg annex render` → `reg annex tables`
 7. `reg graph sync` (provision·reference id가 바뀌어 지문이 달라지므로 사실상 전체 증분이다. 빠르게 하려면 `reg graph rebuild`)
