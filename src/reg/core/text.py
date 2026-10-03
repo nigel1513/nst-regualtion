@@ -107,6 +107,11 @@ PUA_MAP = {
 }
 # 서식의 밑줄·괘선을 그리는 PUA 문자열 (HWP U+F0800~F08FF, KIST PDF U+F000). 세 개 이상 이어지면 지운다
 PUA_RUN = re.compile(r"[\U000f0800-\U000f08ff\U0000f000]{3,}")
+# 굵은 제목을 여러 번 겹쳐 찍은 PDF: '출출출자자자기기기' · '중중…(36) 소소…(36)' · 'KKKRRRIIICCCTTT'.
+# 같은 길이(3 이상)로 반복된 글자 덩어리가 3개 이상 이어질 때만 한 글자로 합친다 (한글은 덩어리 사이 빈칸 하나 허용).
+# 덩어리가 둘뿐이거나 길이가 다르면 표 칸의 세로 글자('터터터팀팀팀', '년년년합계')일 수 있어 그대로 둔다.
+_REPEAT = re.compile(r"(?:([가-힣])\1{2,} ?){3,}|(?:([A-Za-z])\2{2,}){3,}")
+_RUN = re.compile(r"(\S)\1*( ?)")
 _SPACED_LINE = re.compile(r"^(?:[가-힣] ){2,}[가-힣]$")
 _WORD_END = re.compile(r"(?:다|고|며|여|서|에게|에서|으로|로|를|을|의|는|은|에|와|과|및|등|또는|하는|되는|한|된|할|될"
                        r"|하며|하고|하여|따라|위하여|대하여|관하여|경우|때)$")
@@ -124,7 +129,28 @@ def normalize_glyphs(s: str) -> str:
             s = "".join(p + ("“" if i % 2 == 0 else "”") for i, p in enumerate(parts[:-1])) + parts[-1]
         else:
             s = s.replace("\U0000f000", " ")
-    return s
+    return collapse_repeats(s)
+
+
+def _collapse_runs(m: re.Match) -> str:
+    runs = [(r[1], len(r[0]) - len(r[2]), r[2]) for r in _RUN.finditer(m[0])]
+    out, i = [], 0
+    while i < len(runs):
+        j = i
+        while j + 1 < len(runs) and runs[j + 1][1] == runs[i][1]:
+            j += 1
+        grp = runs[i:j + 1]
+        if len(grp) >= 3 and grp[0][1] >= 3 and len({c for c, _, _ in grp}) >= 2:
+            out += [c + sp for c, _, sp in grp]
+        else:
+            out += [c * n + sp for c, n, sp in grp]
+        i = j + 1
+    return "".join(out)
+
+
+def collapse_repeats(s: str) -> str:
+    """겹쳐 찍힌 글자 반복을 한 글자로 합친다 (_REPEAT 참고)."""
+    return _REPEAT.sub(_collapse_runs, s) if s else s
 
 
 def despace_line(s: str) -> str:
