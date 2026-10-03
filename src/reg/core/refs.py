@@ -12,13 +12,12 @@ M6-6에서 바뀐 것 (실측: 현행 표본 정밀도 64.6% → 91.9%)
 """
 import re
 from dataclasses import dataclass, field
-from datetime import date
 
 from reg.core.ingest.loader import norm_title
 from reg.core.model import Prov
 
 CIRCLED = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳"
-RE_NAME = re.compile(r"「\s*([^」]{2,80}?)\s*」")
+RE_NAME = re.compile(r"[「｢]\s*([^」｣]{2,80}?)\s*[」｣]")  # 반각 낫표 ｢｣와 섞인 것도
 RE_ART = re.compile(r"제\s*(\d+)\s*조(?:\s*의\s*(\d+)(?!\d))?(?:\s*제\s*(\d+)\s*항)?(?:\s*제\s*(\d+)\s*호)?"
                     r"(?:\s*([가-하])\s*목)?")
 AFTER_JO = r"(?=\s|에|의|를|은|는|와|과|부터|까지|[,.)]|$)"  # '이 조치'처럼 다른 낱말이 이어지면 참조가 아니다
@@ -36,7 +35,7 @@ LAW_SUFFIX = f"(?:{LAW_WORDS})"
 # 조문 번호 바로 앞(공백 0~1개)의 이름 한 덩어리: '연구관리규정', '근로기준법', '근로기준법 시행령'
 RE_NAME_TAIL = re.compile(rf"([가-힣A-Za-z0-9·ㆍ]{{1,40}}?(?:{REG_WORDS}|{LAW_WORDS}))(\s?(?:시행령|시행규칙))?\s?$")
 # '… 등에 관한 법률 제5조'처럼 띄어 쓴 긴 법률 이름 (쉼표·마침표·괄호 뒤부터)
-RE_LONG_LAW = re.compile(r"(?:^|[,.;:)」]\s?|\s(?:및|또는)\s)((?:[가-힣A-Za-z0-9·ㆍ]+\s){1,9}?[가-힣A-Za-z0-9·ㆍ]*관한\s?법률"
+RE_LONG_LAW = re.compile(r"(?:^|[,.;:)」｣]\s?|\s(?:및|또는)\s)((?:[가-힣A-Za-z0-9·ㆍ]+\s){1,9}?[가-힣A-Za-z0-9·ㆍ]*관한\s?법률"
                          r"(?:\s?시행령|\s?시행규칙)?)\s?$")
 RE_QUAL = re.compile(r"(?:^|\s)((?:이|본|동|같은|당해)\s?" + REG_SUFFIX + r")\s?$")
 BARE_LAW = {"법", "영", "법률", "시행령", "시행규칙"}
@@ -45,24 +44,28 @@ SELF_WORDS = re.compile(r"^(?:이|본|당해)\s?" + REG_SUFFIX + "$|^" + REG_SUF
 SAME_WORDS = re.compile(r"^(?:동|같은)\s?" + REG_SUFFIX + "$")
 GENERIC = re.compile(r"^(?:관련|관계|해당|각|위|다른|내부|제|상기|소관|별도|운영|세부|시행|기관)\s?" + REG_SUFFIX + "$"
                      r"|^(?:관련|관계|해당|각|다른|이|본|당해)\s?" + LAW_SUFFIX + "$")
-RE_DEF = re.compile(r"(?:「\s*([^」]{2,80}?)\s*」|([가-힣A-Za-z0-9·ㆍ]{2,40}(?:법|법률|령|" + REG_WORDS + r")))"
+RE_DEF = re.compile(r"(?:[「｢]\s*([^」｣]{2,80}?)\s*[」｣]|([가-힣A-Za-z0-9·ㆍ]{2,40}(?:법|법률|령|" + REG_WORDS + r")))"
                     r"\s?\(\s?이하\s?[“\"‘']\s?([^”\"’']{1,12}?)\s?[”\"’']\s?(?:이)?라\s?(?:한다|함)")
 RE_SAME_DEF = re.compile(r"같은\s?법\s?(시행령|시행규칙)\s?\(\s?이하\s?[“\"‘']\s?([^”\"’']{1,6}?)\s?[”\"’']")
 RE_ANY_DEF = re.compile(r"([가-힣A-Za-z0-9·ㆍ]{2,40})\s?\(\s?이하\s?[“\"‘']\s?([^”\"’']{1,12}?)\s?[”\"’']"
                         r"\s?(?:이)?라\s?(?:한다|함)")
 RE_AMEND = re.compile(r"((?:[가-힣A-Za-z0-9·ㆍ]{2,20}\s)?[가-힣A-Za-z0-9·ㆍ]{0,40}" + REG_SUFFIX
-                      + r")\s?(?:일부|전부)를\s?다음과\s?같이\s?개정한다")
+                      + r")\s?(?:(?:일부|전부)를|중)\s?다음과\s?같이\s?개정한다")
 RE_CONT = re.compile(r"[\s,·ㆍ]*(?:및|와|과|또는|이나|부터|까지)?[\s,·ㆍ]*")
-RE_LIST_GAP = re.compile(r"[\s,·ㆍ]*(?:및|와|과|또는|이나|중)?[\s,·ㆍ]*")
+_SEP = r"[\s,·ㆍ]*(?:(?:및|와|과|또는|이나|중|부터|내지)[\s,·ㆍ]*|[~∼～][\s,·ㆍ]*)?"
+# 나열 사이에 올 수 있는 것: 조 제목 '(직위의 해제)', 앞 조의 항·호 '제5항·제7항', 범위 '부터'·'내지'·'~'
+RE_LIST_GAP = re.compile(rf"(?:{_SEP}(?:\([^()]{{1,30}}\)|제\s*\d+\s*(?:항|호)|[가-하]\s*목))*{_SEP}")
 RE_OWN_CLAUSE = re.compile(r"제\s?\d+\s?조\s?\([^)]{1,20}\)")
 RE_RELATED = re.compile(r"\(\s?제\s?\d+\s?조[^()]{0,20}관련\s?\)")
 RE_DELEG_NAMED = re.compile(r"([가-힣A-Za-z0-9·ㆍ]{2,40}" + REG_SUFFIX + r")\s?(?:에서|으로|로)\s?(?:따로\s?|별도로\s?)?"
                             r"정(?:한다|할\s?수\s?있다|하는\s?바에\s?따른다)")
 RE_PURPOSE_BASIS = re.compile(r"^\s?(?:\([^()]{1,20}\)\s?)?(?:에\s?의거|에\s?의하여|에\s?따라|에\s?근거하여"
                               r"|의\s?규정에\s?(?:의하여|따라|의거)|에서\s?위임)")
-RE_NAME_WORK = re.compile(rf"(?<![가-힣A-Za-z0-9·ㆍ「“])([가-힣A-Za-z0-9·ㆍ]{{1,40}}(?:{REG_WORDS}|{LAW_WORDS}))"
+RE_NAME_WORK = re.compile(rf"(?<![가-힣A-Za-z0-9·ㆍ「｢“])([가-힣A-Za-z0-9·ㆍ]{{1,40}}(?:{REG_WORDS}|{LAW_WORDS}))"
                           r"(?=\s?(?:에서|에|을|를|의|으로부터)\s?(?:따라|따른|의하여|의한|의거|정하는|정한|준용|근거|위임))")
 RE_WIIM = re.compile(r"^\s?(?:에서|으로부터)\s?위임(?:한|된|받은)")
+# 규범 이름으로 끝나는 낫표 이름 ('「인사규정」 별표 1'). 서식 이름('「…신청서」')은 아니다
+RE_NORM_NAME = re.compile(rf"(?:{REG_WORDS}|{LAW_WORDS}|령|예규|훈령|고시)$")
 INST_WORDS = ("연구원", "연구회", "과기연", "천문연", "본원", "당원")
 
 
@@ -128,6 +131,10 @@ def _art_path(m) -> str:
     return p
 
 
+def _annex_path(m) -> str:
+    return ("annex" if "표" in m[1] else "form") + f"{int(m[2])}" + (f"-{int(m[3])}" if m[3] else "")
+
+
 def _rel(text: str, end: int, external: bool) -> str:
     after = text[end:end + 30]
     if re.match(r"\s*(?:의\s*규정)?\s*에도\s*불구하고", after):
@@ -158,12 +165,12 @@ def _name_before(text: str, start: int, abbr: dict[str, str]) -> tuple[str, int]
         return abbr[tok[1]], off + tok.start(1)
     if tok and tok[1] in STANDALONE:
         return tok[1], off + tok.start(1)
+    if m := RE_LONG_LAW.search(pre):  # '… 설립·운영에 관한 법률 제31조': 끝 낱말 '법률'만 떼지 않는다
+        return re.sub(r"\s+", " ", m[1]).strip(), off + m.start(1)
     if tok and tok[1] in BARE_LAW and not re.search(r"(?:같은|동)\s?$", pre[:tok.start(1)]):
         return tok[1], off + tok.start(1)  # 정의 없는 '법 제5조', '시행령 제18조': 자기 조문이 아니다
     if q := RE_QUAL.search(pre):  # '동 요령', '이 규정', '같은 지침'
         return q[1], off + q.start(1)
-    if m := RE_LONG_LAW.search(pre):
-        return re.sub(r"\s+", " ", m[1]).strip(), off + m.start(1)
     m = RE_NAME_TAIL.search(pre)
     if not m:
         return None
@@ -205,6 +212,12 @@ def extract_refs(p: Prov, ctx: RefContext | None = None) -> list[RefCandidate]:
         art = RE_ART.match(text, m.end()) or RE_ART.match(text, m.end() + 1)
         if art and art.start() - m.end() > 1:
             art = None
+        ann = None if art or not RE_NORM_NAME.search(name) else \
+            RE_ANNEX.match(text, m.end() + (1 if text[m.end():m.end() + 1].isspace() else 0))
+        if ann:  # 「인사규정」 별표 1: 그 규범의 별표. 「기술지원 변경의뢰서」(별지 제14호)는 이 문서의 서식이다
+            add(RefCandidate(p.path, m.start(), ann.end(), text[m.start():ann.end()], "CITATION", "named_annex",
+                             name, _annex_path(ann)))
+            continue
         end = art.end() if art else m.end()
         add(RefCandidate(p.path, m.start(), end, text[m.start():end], _rel(text, end, True), "external",
                          name, _art_path(art) if art else None))
@@ -229,7 +242,7 @@ def extract_refs(p: Prov, ctx: RefContext | None = None) -> list[RefCandidate]:
             carry = r0 if r0 and r0.name else carry
             continue
         if typ == "annex":
-            target = ("annex" if "표" in m[1] else "form") + f"{int(m[2])}" + (f"-{int(m[3])}" if m[3] else "")
+            target = _annex_path(m)
         else:
             target = _art_path(m)
         same = RE_SAME.search(text[:m.start()]) if typ == "art" else None
@@ -347,8 +360,34 @@ def institution_prefixes(conn, institution_id: int | None, definitions: dict[str
     return frozenset(names)
 
 
-def resolve_and_store(conn, work_id: str) -> dict:
-    conn.execute("DELETE FROM regulation.reference WHERE work_id = %s", (work_id,))
+@dataclass
+class ResolvedRef:
+    """regulation.reference 한 행 (id·review_status·법령 FK 제외)."""
+    source_pv_id: int
+    evidence: str
+    start: int
+    end: int
+    rel_type: str
+    target_kind: str
+    target_work_id: str | None
+    target_path: str | None
+    target_name: str | None
+    resolution: str
+    confidence: float
+    extractor: str
+    source_kind: str  # extract_refs의 kind
+
+    def key(self) -> tuple:
+        return (self.source_pv_id, self.start, self.end, self.evidence, self.rel_type, self.target_kind,
+                self.target_work_id, self.target_path, self.target_name, self.resolution, self.extractor)
+
+
+def resolve_refs(conn, work_id: str) -> tuple[list[ResolvedRef], set[str]]:
+    """참조를 뽑아 해석만 한다 (DB 읽기만). (행 목록, law_seed 후보 이름)을 돌려준다.
+
+    문서 안 조·별표는 인용 조항 판본이 들어 있는 판본들의 경로 목록으로 해석한다. 같은 글자의 조항이 여러 판본에
+    걸쳐 있을 때 가장 늦은 판본만 보면, 그 판본 파일에서 별표·별지가 빠졌을 때 앞 판본에 있는 대상을 놓친다.
+    인용 조항이 없는 판본에만 있는 대상(옛 번호 '…에서 이동' 주석 등)은 여전히 미해석이다."""
     work = conn.execute("SELECT * FROM regulation.work WHERE id = %s", (work_id,)).fetchone()
     titles: dict[str, list[str]] = {}
     for w in conn.execute("SELECT id, title FROM regulation.work WHERE id LIKE 'kr/law/%%' OR id LIKE 'kr/admrul/%%'"
@@ -357,19 +396,16 @@ def resolve_and_store(conn, work_id: str) -> dict:
         titles.setdefault(norm_title(w["title"]), []).append(w["id"])
     pvs = conn.execute(
         "SELECT DISTINCT pv.* FROM regulation.provision_version pv JOIN regulation.provision p ON p.id = pv.provision_id"
-        " WHERE p.work_id = %s", (work_id,)).fetchall()
-    # 내부 참조는 그 조항 판본이 속한 버전들 중 가장 늦은 버전의 조문 목록으로 해석한다
+        " WHERE p.work_id = %s ORDER BY pv.id", (work_id,)).fetchall()
     vrows = conn.execute(
-        "SELECT vp.work_version_id AS v, pv.id AS pv, pv.path, v.effective_from FROM regulation.version_provision vp"
+        "SELECT vp.work_version_id AS v, pv.id AS pv, pv.path FROM regulation.version_provision vp"
         " JOIN regulation.provision_version pv ON pv.id = vp.provision_version_id"
         " JOIN regulation.work_version v ON v.id = vp.work_version_id WHERE v.work_id = %s", (work_id,)).fetchall()
     vpaths: dict[str, set] = {}
-    latest: dict[int, tuple] = {}
+    pv_versions: dict[int, set] = {}
     for r in vrows:
         vpaths.setdefault(r["v"], set()).add(r["path"])
-        key = (r["effective_from"] or date.min, r["v"])
-        if r["pv"] not in latest or key > latest[r["pv"]]:
-            latest[r["pv"]] = key
+        pv_versions.setdefault(r["pv"], set()).add(r["v"])
     texts = [pv["text"] for pv in pvs]
     ctx = RefContext(collect_abbreviations(texts))
     prefixes = institution_prefixes(conn, work["institution_id"], collect_definitions(texts))
@@ -386,10 +422,11 @@ def resolve_and_store(conn, work_id: str) -> dict:
     def has(paths: set, tpath: str | None) -> bool:
         return tpath is None or tpath in paths or tpath.split(".")[0] in paths
 
-    st = {"refs": 0, "resolved": 0, "unresolved": 0, "seeds": 0, "named": 0}
+    out: list[ResolvedRef] = []
+    seeds: set[str] = set()
     for pv in pvs:
         prov = Prov(pv["path"], pv["unit"], pv["number_label"], pv["heading"], pv["text"], pv["parent_path"])
-        paths = vpaths.get(latest[pv["id"]][1], set()) if pv["id"] in latest else set()
+        paths = set().union(*(vpaths[v] for v in pv_versions.get(pv["id"], ())))
         for r in extract_refs(prov, ctx):
             tw, tpath, kind, res = None, r.target_path, "NONE", "RESOLVED"
             if r.kind == "internal":
@@ -418,16 +455,89 @@ def resolve_and_store(conn, work_id: str) -> dict:
                 else:
                     kind, res = "EXTERNAL_UNRESOLVED", "UNRESOLVED"
                     if looks_like_law(r.name) and r.name not in BARE_LAW and len(norm_title(r.name)) >= 3:
-                        cur = conn.execute("INSERT INTO regulation.law_seed (name, origin, first_seen_work_id)"
-                                           " VALUES (%s, 'reference', %s) ON CONFLICT DO NOTHING", (r.name, work_id))
-                        st["seeds"] += cur.rowcount
-                st["named"] += r.kind != "external"
-            conn.execute(
-                "INSERT INTO regulation.reference (work_id, source_pv_id, evidence_text, span_start, span_end, rel_type,"
-                " target_kind, target_work_id, target_path, target_name, resolution, confidence, extractor) VALUES"
-                " (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
-                (work_id, pv["id"], r.evidence, r.start, r.end, r.rel_type, kind, tw, tpath, r.name, res,
-                 r.confidence, r.extractor))
-            st["refs"] += 1
-            st["resolved" if res == "RESOLVED" else "unresolved"] += 1
+                        seeds.add(r.name)
+            out.append(ResolvedRef(pv["id"], r.evidence, r.start, r.end, r.rel_type, kind, tw, tpath, r.name, res,
+                                   r.confidence, r.extractor, r.kind))
+    return out, seeds
+
+
+def store_refs(conn, work_id: str, rows: list[ResolvedRef], seeds: set[str]) -> dict:
+    """work의 참조를 지우고 rows로 다시 넣는다. 새 law_seed 이름도 넣는다."""
+    st = {"refs": len(rows), "resolved": sum(r.resolution == "RESOLVED" for r in rows), "seeds": 0,
+          "named": sum(r.source_kind in ("named", "named_annex", "delegation_named") for r in rows)}
+    st["unresolved"] = st["refs"] - st["resolved"]
+    conn.execute("DELETE FROM regulation.reference WHERE work_id = %s", (work_id,))
+    for name in sorted(seeds):
+        cur = conn.execute("INSERT INTO regulation.law_seed (name, origin, first_seen_work_id)"
+                           " VALUES (%s, 'reference', %s) ON CONFLICT DO NOTHING", (name, work_id))
+        st["seeds"] += cur.rowcount
+    with conn.cursor() as cur:
+        cur.executemany(
+            "INSERT INTO regulation.reference (work_id, source_pv_id, evidence_text, span_start, span_end, rel_type,"
+            " target_kind, target_work_id, target_path, target_name, resolution, confidence, extractor) VALUES"
+            " (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            [(work_id, r.source_pv_id, r.evidence, r.start, r.end, r.rel_type, r.target_kind, r.target_work_id,
+              r.target_path, r.target_name, r.resolution, r.confidence, r.extractor) for r in rows])
+    return st
+
+
+def resolve_and_store(conn, work_id: str) -> dict:
+    rows, seeds = resolve_refs(conn, work_id)
+    return store_refs(conn, work_id, rows, seeds)
+
+
+def _stored_keys(conn, work_id: str) -> list[tuple]:
+    return sorted((tuple(r.values()) for r in conn.execute(
+        "SELECT source_pv_id, span_start, span_end, evidence_text, rel_type, target_kind, target_work_id, target_path,"
+        " target_name, resolution, extractor FROM regulation.reference WHERE work_id = %s", (work_id,)).fetchall()),
+                  key=_sort_key)
+
+
+def _sort_key(k: tuple) -> tuple:
+    return tuple("" if v is None else v for v in k)
+
+
+def reresolve(conn, works: list[str] | None = None, dry_run: bool = False, log=None) -> dict:
+    """참조를 다시 해석한다 (02-data-loading §5.3). works가 없으면 미해석·모호 참조가 있는 work 전부.
+
+    먼저 처리된 규정이 나중에 적재된 규정을 가리킨 참조, 해석 규칙이 바뀐 뒤의 옛 결과를 고친다.
+    결과가 저장된 것과 같으면 다시 쓰지 않는다: 참조 id가 그대로라 그래프 지문(project.fingerprints)도 그대로이고,
+    다음 `reg graph sync`는 바뀐 work만 다시 넣는다. 바뀐 work는 참조 검수 작업도 다시 맞춘다. work마다 커밋한다.
+    dry_run이면 아무것도 쓰지 않고 바뀔 수만 센다."""
+    from reg.core.quality import record_reference_tasks
+
+    if works is None:
+        works = [r["work_id"] for r in conn.execute(
+            "SELECT DISTINCT work_id FROM regulation.reference WHERE resolution <> 'RESOLVED' ORDER BY 1").fetchall()]
+    st = {"works": len(works), "changed": 0, "unchanged": 0, "failed": 0, "resolved_before": 0, "resolved_after": 0,
+          "unresolved_before": 0, "unresolved_after": 0, "seeds": 0, "failed_works": []}
+    for n, wid in enumerate(works, 1):
+        try:
+            before = _stored_keys(conn, wid)
+            rows, seeds = resolve_refs(conn, wid)
+            after = sorted((r.key() for r in rows), key=_sort_key)
+            res_before = sum(k[9] == "RESOLVED" for k in before)
+            res_after = sum(r.resolution == "RESOLVED" for r in rows)
+            st["resolved_before"] += res_before
+            st["resolved_after"] += res_after
+            st["unresolved_before"] += len(before) - res_before
+            st["unresolved_after"] += len(rows) - res_after
+            if before == after:
+                st["unchanged"] += 1
+                conn.rollback()
+                continue
+            st["changed"] += 1
+            if dry_run:
+                conn.rollback()
+                continue
+            st["seeds"] += store_refs(conn, wid, rows, seeds)["seeds"]
+            record_reference_tasks(conn, wid)
+            conn.commit()
+        except Exception as e:  # 한 work의 실패가 나머지를 막지 않는다. 실패 목록은 stats에 남는다
+            conn.rollback()
+            st["failed"] += 1
+            if len(st["failed_works"]) < 20:
+                st["failed_works"].append(f"{wid}: {type(e).__name__}: {e}"[:300])
+        if log and n % 200 == 0:
+            log(f"{n}/{len(works)} changed={st['changed']} failed={st['failed']}")
     return st
