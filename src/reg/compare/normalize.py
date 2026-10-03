@@ -35,6 +35,8 @@ def duration(value: str) -> str | None:
 def won(value: str) -> str | None:
     """'2천만원', '2,000만원', '1억 5천만원', '20,000천원', '50,000원' → 원 단위 정수 글."""
     s = _WS.sub("", value or "").replace(",", "")
+    if re.search(r"달러|불|USD|\$|엔|유로|위안", s, re.IGNORECASE):
+        return None                                   # 외화 금액은 원으로 바꾸지 않는다 (글 값으로 둔다)
     m = re.search(r"\d", s)
     if not m:
         return None
@@ -51,6 +53,17 @@ def won(value: str) -> str | None:
 def boolean(value: str) -> str | None:
     v = _WS.sub("", value or "").lower().rstrip(".")
     return "있음" if v in _YES else "없음" if v in _NO else None
+
+
+def days(norm_value: str) -> int | None:
+    """정규화한 기간('7일'·'3개월'·'5년') → 대략의 일 수 (범위 확인용)."""
+    m = re.fullmatch(r"(\d+)(일|개월|년)", norm_value or "")
+    return int(m[1]) * {"일": 1, "개월": 30, "년": 365}[m[2]] if m else None
+
+
+def durations_in(text: str) -> list[int]:
+    """글 속 기간 표현들의 일 수 ('2년 초과 3년 이내' → [730, 1095])."""
+    return [d for m in _DURATION.finditer(text or "") if (d := days(duration(m[0]) or "")) is not None]
 
 
 RULES = {"duration": duration, "won": won, "boolean": boolean, "text": _text}

@@ -46,3 +46,24 @@ def test_quote_span_ignores_whitespace_and_returns_original_offsets():
     s, e = quote_span("기점으로 7일 이내에", text)
     assert text[s:e] == "기점으로\n7일 이내에"
     assert quote_span("없는 구절", text) is None
+
+
+def test_foreign_currency_is_not_won_and_days():
+    from reg.compare.normalize import days
+
+    assert normalize("2만 달러 이하", "won") == "2만달러이하"
+    assert (days("7일"), days("3개월"), days("5년"), days("영구")) == (7, 90, 1825, None)
+
+
+def test_duration_bounds():
+    from reg.compare.extract import in_bounds
+
+    item = load_item("hr", "probation_period")
+    assert in_bounds("3개월", item) and not in_bounds("3년", item) and in_bounds("영구", item)
+    assert not in_bounds("2년 초과 3년 이내", item) and in_bounds("3개월(최대 6개월)", item)
+
+
+def load_item(topic, item):
+    from reg.compare.config import load
+
+    return load().item(topic, item)

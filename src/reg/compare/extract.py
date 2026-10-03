@@ -9,7 +9,7 @@ import re
 from dataclasses import asdict, dataclass, field
 
 from reg.compare.config import Item
-from reg.compare.normalize import fragments, normalize, snap, squash, value_supported
+from reg.compare.normalize import durations_in, fragments, normalize, snap, squash, value_supported
 from reg.index.mapping import PIPELINE
 from reg.index.service import base_filters, bm25_query
 from reg.platform.llm import ProviderError
@@ -206,12 +206,16 @@ def locate(quote: str, c: Candidate) -> Unit | None:
 
 
 def in_bounds(value: str, item: Item) -> bool:
-    if item.norm != "won" or (item.min is None and item.max is None):
+    if item.norm not in ("won", "duration") or (item.min is None and item.max is None):
         return True
-    v = normalize(value, "won")
-    if v is None or not v.isdigit():
+    v = normalize(value, item.norm)
+    if item.norm == "won":
+        ns = [int(v)] if v and v.isdigit() else []
+    else:                                            # '2년 초과 3년 이내'처럼 기간이 여럿이면 하나라도 범위 안이어야
+        ns = durations_in(value)
+    if not ns:
         return True                                  # 실비·법령 준용 같은 글 값은 범위를 보지 않는다
-    return (item.min is None or int(v) >= item.min) and (item.max is None or int(v) <= item.max)
+    return any((item.min is None or n >= item.min) and (item.max is None or n <= item.max) for n in ns)
 
 
 def extract(llm, item: Item, inst: str, cands: list[Candidate]) -> Cell:
