@@ -24,6 +24,17 @@ for _name, _sub in wiring.subcommands():
 app.command("process")(wiring.process_command())
 
 
+@app.command("fix-titles")
+def fix_titles() -> None:
+    """제목 자리에 제·개정 이력 줄이 들어간 판본을 규정 이름으로 바로잡는다."""
+    from reg.core.ingest.loader import fix_revision_titles
+
+    with connect(get_settings().database_url) as conn:
+        n = fix_revision_titles(conn)
+        conn.commit()
+    typer.echo(f"판본 제목 바로잡음: {n}")
+
+
 @db.command("bootstrap")
 def db_bootstrap(superuser_dsn: str = typer.Option(None, envvar="REG_SUPERUSER_URL")) -> None:
     s = get_settings()

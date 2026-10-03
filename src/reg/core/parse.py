@@ -158,6 +158,10 @@ def _finish(p: Prov) -> None:
         p.deleted, p.text = True, "삭제"
 
 
+# 제·개정 이력 줄('제정 1992-02-01', '개정 2024. 2. 14.')은 제목이 아니다
+RE_REVISION_LINE = re.compile(r"^\s*[<\[(]?\s*(?:제정|개정|전부\s*개정|일부\s*개정|시행)\s*[\d'’(]")
+
+
 def _header(blocks: list[Block]) -> tuple[str, str | None, list[HistEntry]]:
     title, code, hist = "", None, []
     for b in blocks:
@@ -168,7 +172,8 @@ def _header(blocks: list[Block]) -> tuple[str, str | None, list[HistEntry]]:
         if m := RE_HIST.match(t):
             hist.append(HistEntry(re.sub(r"\s+", "", m[1]), parse_dot_date(m[2]), m[3]))
             continue
-        if not title and not RE_LEADER.search(t) and not re.fullmatch(r"[\d\s.-]+", t) and "목" not in t[:2]:
+        if (not title and not RE_LEADER.search(t) and not re.fullmatch(r"[\d\s.-]+", t) and "목" not in t[:2]
+                and not RE_REVISION_LINE.match(t)):
             title = _despace_title(re.sub(r"\(\s*원규분류.*$", "", t).strip())
     return title, code, hist
 

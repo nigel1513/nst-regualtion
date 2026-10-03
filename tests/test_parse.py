@@ -112,3 +112,26 @@ def test_review_toc_with_headings_does_not_displace_body():
 def test_class_code_with_spaces_and_hyphen():
     d = parse_blocks([Block("초빙연구원 운영기준"), Block("( 원규분류기호 : 기 - 21 )"), Block("제1조(목적) 목적.")])
     assert d.class_code == "기-21"
+
+
+def test_revision_line_is_never_the_title():
+    """KIGAM 등: 첫 줄이 '제정 1992-02-01'이면 제목으로 쓰지 않는다 (규정 도우미 인용에 날짜가 제목으로 나왔다)."""
+    blocks = [Block("제정 1992-02-01", 1, None), Block("개정 2024. 2. 14.", 1, None), Block("외자구매요령", 1, None),
+              Block("제1조(목적) 이 요령은 외자 구매에 관하여 정함을 목적으로 한다.", 1, None)]
+    assert parse_blocks(blocks).title == "외자구매요령"
+
+
+def test_fix_revision_titles(conn, tmp_path):
+    from reg.core.ingest.loader import fix_revision_titles
+    from reg.core.ingest.process import process_once
+    from reg.platform.storage.blob import LocalBlobStore
+    from tests.test_process import FX, seed_alio
+
+    blob = LocalBlobStore(tmp_path)
+    seed_alio(conn, blob, (FX / "samples" / "kasi-yeobi-339.pdf").read_bytes())
+    process_once(conn, blob, today=date(2026, 10, 2))
+    conn.execute("UPDATE regulation.work_version SET title = '제정 1992-02-01'")
+    assert fix_revision_titles(conn) == 1
+    v = conn.execute("SELECT v.title, w.title AS wt FROM regulation.work_version v"
+                     " JOIN regulation.work w ON w.id = v.work_id").fetchone()
+    assert v["title"] == v["wt"] and fix_revision_titles(conn) == 0
