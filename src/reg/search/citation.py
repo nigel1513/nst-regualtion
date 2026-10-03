@@ -52,6 +52,11 @@ def _institution(head: str, aliases: dict[str, list[str]] | None) -> tuple[str |
     return (found.pop() if len(found) == 1 else None), rest
 
 
+def mentioned_institution(text: str, aliases: dict[str, list[str]] | None) -> str | None:
+    """번호 인용이 아닌 질의의 기관 언급("천문연 출장 증빙") → 코드. 없거나 둘 이상이면 None (QA resolve_mention과 같은 규칙)."""
+    return _institution(text or "", aliases)[0]
+
+
 def _title(rest: str) -> str | None:
     t = rest.translate({ord(c): " " for c in QUOTES})
     t = re.sub(r"^\s*(?:의|에서|에|중)\s+", "", " " + t.strip() + " ").strip()
