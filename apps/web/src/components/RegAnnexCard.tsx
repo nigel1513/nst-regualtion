@@ -6,7 +6,7 @@ import { type ReactNode, useEffect, useState } from "react";
 import { type AnnexInfo, sourceHref } from "@/lib/api";
 
 const TABLE_CSS = "[&_table]:border-collapse [&_td]:border [&_td]:border-[var(--line-strong)] [&_td]:px-1.5 [&_td]:py-1 "
-  + "[&_th]:border [&_th]:border-[var(--line-strong)] [&_th]:bg-bg-subtle [&_th]:px-1.5 [&_th]:py-1 text-[13px]";
+  + "[&_th]:border [&_th]:border-[var(--line-strong)] [&_th]:bg-bg-subtle [&_th]:px-1.5 [&_th]:py-1 text-small";
 
 /** 별표·별지: 원문 영역 이미지(클릭하면 크게), 원문 쪽으로 이동, 표 HTML(있으면), 추출 텍스트(접힘). */
 export function RegAnnexCard({ workId, versionId, path, label, heading, children }: {
@@ -42,7 +42,7 @@ export function RegAnnexCard({ workId, versionId, path, label, heading, children
   const title = `${label}${heading ? ` ${heading}` : ""}`;
   return (
     <div className="mt-2 font-sans">
-      {info === undefined && <p className="text-xs text-[var(--muted)]">원문 이미지를 불러오는 중…</p>}
+      {info === undefined && <p className="text-caption text-[var(--muted)]">원문 이미지를 불러오는 중…</p>}
       {info && (
         <figure className="overflow-hidden rounded-md border border-border bg-bg-panel">
           {showTable && table !== null ? (
@@ -54,7 +54,7 @@ export function RegAnnexCard({ workId, versionId, path, label, heading, children
               <img src={info.segments[0].url} alt={`${title} 원문 이미지`} loading="lazy" className="block w-full" />
             </button>
           )}
-          <figcaption className="flex flex-wrap items-center gap-2 border-t border-[var(--line)] px-3 py-2 text-xs text-[var(--muted)]">
+          <figcaption className="flex flex-wrap items-center gap-2 border-t border-[var(--line)] px-3 py-2 text-caption text-[var(--muted)]">
             <span>원문 {info.page}쪽{info.segments.length > 1 ? ` 외 ${info.segments.length - 1}조각` : ""}</span>
             {showTable && <span>표 변환: MinerU (자동 변환이라 원문 이미지와 다를 수 있음)</span>}
             <span className="ml-auto flex gap-2">
@@ -66,8 +66,8 @@ export function RegAnnexCard({ workId, versionId, path, label, heading, children
           </figcaption>
         </figure>
       )}
-      <details className="mt-2 text-sm" open={info === null}>
-        <summary className="cursor-pointer text-xs text-[var(--muted)]">추출 텍스트{info === null ? " (원문 이미지 없음)" : ""}</summary>
+      <details className="mt-2 text-body" open={info === null}>
+        <summary className="cursor-pointer text-caption text-[var(--muted)]">추출 텍스트{info === null ? " (원문 이미지 없음)" : ""}</summary>
         <p className="mt-1 text-small">{children}</p>
       </details>
       {open && info && (

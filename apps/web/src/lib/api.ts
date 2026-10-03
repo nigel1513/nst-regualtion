@@ -186,7 +186,7 @@ export type HomeData = {
 };
 /** GET /api/v1/compare/divergences?inst=&limit= (기관 비교 작업이 만든다): 우리 기관 값이 다수 기관과 다른 항목. */
 export type Divergence = {
-  topic: string; topic_label: string; item: string; item_label: string;
+  topic: string; topic_label: string; item: string; item_label: string; unit?: string;
   ours: { value: string; work_id: string; path: string; label: string };
   majority: { value: string; count: number };
   total: number;
@@ -215,3 +215,26 @@ export async function apiTry<T>(path: string, params: Record<string, string | un
     return null;
   }
 }
+
+// --- 기관 비교 (ui-compare: src/reg/api/compare_routes.py) ---
+export type TopicInfo = { id: string; label: string; description: string; works: number; institutions: number; items: number; ours?: number };
+export type CompareCell = {
+  status: "value" | "absent" | "pending"; value: string | null; value_norm: string | null; work_id: string | null; title: string | null;
+  path: string | null; label: string | null; quote: string | null; href: string | null; confidence: number | null; differs: boolean | null;
+};
+export type CompareData = {
+  topic: string; topic_label: string; items: { id: string; label: string; unit: string }[];
+  institutions: { code: string; name: string; ours: boolean }[];
+  cells: Record<string, Record<string, CompareCell>>;
+  majority: Record<string, { value: string; value_norm: string; count: number; total: number } | null>; built_at: string | null;
+};
+export type ProvisionLine = { path: string; label: string; text: string; target: boolean; highlights: { start: number; end: number; kind: "quote" | "value" }[] };
+export type CompareProvisions = {
+  topic: string; topic_label: string; item: { id: string; label: string; unit: string };
+  institutions: (CompareCell & { code: string; name: string; ours: boolean; version_id: string | null; effective_from: string | null;
+    article: { path: string; label: string; heading: string | null } | null; lines: ProvisionLine[] })[];
+};
+export type ProvisionCompare = {
+  pv_id: number; work_id: string; institution: string | null; article_path: string; topics: string[];
+  cells: { topic: string; topic_label: string; item: string; item_label: string; unit: string; value: string | null; value_norm: string | null; path: string }[];
+};

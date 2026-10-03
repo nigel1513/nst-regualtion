@@ -94,8 +94,8 @@ export function GraphMap({ pvId, label }: { pvId: number; label: string }) {
         </label>
       </div>
       {error && <p className="text-small text-fg-muted">{error}</p>}
-      {!view && !error && <p className="text-[13px] text-[var(--muted)]">불러오는 중…</p>}
-      {view && view.nodes.length <= 1 && <p className="text-[13px] text-[var(--muted)]">그래프에 연결된 조항이 없습니다.</p>}
+      {!view && !error && <p className="text-small text-[var(--muted)]">불러오는 중…</p>}
+      {view && view.nodes.length <= 1 && <p className="text-small text-[var(--muted)]">그래프에 연결된 조항이 없습니다.</p>}
       {view && view.nodes.length > 1 && (
         <>
           <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label={`${label}과 연결된 조항 관계도`}>
@@ -121,12 +121,12 @@ export function GraphMap({ pvId, label }: { pvId: number; label: string }) {
               return href && !isCenter ? <a key={n.id} href={href}>{dot}</a> : <g key={n.id}>{dot}</g>;
             })}
           </svg>
-          <ul className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
+          <ul className="mt-2 flex flex-wrap gap-1.5 text-micro">
             {view.types.map((t) => (
               <li key={t} className="flex items-center gap-1"><span className="inline-block h-0.5 w-3" style={{ background: COLOR[t] ?? "var(--color-graph-muted)" }} />{TYPE_LABEL[t] ?? t}</li>
             ))}
           </ul>
-          {view.truncated && <p className="mt-1 text-xs text-[var(--muted)]">연결이 많아 {MAX}개까지만 그렸습니다.</p>}
+          {view.truncated && <p className="mt-1 text-caption text-[var(--muted)]">연결이 많아 {MAX}개까지만 그렸습니다.</p>}
         </>
       )}
       {lin && lin.entries.length > 1 && (
@@ -140,7 +140,7 @@ export function GraphMap({ pvId, label }: { pvId: number; label: string }) {
               </li>
             ))}
           </ol>
-          {lin.deleted_in && <p className="mt-1 text-xs text-[var(--muted)]">삭제: {str(lin.deleted_in)}</p>}
+          {lin.deleted_in && <p className="mt-1 text-caption text-[var(--muted)]">삭제: {str(lin.deleted_in)}</p>}
         </div>
       )}
     </section>
