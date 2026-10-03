@@ -1,4 +1,6 @@
 """조문 번호 직접 조회 (M7 spec §2.2-1): 인용을 번호 필드 term 조회로 바꾼다. 규정명은 정확히 같으면 1위로."""
+from dataclasses import replace
+
 from reg.index.service import SOURCE, filters
 from reg.search.citation import Citation, parse_citation
 
@@ -39,8 +41,25 @@ def lookup(os, q: str | Citation, aliases: dict[str, list[str]] | None = None, a
            size: int = 5, index: str | None = None) -> dict:
     c = q if isinstance(q, Citation) else parse_citation(q, aliases)
     if c is None:
-        return {"citation": None, "hits": []}
+        return {"citation": None, "hits": [], "relaxed": False}
     kw = {"index": index} if index else {}
-    res = os.search({"size": size, "_source": SOURCE, "query": citation_query(c, as_of),
-                     "sort": ["_score", {"title.kw": "asc"}, {"ord": "asc"}]}, **kw)
-    return {"citation": c.as_dict(), "hits": [_hit(h) for h in res["hits"]["hits"]]}
+    cur, relaxed = c, False
+    while True:
+        res = os.search({"size": size, "_source": SOURCE, "query": citation_query(cur, as_of),
+                         "sort": ["_score", {"title.kw": "asc"}, {"ord": "asc"}]}, **kw)
+        hits = [_hit(h) for h in res["hits"]["hits"]]
+        broader = _broader(cur)
+        if hits or broader is None:
+            return {"citation": c.as_dict(), "hits": hits, "relaxed": relaxed}
+        cur, relaxed = broader, True   # "제2조 제1항"인데 제2조에 항이 없으면 제2조를 준다
+
+
+def _broader(c: Citation) -> Citation | None:
+    """가장 깊은 단위를 하나 뺀 인용 (목 → 호 → 항). 조·별표에서 멈춘다."""
+    if c.subitem:
+        return replace(c, subitem=None)
+    if c.item is not None:
+        return replace(c, item=None, item_branch=None)
+    if c.paragraph is not None:
+        return replace(c, paragraph=None)
+    return None

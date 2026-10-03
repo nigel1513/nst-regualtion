@@ -11,11 +11,12 @@ def _p95(xs: list[float]) -> float:
     return s[min(len(s) - 1, int(round(0.95 * (len(s) - 1))))]
 
 
-def run_eval(conn, deps: dict, cases: list[dict]) -> dict:
+def run_eval(conn, deps: dict, cases: list[dict], log: bool = True) -> dict:
+    """log=False: 질의 기록(ops.qa_log)을 남기지 않는다 (읽기 전용 평가)."""
     rows, lat = [], []
     for c in cases:
         t0 = time.monotonic()
-        r = ask(conn, deps, c["question"], user_institution=c.get("user_institution"))
+        r = ask(conn, deps, c["question"], user_institution=c.get("user_institution"), log=log)
         lat.append((time.monotonic() - t0) * 1000)
         e = c["expect"]
         want = e["status"] if isinstance(e["status"], list) else [e["status"]]
@@ -40,9 +41,12 @@ def run_eval(conn, deps: dict, cases: list[dict]) -> dict:
         consistent_ok = ver.get("consistent") if r.get("answer") else None
         verdict_ok = None if "verdict" not in e or r["status"] == "not_found" else \
             bool(r.get("answer")) and r["answer"]["결론"] == e["verdict"]
+        top = (r.get("retrieved") or [{}])[0]
         rows.append({"id": c["id"], "status": r["status"], "status_ok": status_ok, "citation_ok": cite_ok,
                      "retrieval_ok": retr_ok, "verdict_ok": verdict_ok, "numbers_ok": numbers_ok,
-                     "consistent_ok": consistent_ok, "qa_id": r.get("id")})
+                     "consistent_ok": consistent_ok, "qa_id": r.get("id"),
+                     "verdict": (r.get("answer") or {}).get("결론"),
+                     "top": f"{top['version_id']} {top['path']}" if top else ""})
 
     def rate(key, pred=lambda x: True):
         xs = [x[key] for x in rows if x[key] is not None and pred(x)]

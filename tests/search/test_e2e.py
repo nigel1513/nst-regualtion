@@ -28,11 +28,17 @@ def test_lookup_returns_paragraph_first(indexed):
     assert lookup(indexed, "천문연 여비규정 27조", ALIASES)["hits"][0]["path"] == "a27"
 
 
+def test_lookup_relaxes_missing_paragraph_to_article(indexed):
+    r = lookup(indexed, "여비규정 제2조 제1항", ALIASES)          # 제2조는 항이 없는 조: 조를 돌려준다
+    assert r["hits"][0]["path"] == "a2" and r["relaxed"] is True
+    assert lookup(indexed, "여비규정 제27조 제1항", ALIASES)["relaxed"] is False
+
+
 def test_lookup_without_institution_returns_candidates(indexed):
     r = lookup(indexed, "여비규정 제27조", None)
     assert r["hits"] and r["hits"][0]["title"] == "여비규정" and r["hits"][0]["path"] == "a27"
     assert lookup(indexed, "여비규정 제999조", ALIASES)["hits"] == []
-    assert lookup(indexed, "출장 증빙 기한", ALIASES) == {"citation": None, "hits": []}
+    assert lookup(indexed, "출장 증빙 기한", ALIASES)["hits"] == []
 
 
 def _first_item(conn):
