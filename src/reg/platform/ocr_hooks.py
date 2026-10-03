@@ -58,7 +58,7 @@ def request_ocr(conn, sd: dict, blocks: Iterable, topic: str, payload: dict) -> 
 
 def close_low_text(conn, source_document_id: int) -> int:
     return conn.execute("UPDATE regulation.review_task SET status = 'RESOLVED', resolved_at = now(), decision = %s"
-                        " WHERE kind = 'LOW_TEXT' AND target = %s AND status = 'OPEN'",
+                        " WHERE kind = 'LOW_TEXT' AND target = %s AND status IN ('OPEN', 'HOLD')",
                         (json.dumps({"auto": "reparsed"}), f"source:{source_document_id}")).rowcount
 
 

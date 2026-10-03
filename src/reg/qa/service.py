@@ -23,7 +23,9 @@ def _institutions(conn) -> list[dict]:
     return conn.execute("SELECT code, name FROM regulation.institution WHERE active ORDER BY id").fetchall()
 
 
-def _log(conn, q: str, res: dict, user_inst, latency_ms: int, model: str | None, retrieved: list) -> int:
+def _log(conn, q: str, res: dict, user_inst, latency_ms: int, model: str | None, retrieved: list,
+         extra: dict | None = None) -> int:
+    """extra: verification jsonb에 덧붙일 값 (규정 도우미의 {"chat": {conversation_id, turn, intent…}})."""
     ans = res.get("answer")
     row = conn.execute(
         "INSERT INTO ops.qa_log (question, institution, user_institution, as_of, status, verdict, release_id,"
@@ -32,7 +34,7 @@ def _log(conn, q: str, res: dict, user_inst, latency_ms: int, model: str | None,
         (q, res.get("institution"), user_inst, res.get("as_of"), res["status"], ans.get("결론") if ans else None,
          res.get("release_id"), model, json.dumps(retrieved, ensure_ascii=False),
          json.dumps([c["id"] for c in ans["근거"]] if ans else [], ensure_ascii=False),
-         json.dumps(res.get("verification") or {}, ensure_ascii=False),
+         json.dumps({**(res.get("verification") or {}), **(extra or {})}, ensure_ascii=False),
          json.dumps(ans, ensure_ascii=False) if ans else None, latency_ms)).fetchone()
     conn.commit()
     return row["id"]
@@ -48,6 +50,14 @@ def _with_lookup(found: dict) -> list[dict]:
                           "article_path": x["article_path"], "score": x["score"], "matches": [{"path": x["path"]}]})
     keys = {(h["version_id"], h["article_path"]) for h in first}
     return first[:1] + [h for h in hits if (h["version_id"], h.get("article_path")) not in keys]
+
+
+def retrieve(deps: dict, query: str, institution: str | None, as_of: str | None, aliases: dict, size: int = 10,
+             kind: str | None = None, with_units: bool = False) -> tuple[dict, list[dict]]:
+    """QA·규정 도우미가 같이 쓰는 검색: 하이브리드(+리랭크) 결과에 번호 직접 조회를 1순위로 얹는다."""
+    found = search(deps["os"], deps["embedder"], deps.get("reranker"), query, institution=institution, as_of=as_of,
+                   kind=kind, rerank=True, size=size, aliases=aliases, facets=False, with_units=with_units)
+    return found, _with_lookup(found)
 
 
 def ask(db, deps: dict, question: str, institution: str | None = None, user_institution: str | None = None,
@@ -82,9 +92,7 @@ def ask(db, deps: dict, question: str, institution: str | None = None, user_inst
     res["question_type"] = a.question_type
     res["as_of"] = as_of = as_of or a.as_of
     query = " ".join([q, *a.terms])
-    found = search(deps["os"], deps["embedder"], deps.get("reranker"), query, institution=inst, as_of=as_of,
-                   rerank=True, size=10, aliases=aliases, facets=False, with_units=False)
-    hits = _with_lookup(found)
+    found, hits = retrieve(deps, query, inst, as_of, aliases)
     res["release_id"] = found["release_id"]
     retrieved = [{"version_id": h["version_id"], "path": h["path"], "score": h.get("rerank_score", h["score"])}
                  for h in hits]

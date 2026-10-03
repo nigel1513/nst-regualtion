@@ -25,6 +25,8 @@ def test_review_queue_lists_abolished_candidates(conn):
     conn.execute("UPDATE regulation.alio_rule SET missing_since = '2026-09-28', abolish_state = 'CANDIDATE' WHERE seq = '1'")
     project(conn)
     conn.commit()
-    t = Q.review_tasks(conn, "OPEN", "ABOLISHED")
+    from reg.api.review_routes import list_tasks
+
+    t = list_tasks(conn, kind=["ABOLISHED"])["items"]
     assert [(x["kind"], x["work_id"], x["work_title"]) for x in t] == [("ABOLISHED", wid, "규정1")]
     assert t[0]["detail"]["missing_since"] == "2026-09-28"

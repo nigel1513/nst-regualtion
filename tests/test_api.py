@@ -102,8 +102,10 @@ def test_search_escapes_wildcards(api):
 
 
 def test_review_tasks_list(api):
-    rows = api.get("/api/v1/review-tasks", params={"status": "OPEN"}).json()
+    body = api.get("/api/v1/review-tasks", params={"status": "OPEN"}).json()
+    rows = body["items"]
     assert isinstance(rows, list) and all(r["status"] == "OPEN" for r in rows)
+    assert body["total"] >= len(rows) and "open" in body["summary"]
 
 
 def test_references_for_article_subtree(api):

@@ -174,10 +174,3 @@ def search(conn, q: str, institution: str | None) -> list[dict]:
         r["snippet"] = ("…" if s else "") + t[s:pos + len(q) + 40] + ("…" if pos + len(q) + 40 < len(t) else "")
     return rows
 
-
-def review_tasks(conn, status: str, kind: str | None) -> list[dict]:
-    return conn.execute(
-        "SELECT t.id, t.kind, t.target, t.work_id, w.title AS work_title, t.detail, t.status, t.created_at"
-        " FROM regulation.review_task t LEFT JOIN regulation.work w ON w.id = t.work_id"
-        " WHERE t.status = %s AND (%s::text IS NULL OR t.kind = %s) ORDER BY t.created_at DESC, t.id DESC LIMIT 300",
-        (status, kind, kind)).fetchall()

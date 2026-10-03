@@ -11,6 +11,7 @@ def register_sources() -> None:
 
 def subcommands() -> list:
     from reg.alerts.cli import alerts, owners
+    from reg.compare.cli import compare_app, topics_app  # UI 개편 §4 기관 비교
     from reg.core.annex_cli import annex
     from reg.core.quality_cli import quality
     from reg.core.refs_cli import refs
@@ -24,7 +25,7 @@ def subcommands() -> list:
 
     return [("alio", alio), ("law", law), ("index", index), ("graph", graph), ("alerts", alerts), ("owners", owners),
             ("ocr", ocr), ("ops", ops), ("quality", quality), ("annex", annex), ("refs", refs),
-            ("search", search_app)]
+            ("search", search_app), ("topics", topics_app), ("compare", compare_app)]
 
 
 def process_command():

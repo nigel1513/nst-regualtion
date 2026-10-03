@@ -14,6 +14,7 @@ ALLOW = {
     "reg.alerts": ["reg.platform", "reg.core", "reg.graph", "reg.alerts"],
     "reg.search": ["reg.platform", "reg.core", "reg.index", "reg.search"],
     "reg.qa": ["reg.platform", "reg.core", "reg.index", "reg.search", "reg.qa"],
+    "reg.compare": ["reg.platform", "reg.core", "reg.index", "reg.search", "reg.compare"],
 }
 
 

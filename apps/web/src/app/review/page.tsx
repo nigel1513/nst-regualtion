@@ -1,47 +1,65 @@
+import { ClipboardCheck } from "lucide-react";
 import Link from "next/link";
-import { ABOLISH_TASK_LABEL } from "@/components/AbolishBadge";
-import { apiGet, type ReviewTask, workHref } from "@/lib/api";
-import { fmtDate, TASK_LABEL } from "@/lib/format";
+import { MyNameButton } from "@/components/review/MyName";
+import { Numbers } from "@/components/review/Numbers";
+import { ReviewTable } from "@/components/review/ReviewTable";
+import { Toolbar } from "@/components/review/Toolbar";
+import { apiParams, parseReviewQuery, reviewHref, type ReviewTaskList } from "@/components/review/types";
+import { buttonClass } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { LinkSegmented } from "@/components/ui/link-segmented";
+import { Pagination } from "@/components/ui/pagination";
+import { apiGet, type Institution } from "@/lib/api";
 
-const LABELS: Record<string, string> = { ...TASK_LABEL, ...ABOLISH_TASK_LABEL };
+const PAGE = 50;
 
-export default async function ReviewPage({ searchParams }: { searchParams: Promise<{ kind?: string }> }) {
-  const { kind } = await searchParams;
-  const tasks = (await apiGet<ReviewTask[]>("/api/v1/review-tasks", { status: "OPEN", kind })) ?? [];
+/** 검수 (서비스 UI 개편 §6): 머리 · 숫자 줄 · 툴바(상태, 기관·종류·담당, 찾기) · 표(행 펼침에서 처리) · 법령 적재 대기 묶음. */
+export default async function ReviewPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const query = parseReviewQuery(await searchParams);
+  const [data, insts] = await Promise.all([
+    apiGet<ReviewTaskList>(`/api/v1/review-tasks?${apiParams(query, PAGE)}&summary=true`),
+    apiGet<Institution[]>("/api/v1/institutions").catch(() => null),
+  ]);
+  if (!data) return null;
+  const s = data.summary ?? { open: 0, hold: 0, unassigned: 0, law_pending: 0, by_kind: {}, by_institution: {} };
+  const instOpts = (insts ?? []).filter((i) => s.by_institution[i.code]).map((i) => ({ code: i.code, name: i.name, count: s.by_institution[i.code] }));
   return (
-    <main className="mx-auto max-w-6xl px-6 py-6">
-      <h1 className="mb-1 text-2xl font-bold">검수 큐</h1>
-      <p className="mb-4 text-[13px] text-[var(--muted)]">자동 판정이 불확실한 항목입니다. 처리(승인·수정)는 로그인 기능과 함께 제공됩니다.</p>
-      <div className="mb-4 flex flex-wrap gap-2">
-        <Link href="/review" className={`chip ${!kind ? "chip-blue" : ""}`}>전체</Link>
-        {Object.entries(LABELS).map(([k, l]) => <Link key={k} href={`/review?kind=${k}`} className={`chip ${kind === k ? "chip-blue" : ""}`}>{l}</Link>)}
+    <div className="max-w-[1440px]">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-display text-fg">검수</h1>
+          <p className="mt-1.5 text-small text-fg-muted">자동으로 처리하지 못한 항목을 기관 담당자가 확인합니다</p>
+        </div>
+        <MyNameButton />
       </div>
-      {tasks.length === 0 ? <p className="card p-6 text-sm">열린 검수 작업이 없습니다.</p> : (
-        <table className="card w-full overflow-hidden text-[13px]">
-          <thead className="bg-[#f7f8fa] text-left text-xs text-[var(--muted)]">
-            <tr><th className="px-4 py-2.5">유형</th><th className="px-4 py-2.5">규정</th><th className="px-4 py-2.5">내용</th><th className="px-4 py-2.5">생성</th></tr>
-          </thead>
-          <tbody>
-            {tasks.map((t) => (
-              <tr key={t.id} className="border-t border-[var(--line)] align-top">
-                <td className="px-4 py-2.5"><span className={`chip ${t.kind === "ABOLISHED" ? "chip-red" : "chip-amber"}`}>{LABELS[t.kind] ?? t.kind}</span></td>
-                <td className="px-4 py-2.5">{t.work_id ? <Link href={workHref(t.work_id)}>{t.work_title}</Link> : "-"}</td>
-                <td className="px-4 py-2.5 text-xs text-[var(--ink-2)]">
-                  {t.kind === "ABOLISHED" ? (
-                    <span>
-                      {fmtDate(String(t.detail.missing_since ?? "") || null)}부터 ALIO 목록에 없음 · 확정{" "}
-                      <code className="font-mono">reg alio abolish {t.work_id}</code> / 아니면 <code className="font-mono">--reject</code>
-                    </span>
-                  ) : (
-                    <span className="font-mono">{JSON.stringify(t.detail)}</span>
-                  )}
-                </td>
-                <td className="px-4 py-2.5 whitespace-nowrap text-[var(--muted)]">{fmtDate(t.created_at)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="mb-6"><Numbers query={query} summary={s} /></div>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <LinkSegmented aria-label="상태" value={query.status} items={[
+          { value: "open", label: "열림", href: reviewHref(query, { status: "open" }) },
+          { value: "hold", label: "보류", href: reviewHref(query, { status: "hold" }) },
+          { value: "done", label: "완료", href: reviewHref(query, { status: "done" }) },
+          { value: "all", label: "전체", href: reviewHref(query, { status: "all" }) },
+        ]} />
+        <Toolbar query={query} insts={instOpts} />
+        <Link href={reviewHref(query, { law: !query.law })} aria-pressed={query.law}
+          className={buttonClass(query.law ? "primary" : "ghost", "sm", "ml-auto")}>
+          법령 적재 대기 <span className="num">{s.law_pending.toLocaleString("ko-KR")}</span>
+        </Link>
+      </div>
+      {query.law ? (
+        <p className="mb-3 text-small text-fg-muted">법령 이름을 인용했지만 그 법령을 아직 law.go.kr에서 받지 않아 잇지 못한 항목입니다. 법령을 적재하면 대부분 저절로 닫힙니다.</p>
+      ) : null}
+      {data.items.length === 0 ? (
+        <div className="rounded-md border border-border bg-bg-panel">
+          <EmptyState icon={ClipboardCheck} title="해당하는 검수 작업이 없습니다" description="필터를 바꾸거나 다른 상태를 보세요."
+            action={<Link href="/review" className={buttonClass("secondary")}>필터 지우기</Link>} />
+        </div>
+      ) : (
+        <>
+          <ReviewTable items={data.items} />
+          <Pagination className="mt-3" page={data.page} size={data.size} total={data.total} href={(p) => reviewHref(query, { page: p })} />
+        </>
       )}
-    </main>
+    </div>
   );
 }

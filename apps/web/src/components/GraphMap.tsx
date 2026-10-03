@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Checkbox } from "@/components/ui/input";
 import { workHref } from "@/lib/api";
-import { CHANGE_LABEL, REL_LABEL } from "@/lib/format";
+import { CHANGE_LABEL, fmtDate, REL_LABEL } from "@/lib/format";
 
 // 구조 그래프(Neo4j) 관계도: GET /api/v1/graph/neighborhood · /lineage (M7-G)
 type GNode = { id: string; kind: string; labels: string[]; props: Record<string, unknown> };
@@ -15,8 +16,9 @@ const TYPE_LABEL: Record<string, string> = {
   ...REL_LABEL, CONTAINS: "포함", USES: "용어 사용", DEFINES: "용어 정의", AMENDED_TO: "개정",
 };
 const COLOR: Record<string, string> = {
-  EXCEPTION: "#b7791f", DELEGATION: "#1e4faf", BASIS: "#1e4faf", MUTATIS: "#6b46c1", IMPLEMENTS: "#2f855a",
-  CITATION: "#4a5568", USES: "#319795", DEFINES: "#319795", CONTAINS: "#a0aec0",
+  EXCEPTION: "var(--color-graph-3)", DELEGATION: "var(--color-graph-1)", BASIS: "var(--color-graph-1)", MUTATIS: "var(--color-graph-4)",
+  IMPLEMENTS: "var(--color-graph-2)", CITATION: "var(--color-fg-muted)", USES: "var(--color-graph-2)", DEFINES: "var(--color-graph-2)",
+  CONTAINS: "var(--color-graph-muted)",
 };
 const MAX = 36;
 const W = 340, H = 300, CX = W / 2, CY = H / 2;
@@ -47,7 +49,7 @@ export function GraphMap({ pvId, label }: { pvId: number; label: string }) {
     let alive = true;
     const get = (u: string) => fetch(u).then((r) => (r.ok ? r.json() : Promise.reject(r.status)));
     get(`/api/v1/graph/neighborhood?pv=${pvId}&depth=2`).then((d) => alive && setHood(d))
-      .catch((s) => alive && setError(s === 503 ? "그래프 서버에 연결할 수 없습니다." : "관계도를 불러오지 못했습니다."));
+      .catch((s) => alive && setError(s === 503 ? "그래프 서버에 연결할 수 없습니다." : s === 404 ? "관계도에 아직 이 조가 없습니다. 다음 갱신 때 들어옵니다." : "관계도를 불러오지 못했습니다."));
     get(`/api/v1/graph/lineage?pv=${pvId}`).then((d) => alive && setLin(d)).catch(() => {});
     return () => { alive = false; };
   }, [pvId]);
@@ -84,22 +86,22 @@ export function GraphMap({ pvId, label }: { pvId: number; label: string }) {
   }, [hood, hide]);
 
   return (
-    <section className="card p-4" aria-live="polite">
+    <section className="rounded-md border border-border bg-bg-panel p-4" aria-live="polite">
       <div className="mb-2 flex items-baseline justify-between gap-2">
-        <h2 className="text-[13px] font-semibold">{label} 관계도</h2>
-        <label className="flex items-center gap-1 text-xs text-[var(--muted)]">
-          <input type="checkbox" checked={hide} onChange={(e) => setHide(e.target.checked)} /> 하위 항·호 숨기기
+        <h2 className="text-small font-semibold text-fg">{label} 관계도</h2>
+        <label className="flex cursor-pointer items-center gap-2 text-caption text-fg-muted">
+          <Checkbox checked={hide} onChange={(e) => setHide(e.target.checked)} /> 하위 항·호 숨기기
         </label>
       </div>
-      {error && <p className="text-[13px] text-[var(--muted)]">{error}</p>}
-      {!view && !error && <p className="text-[13px] text-[var(--muted)]">불러오는 중…</p>}
-      {view && view.nodes.length <= 1 && <p className="text-[13px] text-[var(--muted)]">그래프에 연결된 조항이 없습니다.</p>}
+      {error && <p className="text-small text-fg-muted">{error}</p>}
+      {!view && !error && <p className="text-small text-[var(--muted)]">불러오는 중…</p>}
+      {view && view.nodes.length <= 1 && <p className="text-small text-[var(--muted)]">그래프에 연결된 조항이 없습니다.</p>}
       {view && view.nodes.length > 1 && (
         <>
           <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label={`${label}과 연결된 조항 관계도`}>
             {view.edges.map((e, i) => {
               const [x1, y1] = view.pos.get(e.source)!, [x2, y2] = view.pos.get(e.target)!;
-              return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke={COLOR[e.type] ?? "#a0aec0"}
+              return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke={COLOR[e.type] ?? "var(--color-graph-muted)"}
                 strokeWidth={e.type === "CONTAINS" ? 1 : 1.6} strokeDasharray={e.type === "USES" ? "3 3" : undefined}><title>{TYPE_LABEL[e.type] ?? e.type}</title></line>;
             })}
             {view.nodes.map((n) => {
@@ -109,8 +111,8 @@ export function GraphMap({ pvId, label }: { pvId: number; label: string }) {
               const text = nodeLabel(n, view.centerWork);
               const dot = (
                 <g>
-                  <circle cx={x} cy={y} r={isCenter ? 9 : 6} fill={isCenter ? "var(--accent)" : n.kind === "Term" ? "#319795" : n.kind === "MissingProvision" ? "#e53e3e" : "#fff"}
-                    stroke={n.kind === "Term" ? "#319795" : "var(--accent)"} strokeWidth={1.5} />
+                  <circle cx={x} cy={y} r={isCenter ? 9 : 6} fill={isCenter ? "var(--color-accent)" : n.kind === "Term" ? "var(--color-graph-2)" : n.kind === "MissingProvision" ? "var(--color-graph-danger)" : "var(--color-bg-panel)"}
+                    stroke={n.kind === "Term" ? "var(--color-graph-2)" : "var(--color-accent)"} strokeWidth={1.5} />
                   <text x={x} y={y + (y < CY ? -10 : 17)} textAnchor="middle" fontSize={isCenter ? 11 : 9.5}
                     fontWeight={isCenter ? 600 : 400} fill="currentColor">{text.length > 18 ? text.slice(0, 17) + "…" : text}</text>
                   <title>{`${text}${n.props.heading ? ` (${str(n.props.heading)})` : ""}`}</title>
@@ -119,26 +121,26 @@ export function GraphMap({ pvId, label }: { pvId: number; label: string }) {
               return href && !isCenter ? <a key={n.id} href={href}>{dot}</a> : <g key={n.id}>{dot}</g>;
             })}
           </svg>
-          <ul className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
+          <ul className="mt-2 flex flex-wrap gap-1.5 text-micro">
             {view.types.map((t) => (
-              <li key={t} className="flex items-center gap-1"><span className="inline-block h-0.5 w-3" style={{ background: COLOR[t] ?? "#a0aec0" }} />{TYPE_LABEL[t] ?? t}</li>
+              <li key={t} className="flex items-center gap-1"><span className="inline-block h-0.5 w-3" style={{ background: COLOR[t] ?? "var(--color-graph-muted)" }} />{TYPE_LABEL[t] ?? t}</li>
             ))}
           </ul>
-          {view.truncated && <p className="mt-1 text-xs text-[var(--muted)]">연결이 많아 {MAX}개까지만 그렸습니다.</p>}
+          {view.truncated && <p className="mt-1 text-caption text-[var(--muted)]">연결이 많아 {MAX}개까지만 그렸습니다.</p>}
         </>
       )}
       {lin && lin.entries.length > 1 && (
-        <div className="mt-3 border-t border-[var(--line)] pt-2">
-          <h3 className="mb-1 text-xs font-semibold">판본 이력</h3>
-          <ol className="flex flex-col gap-1 text-xs">
+        <div className="mt-3 border-t border-border-subtle pt-3">
+          <h3 className="mb-1.5 text-caption text-fg-muted">이 조의 판본 이력</h3>
+          <ol className="num flex flex-col gap-1 text-small">
             {lin.entries.map((e) => (
               <li key={e.pv_id} className={`flex justify-between gap-2 ${e.pv_id === pvId ? "font-semibold" : ""}`}>
-                <span>{e.valid_from ?? "?"} ~ {e.valid_to ?? "현행"}</span>
+                <span>{fmtDate(e.valid_from)} ~ {e.valid_to ? fmtDate(e.valid_to) : "현행"}</span>
                 <span className="text-[var(--muted)]">{e.change ? CHANGE_LABEL[e.change] ?? e.change : "제정·최초"}</span>
               </li>
             ))}
           </ol>
-          {lin.deleted_in && <p className="mt-1 text-xs text-[var(--muted)]">삭제: {str(lin.deleted_in)}</p>}
+          {lin.deleted_in && <p className="mt-1 text-caption text-[var(--muted)]">삭제: {str(lin.deleted_in)}</p>}
         </div>
       )}
     </section>
