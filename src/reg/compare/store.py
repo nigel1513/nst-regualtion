@@ -32,7 +32,7 @@ def save_topics(conn, result: dict[str, list[tuple[str, float, str]]], replace_a
     if replace_all:
         conn.execute("DELETE FROM regulation.work_topic WHERE method <> 'manual'")
     else:
-        conn.execute("DELETE FROM regulation.work_topic WHERE method <> 'manual' AND work_id = ANY(%s)", (list(result),))
+        conn.execute("DELETE FROM regulation.work_topic WHERE work_id = ANY(%s)", ([w for w in result if w not in manual],))
     rows = [(wid, t, s, m, rank) for wid, got in result.items() if wid not in manual
             for rank, (t, s, m) in enumerate(got, 1)]
     with conn.cursor() as cur:
