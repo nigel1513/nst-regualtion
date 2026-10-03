@@ -37,7 +37,7 @@ def test_exception_and_parent_article(graph, neo4j_driver):
 
 
 def test_outgoing_reference_follows_as_of_and_depth(graph, neo4j_driver):
-    conn, vid = graph
+    conn, _ = graph
     a3 = pv(conn, "kr/reg/KASI/여비", "a3")
     now = [g for g in expand(neo4j_driver, [a3]) if g["work_id"] == "kr/law/L1"]
     assert [(g["path"], g["pv_id"], g["reason"], g["hops"]) for g in now] == \

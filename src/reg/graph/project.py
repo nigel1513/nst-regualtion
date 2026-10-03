@@ -7,9 +7,17 @@
 from collections import defaultdict
 from collections.abc import Iterator
 from dataclasses import dataclass, field
+from itertools import pairwise
 
-from reg.graph.model import CONTEXT_UNITS, REF_RELS, UNIT_LABELS, extract_terms, full_label, is_definition_article, \
-    uses_terms
+from reg.graph.model import (
+    CONTEXT_UNITS,
+    REF_RELS,
+    UNIT_LABELS,
+    extract_terms,
+    full_label,
+    is_definition_article,
+    uses_terms,
+)
 
 WORK_BATCH = 200
 TARGET_BATCH = 300
@@ -100,7 +108,7 @@ def work_rows(conn, ids: list[str]) -> Rows:
                                        "amendment_kind": v["amendment_kind"],
                                        "promulgated_on": _iso(v["promulgated_on"])}})
     for vs in by_work.values():
-        out.next_versions += [{"a": a["id"], "b": b["id"]} for a, b in zip(vs, vs[1:])]
+        out.next_versions += [{"a": a["id"], "b": b["id"]} for a, b in pairwise(vs)]
     members = conn.execute(
         "SELECT work_version_id AS vid, provision_version_id AS pv, ord FROM regulation.version_provision"
         " WHERE work_version_id = ANY(%s) ORDER BY work_version_id, ord", (vids,)).fetchall()

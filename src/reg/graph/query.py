@@ -2,7 +2,8 @@
 
 기준일(as_of) 유효성: 조항 판본의 시행 구간 valid_from <= as_of < valid_to(열린 끝은 null).
 참조는 출처 판본 시행일 기준 대상 판본에 이어져 있으므로, 확장할 때는 같은 계보(lineage)에서 as_of에 유효한 판본으로 옮긴다."""
-from datetime import date
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 
 from reg.graph.model import REF_RELS
 
@@ -39,9 +40,13 @@ Q_TERMS = ("UNWIND $ids AS id MATCH (s:Provision {pv_id: id})"
            " RETURN DISTINCT s.pv_id AS via, term.name AS name, coalesce(c, dp) AS t")
 
 
+def today() -> date:
+    return datetime.now(ZoneInfo("Asia/Seoul")).date()
+
+
 def _as_of(as_of: date | str | None) -> str:
     if as_of is None:
-        return date.today().isoformat()
+        return today().isoformat()
     return as_of.isoformat() if isinstance(as_of, date) else date.fromisoformat(as_of).isoformat()
 
 

@@ -26,8 +26,8 @@ SCHEMA = [
     "CREATE INDEX version_work IF NOT EXISTS FOR (v:Version) ON (v.work_id)",
     "CREATE INDEX term_work IF NOT EXISTS FOR (t:Term) ON (t.work_id)",
     "CREATE INDEX missing_work IF NOT EXISTS FOR (m:MissingProvision) ON (m.work_id)",
-    "CREATE FULLTEXT INDEX term_name IF NOT EXISTS FOR (t:Term) ON EACH [t.name]"
-    " OPTIONS {indexConfig: {`fulltext.analyzer`: 'cjk'}}",
+    ("CREATE FULLTEXT INDEX term_name IF NOT EXISTS FOR (t:Term) ON EACH [t.name]"
+     " OPTIONS {indexConfig: {`fulltext.analyzer`: 'cjk'}}"),
 ]
 # 옛 보조 그래프(Reg* 라벨) 제약 — 재투영 때 걷어낸다
 LEGACY = ["DROP CONSTRAINT reg_prov_key IF EXISTS", "DROP CONSTRAINT reg_work_id IF EXISTS",
