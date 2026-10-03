@@ -12,7 +12,7 @@
 from alembic import op
 
 revision = "0013"
-down_revision = "0010"
+down_revision = "0011"
 
 DDL = """
 ALTER TABLE regulation.review_task DROP CONSTRAINT IF EXISTS review_task_status_check;

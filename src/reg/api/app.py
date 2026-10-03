@@ -14,6 +14,7 @@ from starlette.background import BackgroundTask
 
 from reg.api import queries as Q
 from reg.api.annex_routes import router as annex_router
+from reg.api.compare_routes import router as compare_router
 from reg.platform.storage.blob import BlobStore
 
 QA_SLOTS = 3  # 동시에 생성하는 답변 수 (vLLM 한 대, DB 풀 8개 중 일부만 쓴다)
@@ -310,4 +311,5 @@ def create_app(dsn: str, blob: BlobStore, search_deps: dict | None = None) -> Fa
     from reg.api.review_routes import router as review_router  # 검수 (서비스 UI 스펙 §6)
 
     app.include_router(review_router)
+    app.include_router(compare_router)  # 기관 비교 (UI 개편 §4)
     return app
