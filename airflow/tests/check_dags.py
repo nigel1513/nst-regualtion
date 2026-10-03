@@ -29,7 +29,7 @@ EXPECTED = {
                     "tasks": {"process_all": (D, 1), "refs_reresolve": (D, 1), "quality_summary": (D, 1),
                               "annex_render": (D, 1),
                               "annex_tables": ("gpu_pool", 1), "watcher": (D, 0)}},
-    "reg_ocr": {"assets": ["regulation_structured"], "tasks": {"run_pending": (D, 2), "announce": (D, 0)}},
+    "reg_ocr": {"assets": ["regulation_structured"], "tasks": {"run_pending": ("gpu_pool", 2), "announce": (D, 0)}},
     "reg_publish": {"assets": ["regulation_structured"],
                     "tasks": {"graph_sync": (D, 2), "alerts_scan": (D, 2), "embed_check": ("gpu_pool", 6),
                               "index_build": ("gpu_pool", 6), "index_gate": (D, 3), "index_publish": (D, 1),
