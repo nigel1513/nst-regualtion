@@ -1,6 +1,7 @@
 """사후 검증 (spec 12): 이미 적재된 개정(각 규범문서의 두 번째 이후 버전)을 다시 흘려 영향 탐지를 재생한다.
 
-재생 결과는 알림 대상이 아니므로 RESOLVED(backtest)로 둔다. 그래프는 현행 기준이라 과거 시점의 참조와 다를 수 있다."""
+재생 결과는 알림 대상이 아니므로 RESOLVED(backtest)로 둔다. 원인은 모든 판본의 계보로 찾지만, 영향받는 쪽은
+현행 판본의 조항이라 과거 시점의 참조와 다를 수 있다."""
 from collections import Counter
 
 from reg.alerts.impact import analyze_version

@@ -147,3 +147,17 @@ def test_graph_lock_excludes_a_second_runner(migrated):
         with graph_lock(a):
             assert b.execute("SELECT pg_try_advisory_lock(hashtext(%s))", (GRAPH_LOCK,)).fetchone()[0] is False
         assert b.execute("SELECT pg_try_advisory_lock(hashtext(%s))", (GRAPH_LOCK,)).fetchone()[0] is True
+
+
+def test_reference_to_a_path_no_version_has_becomes_missing_node(conn, tmp_path, neo4j_driver):
+    build(conn, tmp_path)
+    blob = LocalBlobStore(tmp_path)
+    upsert_work(conn, "kr/reg/KASI/세칙", "INTERNAL_REG", "여비세칙", None, {})
+    _ver(conn, blob, "kr/reg/KASI/세칙", "여비세칙", [Prov("a1", "article", "제1조", None, "「가상 연구법」 제9조에 따른다.")],
+         date(2021, 1, 1), b"S1")
+    rebuild_work(conn, "kr/reg/KASI/세칙", T)
+    resolve_and_store(conn, "kr/reg/KASI/세칙")
+    conn.commit()
+    rebuild(conn, neo4j_driver)
+    assert one(neo4j_driver, "MATCH (:Provision {work_id: 'kr/reg/KASI/세칙', path: 'a1'})-[r]->(m:MissingProvision)"
+                             " RETURN m.key AS k, r.match AS m") == [{"k": "kr/law/L1|a9", "m": "missing"}]
