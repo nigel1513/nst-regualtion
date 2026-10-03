@@ -47,7 +47,8 @@ RE_FOLLOW = re.compile(r"^\s*(?:그럼|그러면|그건|그거|그것|거기|그
                        r"반대로|만약)|(?:은요|는요|도요|이면요|라면요|면요|도\s*(?:같나요|그런가요|알려\s*주세요))\s*[?？.]?\s*$")
 
 REWRITE_SYSTEM = ("앞 대화를 참고해 마지막 질문을 앞 대화 없이도 뜻이 통하는 한 문장 질문으로 바꿔라. 앞 질문의 기관명·규정명·"
-                  "주제를 채워 넣고, 마지막 질문에 새로 나온 말은 그대로 둔다. 이미 완전한 질문이면 그대로 옮긴다.")
+                  "주제 낱말을 글자 그대로 채워 넣고(다른 말로 바꾸지 말 것), 마지막 질문에 새로 나온 말은 그대로 둔다. "
+                  "이미 완전한 질문이면 그대로 옮긴다.")
 REWRITE_PATTERN = r"질문: ([^\n]{2,200})"
 EXTRACT_SYSTEM = ("너는 기관별 규정 비교표를 만든다. 질문에 대한 이 기관 규정의 값을 20자 이내로 짧게 적고(예: 7일 이내, 30만원), "
                   "그 값이 나온 본문 구절을 글자 그대로 옮겨라. 본문에 답이 없으면 값과 인용 모두 '없음'이라고 적어라.")
@@ -86,6 +87,12 @@ def is_lookup(query: str, aliases: dict[str, list[str]]) -> bool:
     return 2 <= len(rest) <= 40 and bool(RE_TITLE_TAIL.search(rest))
 
 
+def strip_compare(query: str) -> str:
+    """비교 요청 표현('다른 기관도', '기관별로' …)을 뺀 물음 (검색어·비교 항목 이름)."""
+    q = re.sub("(?:" + RE_COMPARE.pattern + r")\S*(?:\s*(?:알려\s*주세요|어때요|같나요|요))?", " ", query)
+    return re.sub(r"\s+", " ", q).strip(" ,.·")
+
+
 def plan(query: str, scope: dict, aliases: dict[str, list[str]]) -> dict:
     """→ {intent, institutions, focus}. 범위가 '기관 선택'이면 선택이 질문 속 언급보다 우선한다.
     비교: 기관이 정해지지 않았거나(전체 범위), 둘 이상이거나, '다른 기관도'·'기관별'·'비교' 같은 말이 있을 때.
@@ -101,25 +108,42 @@ def plan(query: str, scope: dict, aliases: dict[str, list[str]]) -> dict:
     return {"intent": "question", "institutions": insts, "focus": insts[0]}
 
 
-def standalone(llm, messages: list[dict]) -> tuple[str, bool]:
-    """마지막 사용자 말을 혼자 뜻이 통하는 질의로. 후속 질문 표현이 있을 때만 바꾼다(짧은 LLM 호출 한 번).
-    LLM이 없거나 실패하면 바로 앞 사용자 질문을 앞에 붙인다. → (질의, 바꿨는지)"""
+RE_TAIL = re.compile(r"(?:은|는|도|의|에서|에|이|가)?\s*(?:요|어때요|어떤가요|같나요|알려\s*주세요)?\s*[?？.]?\s*$")
+REWRITE_MIN_OVERLAP = 0.6   # 바꾼 질의의 두 글자 조각 중 앞 대화·마지막 질문에 있어야 하는 비율 (주제를 지어내지 않게)
+
+
+def standalone(llm, messages: list[dict], aliases: dict[str, list[str]] | None = None) -> tuple[str, bool]:
+    """마지막 사용자 말을 혼자 뜻이 통하는 질의로. 후속 질문 표현이 있을 때만 바꾼다. → (질의, 바꿨는지)
+
+    흔한 꼴은 규칙으로: 기관만 바꾼 말("KBSI는요?")은 앞 질문의 기관을 바꾸고, 비교 요청만 있는 말("다른 기관도요?")은
+    앞 질문에 붙인다. 나머지는 짧은 LLM 호출 한 번 — 앞 대화에 없는 말을 많이 지어내면 쓰지 않는다.
+    LLM이 없거나 실패하면 바로 앞 사용자 질문을 앞에 붙인다."""
     ctx = messages[-MAX_CONTEXT:]
     users = [m["content"] for m in ctx if m["role"] == "user"]
     last = users[-1]
     if len(users) < 2 or not RE_FOLLOW.search(last):
         return last, False
+    prev = users[-2]
+    if aliases:
+        rest = RE_TAIL.sub("", _strip_mentions(last, aliases)).strip(" ,.?？")
+        new = mentions(last, aliases)
+        if new and not rest:                                      # 기관만 바꿨다
+            return f"{', '.join(aliases[c][0] for c in new)} {_strip_mentions(prev, aliases)}", True
+        if not RE_TAIL.sub("", strip_compare(last)).strip(" ,.?？") and RE_COMPARE.search(last):   # 비교 요청만 있다
+            return f"{prev} 다른 기관도", True
     if llm is not None:
         hist = "\n".join(f"{'질문' if m['role'] == 'user' else '답'}: {m['content'][:200]}" for m in ctx[:-1])
         try:
             out = llm.regex([{"role": "system", "content": REWRITE_SYSTEM},
                              {"role": "user", "content": f"앞 대화:\n{hist}\n\n마지막 질문: {last}\n\n출력 형식: 질문: …"}],
                             REWRITE_PATTERN, max_tokens=100)
-            if m := re.fullmatch(REWRITE_PATTERN, out):
+            m = re.fullmatch(REWRITE_PATTERN, out)
+            got = _bigrams(m[1]) if m else set()
+            if got and len(got & _bigrams(hist + last)) / len(got) >= REWRITE_MIN_OVERLAP:
                 return m[1].strip(), True
         except ProviderError:
             pass
-    return f"{users[-2]} {last}", True
+    return f"{prev} {last}", True
 
 
 # ---------------------------------------------------------------- 카드·인용
@@ -159,6 +183,12 @@ def href(work_id: str, path: str | None, as_of: str | None = None) -> str:
     return base + f"?a={urlquote(art, safe='')}" + (f"&as_of={as_of}" if as_of else "") + f"#{urlquote(path, safe='')}"
 
 
+def _title(h: dict) -> str | None:
+    """색인에 규정명 대신 규정 id가 들어간 경우(kr/reg/기관/이름)는 이름 부분만."""
+    t = h.get("title")
+    return t.rsplit("/", 1)[-1] if t and t.startswith("kr/") else t
+
+
 def card(h: dict, as_of: str | None = None) -> dict:
     """검색 결과(조 묶음) → 조문 카드: 기관, 규정, 조 라벨, 맞은 항·호, 강조 발췌, 링크."""
     art = h.get("article_path") or h["path"].split(".")[0]
@@ -169,7 +199,7 @@ def card(h: dict, as_of: str | None = None) -> dict:
     else:
         snippet, spans = _window(re.sub(r"\s+", " ", h.get("text") or ""), [])
     return {"id": f"{h['version_id']}|{art}", "institution": {"code": h.get("institution"), "name": h.get("institution_name")},
-            "work_id": h["work_id"], "version_id": h["version_id"], "title": h.get("title"), "article_path": art,
+            "work_id": h["work_id"], "version_id": h["version_id"], "title": _title(h), "article_path": art,
             "label": h.get("path_label") or h.get("label"),
             "matched": [{"path": m["path"], "label": sub_label(m["path"]) or m.get("label")} for m in matches
                         if m["path"] != art],
@@ -182,8 +212,12 @@ def cards(found: dict, as_of: str | None = None, works: set[str] | None = None, 
     """번호 조회 결과를 앞에, 하이브리드 결과를 뒤에 (같은 조는 한 번)."""
     out, seen = [], set()
     for x in found.get("lookup") or []:
-        h = {**x, "path_label": x.get("full_label"), "matches": [{"path": x["path"], "label": x.get("label")}]}
-        h["article_path"] = x.get("article_path") or x["path"].split(".")[0]
+        art = x.get("article_path") or x["path"].split(".")[0]
+        head = (x.get("article_text") or "").split("\n", 1)[0]
+        label = head if head.startswith(_art_label(x.get("label"))) and len(head) <= 60 else \
+            _art_label(x.get("full_label")) or x.get("label")
+        h = {**x, "article_path": art, "path_label": label, "matches": [{"path": x["path"], "label": x.get("label")}],
+             "text": x.get("text") or x.get("article_text")}
         out.append(card(h, as_of))
     for h in found.get("hits") or []:
         out.append(card(h, as_of))
@@ -231,7 +265,7 @@ def locate(units: list[dict], quote: str, fallback: str) -> str:
 
 
 def _art_label(label: str | None) -> str:
-    m = re.match(r"(제\d+조(?:의\d+)?|별표\s*\d+|별지\s*\d+)", label or "")
+    m = re.search(r"(제\d+조(?:의\d+)?|별표\s*\d+|별지\s*\d+)", label or "")
     return m[1] if m else (label or "")
 
 
@@ -327,7 +361,7 @@ def _cell_evidence(conn, pv_id) -> dict | None:
 def extract_value(llm, question: str, h: dict) -> tuple[str, str] | None:
     """조문 하나에서 짧은 값과 원문 인용. 인용이 원문에 글자 그대로 없거나 값의 숫자가 인용에 없으면 None."""
     text = h.get("text") or ""
-    user = f"질문: {question}\n기관: {h.get('institution_name')}\n규정: {h.get('title')} {h.get('path_label') or ''}\n\n본문:\n{text[:3000]}"
+    user = f"질문: {question}\n기관: {h.get('institution_name')}\n규정: {_title(h)} {h.get('path_label') or ''}\n\n본문:\n{text[:3000]}"
     try:
         out = llm.regex([{"role": "system", "content": EXTRACT_SYSTEM}, {"role": "user", "content": user}],
                         EXTRACT_PATTERN, max_tokens=140)
@@ -363,7 +397,7 @@ def followups(intent: str, *, qtype: str | None = None, top: dict | None = None,
               compared: list[dict] | None = None) -> list[str]:
     out: list[str] = list(extra or [])
     if intent == "lookup" and top:
-        out += [f"{top['title']} {_art_label(top['label'])}을 쉽게 설명해 주세요", "다른 기관의 같은 조항은 어떻게 되어 있나요?",
+        out += [f"{top['title']} {_art_label(top['label'])} 내용을 쉽게 설명해 주세요", "다른 기관의 같은 조항은 어떻게 되어 있나요?",
                 f"{top['title']}의 다른 조문도 보여 주세요"]
     elif intent == "question":
         out += [FOLLOW_BY_TYPE.get(qtype or "", "관련 예외 조항이 있나요?"), "다른 기관은 어떻게 정하고 있나요?",
@@ -416,7 +450,7 @@ def chat(db, deps: dict, messages: list[dict], scope: dict | None = None, as_of:
             aliases = load_aliases(conn)
             works = scope_works(conn, scope)
             conn.commit()
-        query, rewritten = standalone(deps.get("llm"), msgs)
+        query, rewritten = standalone(deps.get("llm"), msgs, aliases)
         p = plan(query, scope, aliases)
         st.update(intent=p["intent"], query=query, institution=p["focus"])
         names = {c: al[0] for c, al in aliases.items()}
@@ -529,7 +563,8 @@ def _comparison(db, deps, query, p, aliases, works, as_of, st, results) -> Itera
     llm = deps.get("llm")
     yield "status", {"stage": "search", "label": "기관별 규정을 찾고 있습니다"}
     terms = analyze(None, query).terms            # 규칙 동의어만 (LLM 호출 없이)
-    q = " ".join([RE_COMPARE.sub(" ", query), *terms])
+    question = strip_compare(query) or query
+    q = " ".join([question, *terms])
     insts = p["institutions"]
     if insts:   # 고른 기관마다 검색 (기관 수가 적다)
         with ThreadPoolExecutor(min(len(insts), EXTRACT_WORKERS)) as ex:
@@ -547,7 +582,6 @@ def _comparison(db, deps, query, p, aliases, works, as_of, st, results) -> Itera
         yield "followups", {"items": followups("comparison")}
         return
     yield "status", {"stage": "compare", "label": "기관별 값을 뽑고 있습니다"}
-    question = RE_COMPARE.sub(" ", query).strip()
     rows, cites = [], []
     with _db(db) as conn:
         cells = compare_cells(conn, question)
@@ -575,7 +609,7 @@ def _comparison(db, deps, query, p, aliases, works, as_of, st, results) -> Itera
             for h, g in zip(picked, got or [None] * len(picked)):
                 inst = {"code": h.get("institution"), "name": h.get("institution_name")}
                 if g is None:
-                    rows.append({"institution": inst, "value": None, "cite": None, "title": h.get("title"),
+                    rows.append({"institution": inst, "value": None, "cite": None, "title": _title(h),
                                  "href": card(h, as_of)["href"]})
                     continue
                 value, span = g
@@ -583,11 +617,11 @@ def _comparison(db, deps, query, p, aliases, works, as_of, st, results) -> Itera
                 path = locate(_units(conn, h["version_id"], art), span, art)
                 n = len(cites) + 1
                 cites.append({"n": n, "institution": inst, "work_id": h["work_id"], "version_id": h["version_id"],
-                              "title": h.get("title"), "path": path,
-                              "label": " ".join(x for x in (h.get("title"), _art_label(h.get("path_label")),
+                              "title": _title(h), "path": path,
+                              "label": " ".join(x for x in (_title(h), _art_label(h.get("path_label")),
                                                             sub_label(path)) if x),
                               "quote": span, "href": href(h["work_id"], path, as_of)})
-                rows.append({"institution": inst, "value": value, "cite": n, "title": h.get("title"),
+                rows.append({"institution": inst, "value": value, "cite": n, "title": _title(h),
                              "href": cites[-1]["href"]})
             conn.commit()
     yield "table", {"item": question, "source": source, "focus": p["focus"], "rows": rows}

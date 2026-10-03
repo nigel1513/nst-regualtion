@@ -72,10 +72,25 @@ def _msgs(*turns):
 
 
 def test_standalone_rewrites_follow_up_with_context():
-    llm = RewriteLLM()
-    q, rw = standalone(llm, _msgs("천문연 출장 증빙 기한은?", "7일 이내입니다.", "KBSI는요?"))
-    assert rw and q.startswith("한국천문연구원 출장 증빙") and len(llm.calls) == 1
+    llm = RewriteLLM(out="질문: 천문연 출장 증빙 기한 안에 못 내면 어떻게 되나요?")
+    q, rw = standalone(llm, _msgs("천문연 출장 증빙 기한은?", "7일 이내입니다.", "그럼 기한 안에 못 내면 어떻게 되나요?"), ALIASES)
+    assert rw and q == "천문연 출장 증빙 기한 안에 못 내면 어떻게 되나요?" and len(llm.calls) == 1
     assert "천문연 출장 증빙 기한은?" in llm.calls[0][1]["content"] and "7일 이내입니다." in llm.calls[0][1]["content"]
+
+
+def test_standalone_rejects_rewrite_that_invents_a_topic():
+    llm = RewriteLLM(out="질문: KBSI의 연구비 사용 실적 보고 기한은 어떻게 되나요?")
+    q, rw = standalone(llm, _msgs("천문연 출장 증빙 기한은?", "7일 이내입니다.", "그럼 늦으면요?"), ALIASES)
+    assert rw and q == "천문연 출장 증빙 기한은? 그럼 늦으면요?"
+
+
+def test_standalone_rules_for_institution_switch_and_compare_request():
+    llm = RewriteLLM(fail=True)
+    q, _ = standalone(llm, _msgs("천문연 출장 증빙 기한은?", "7일", "KBSI는요?"), ALIASES)
+    assert q == "한국기초과학지원연구원 출장 증빙 기한은?" and plan(q, ALL, ALIASES)["institutions"] == ["KBSI"]
+    q, _ = standalone(llm, _msgs("천문연 출장 증빙 기한은?", "7일", "다른 기관도요?"), ALIASES)
+    assert q == "천문연 출장 증빙 기한은? 다른 기관도" and plan(q, ALL, ALIASES)["intent"] == "comparison"
+    assert llm.calls == []
 
 
 def test_standalone_keeps_complete_question_without_llm_call():
@@ -126,7 +141,7 @@ def test_sse_framing():
 def test_followups_are_three_short_questions():
     assert len(followups("question", qtype="기한")) == 3
     top = {"title": "여비규정", "label": "제27조(출장증빙의 제출)"}
-    assert followups("lookup", top=top)[0] == "여비규정 제27조을 쉽게 설명해 주세요"
+    assert followups("lookup", top=top)[0] == "여비규정 제27조 내용을 쉽게 설명해 주세요"
 
 
 # ---------------------------------------------------------------- 비교 (가짜 검색·DB·LLM)
@@ -294,3 +309,28 @@ def test_pii_is_masked_before_rewrite(fake_search):
     assert llm.calls and not any("5678" in m["content"] for call in llm.calls for m in call)
     st = ev[0]["data"]
     assert st["rewritten"] and st["intent"] == "comparison" and st["institutions"] == []
+
+
+def test_strip_compare_leaves_the_question():
+    from reg.qa.chat import strip_compare
+
+    assert strip_compare("출장 증빙은 출장 후 며칠 안에 내야 하나요? 다른 기관도") == "출장 증빙은 출장 후 며칠 안에 내야 하나요?"
+    assert strip_compare("기관별로 출장 증빙 기한") == "출장 증빙 기한"
+    assert strip_compare("다른 기관도 출장 증빙 제출 기한은?") == "출장 증빙 제출 기한은?"
+
+
+def test_lookup_card_label_and_text_from_lookup_hit():
+    from reg.qa.chat import cards
+
+    x = {"work_id": "kr/reg/KASI/여비규정", "version_id": "v1", "path": "a27", "article_path": "a27", "unit": "article",
+         "label": "제27조", "heading": "출장증빙의 제출", "full_label": "여비규정 제27조", "title": "여비규정",
+         "institution": "KASI", "institution_name": "한국천문연구원", "family": "reg", "text": "",
+         "article_text": "제27조(출장증빙의 제출)\n① 출장자는 7일 이내에 증빙서를 제출하여야 한다.", "score": 1.0}
+    c = cards({"lookup": [x], "hits": []})[0]
+    assert c["label"] == "제27조(출장증빙의 제출)" and "7일 이내" in c["snippet"]
+
+
+def test_title_falls_back_from_work_id():
+    h = {"work_id": "kr/reg/KIT/여비규정", "version_id": "v", "path": "a1", "title": "kr/reg/KIT/[본원규정]여비규정",
+         "matches": [], "text": "x"}
+    assert card(h)["title"] == "[본원규정]여비규정"
