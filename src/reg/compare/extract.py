@@ -9,7 +9,7 @@ import re
 from dataclasses import asdict, dataclass, field
 
 from reg.compare.config import Item
-from reg.compare.normalize import normalize, squash, value_supported
+from reg.compare.normalize import fragments, normalize, snap, squash, value_supported
 from reg.index.mapping import PIPELINE
 from reg.index.service import base_filters, bm25_query
 from reg.platform.llm import ProviderError
@@ -24,9 +24,12 @@ SOURCE = ["pv_id", "work_id", "version_id", "title", "base_path", "path", "artic
 SYSTEM = ("너는 공공연구기관 내부규정에서 기준값을 찾아 옮기는 도우미다. 주어진 조문(C1, C2…)만 보고 답한다.\n"
           "규칙: 1) 값은 짧게 쓴다(예: 7일, 50,000원, 3개월, 있음). 2) 인용에는 값이 들어 있는 구절을 조문 본문에서 "
           "글자 그대로(띄어쓰기 포함) 옮긴다. 줄이거나 바꾸지 않는다. 3) 질문에 맞는 내용이 조문에 없으면 근거를 없음으로 한다.\n"
-          "4) 다른 규정이나 법령을 따른다고만 적혀 있으면(예: '공무원 여비 규정에 따른다') 값에 그 내용을 짧게 적는다.")
+          "4) 다른 규정이나 법령을 따른다고만 적혀 있으면(예: '공무원 여비 규정에 따른다') 값에 그 내용을 짧게 적는다.\n"
+          "5) 별표의 표는 칸이 풀려 한 줄로 이어져 있을 수 있다. 표에서 값을 찾았으면 그 숫자가 들어 있는 짧은 구절"
+          "(예: '정액 25,000')을 그대로 인용한다. 6) 있음/없음을 묻는 질문은 그 절차·의무를 정한 조문이 있으면 있음이다.")
 FORMAT = ("\n\n다음 형식으로만 답하라(각 항목 한 줄):\n근거: 사용한 조문 번호(C1 등) 또는 없음\n"
           "값: 짧은 값(30자 이내, 근거가 없으면 없음)\n인용: 값이 들어 있는 조문 구절을 글자 그대로(120자 이내, 근거가 없으면 없음)")
+PENALTY = {"exact": 0.0, "fragment": 0.05, "aligned": 0.15, "table": 0.3}   # 인용을 받은 방법별 신뢰도 감점
 MIN_RERANK = 0.02        # 리랭크 점수가 이보다 낮은 조는 후보에서 뺀다 (bge-reranker, 관련 없는 조)
 
 
@@ -141,11 +144,55 @@ def _prompt(item: Item, cands: list[Candidate], problem: str | None) -> list[dic
     return [{"role": "system", "content": SYSTEM}, {"role": "user", "content": user + FORMAT}]
 
 
-_TRIM = re.compile(r"^[\s\"'“”‘’「」『』<>]+|[\s\"'“”‘’「」『』<>]+$")
+_TRIM = re.compile(r"^[\s\"'“”‘’「」『』<>*]+|[\s\"'“”‘’「」『』<>*]+$")
+_NOTE = re.compile(r"\s*[(<\[〈](?:개정|신설|본조신설|전문개정|제목개정|삭제)[^)>\]〉]*[)>\]〉]\s*$")
 
 
 def _clean(q: str) -> str:
-    return _TRIM.sub("", q or "")
+    """모델이 덧붙인 따옴표·강조(**)·끝의 개정 주석(원문 본문에는 없다)을 뗀다."""
+    q = (q or "").replace("**", "")
+    prev = None
+    while prev != q:
+        prev, q = q, _NOTE.sub("", _TRIM.sub("", q))
+    return q
+
+
+_NUMBER = re.compile(r"\d[\d,]*")
+
+
+def resolve_quote(quote: str, value: str, text: str, table: bool = False) -> tuple[str, str] | None:
+    """(원문에 그대로 있는 인용, 방법). 방법: exact(그대로) · fragment('…'로 줄인 인용의 한 조각) · aligned(거의 그대로 —
+    원문 구간으로 바꿈) · table(별표: 칸이 풀린 표를 모델이 다시 엮은 인용 → 값 숫자가 든 원문 조각). 아니면 None."""
+    if squash(quote) and squash(quote) in squash(text):
+        return quote, "exact"
+    if (frag := verbatim(quote, value, text)) is not None:
+        return frag, "fragment"
+    if (span := snap(quote, text)) is not None:
+        return span, "aligned"
+    if table and (num := _NUMBER.search(value or "")):
+        frag = next((f for f in fragments(quote, text) if num[0] in squash(f) and len(squash(f)) > len(num[0])), None)
+        if frag is not None:
+            return frag, "table"
+    return None
+
+
+_ELLIPSIS = re.compile(r"\s*(?:\.\.\.+|…+|⋯+|중략)\s*")
+
+
+def verbatim(quote: str, value: str, text: str) -> str | None:
+    """'A … B'처럼 줄여 쓴 인용: 조각이 모두 원문에 순서대로 있으면, 값이 든 조각(없으면 가장 긴 조각)만 인용으로 쓴다.
+    저장하는 인용은 언제나 원문에 그대로 있는 구절이다."""
+    parts = [p for p in _ELLIPSIS.split(quote) if len(squash(p)) >= 4]
+    if len(parts) < 2:
+        return None
+    nt, at = squash(text), 0
+    for p in parts:
+        at = nt.find(squash(p), at)
+        if at < 0:
+            return None
+        at += len(squash(p))
+    nv = squash(value)
+    return next((p for p in parts if nv and nv in squash(p)), max(parts, key=lambda p: len(squash(p))))
 
 
 def locate(quote: str, c: Candidate) -> Unit | None:
@@ -156,6 +203,15 @@ def locate(quote: str, c: Candidate) -> Unit | None:
     if hits:
         return max(hits, key=lambda u: (u.path.count("."), len(u.path)))
     return next((u for u in c.units if u.path == c.article_path), None)
+
+
+def in_bounds(value: str, item: Item) -> bool:
+    if item.norm != "won" or (item.min is None and item.max is None):
+        return True
+    v = normalize(value, "won")
+    if v is None or not v.isdigit():
+        return True                                  # 실비·법령 준용 같은 글 값은 범위를 보지 않는다
+    return (item.min is None or int(v) >= item.min) and (item.max is None or int(v) <= item.max)
 
 
 def extract(llm, item: Item, inst: str, cands: list[Candidate]) -> Cell:
@@ -181,16 +237,21 @@ def extract(llm, item: Item, inst: str, cands: list[Candidate]) -> Cell:
         if item.norm != "boolean" and squash(value) in ("없음", "해당없음", "규정없음"):
             base.note = "근거 없음"
             return base
-        if squash(quote) and squash(quote) in squash(c.text):
+        got = resolve_quote(quote, value, c.text, table=c.article_path.startswith(("annex", "form")))
+        if got is not None:
+            quote, how = got
+            if not in_bounds(value, item):
+                problem = f"값 '{value}'은(는) 이 항목의 값으로 보기 어렵다(표의 다른 칸일 수 있다). 질문한 항목의 값을 찾을 것."
+                continue
             if value_supported(value, item.norm, quote):
                 u = locate(quote, c)
                 rule_ok = normalize(value, item.norm) is not None
-                conf = 0.9 if item.norm in ("duration", "won") else 0.75
+                conf = round((0.9 if item.norm in ("duration", "won") else 0.75) - PENALTY[how], 2)
                 return Cell(item.topic, item.id, inst, "llm", c.work_id, c.version_id, u.pv_id if u else None,
                             u.path if u else c.article_path, value, normalize(value, item.norm), quote,
                             conf if rule_ok else 0.5, c.title)
             problem = f"값 '{value}'이(가) 인용 안에 없다. 인용 구절 안의 값을 그대로 쓸 것."
         else:
             problem = "인용이 조문 본문과 글자 그대로 일치하지 않는다. 조문에서 그대로 복사할 것."
-    base.note = f"검증 실패: {problem}"
+    base.note = f"검증 실패: {problem} 마지막 답: {out!r}"
     return base

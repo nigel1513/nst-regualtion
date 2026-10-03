@@ -73,3 +73,49 @@ def test_no_evidence_is_absent(os_index, item):
     cands = candidates(os_index, FakeEmbedder(), FakeReranker(), item, [WID])
     assert extract(LineLLM("근거: 없음\n값: 없음\n인용: 없음"), item, "KASI", cands).method == "absent"
     assert extract(LineLLM(), item, "KASI", []).note == "후보 없음"
+
+
+def test_ellipsis_quote_keeps_one_verbatim_fragment():
+    from reg.compare.extract import verbatim
+
+    text = "제6조(사전심의) ① 위원회의 심의대상은 다음과 같다.\n1. 국외출장 계획\n② 제출기한은 7일 전으로 한다."
+    assert verbatim("① 위원회의 심의대상은 ... 제출기한은 7일 전으로", "7일", text) == "제출기한은 7일 전으로"
+    assert verbatim("위원회의 심의대상은 … 없는 구절이다", "있음", text) is None
+    assert verbatim("제출기한은 7일 … 위원회의 심의대상은", "있음", text) is None     # 순서가 바뀌면 받지 않는다
+    assert verbatim("한 조각뿐인 인용", "x", text) is None
+
+
+def test_resolve_quote_cleans_and_snaps_to_original_span():
+    from reg.compare.extract import _clean, resolve_quote
+
+    text = "① 출장자는 출장 종료 후 1주(국외출장의 경우 2주) 이내에 결재권자의 승인을 득하여 정산한다."
+    assert _clean('"출장 종료 후 1주 이내에 정산한다.(신설 2007. 8.30)"') == "출장 종료 후 1주 이내에 정산한다."
+    assert _clean("**15일 이내에 제출하여야 한다.**") == "15일 이내에 제출하여야 한다."
+    assert resolve_quote("출장 종료 후 1주(국외출장의 경우 2주)", "1주", text)[1] == "exact"
+    q, how = resolve_quote("출장 종료후 1주(국외출장의 경우 2주) 이내 결재권자의 승인을 득하여 정산한다", "1주", text)
+    assert how == "aligned" and q in text and q.startswith("출장 종료 후 1주")
+    assert resolve_quote("출장 종료 후 3주(국외출장의 경우 2주) 이내에 결재권자의 승인을 득하여", "3주", text) is None
+    assert resolve_quote("전혀 다른 문장으로 지어낸 인용입니다 여기에", "x", text) is None
+
+
+def test_table_quote_falls_back_to_verbatim_fragment_with_the_number():
+    from reg.compare.extract import resolve_quote
+
+    table = "국내여비지급표 (단위 : 원) 일비 숙박비 식 비 직급 철도운임 정액 25,000 실비 30,000 (1 등급)"
+    q, how = resolve_quote("일비 (1일당) 임원 정액 25,000", "25,000", table, table=True)
+    assert how == "table" and q == "정액 25,000" and q in table
+    assert resolve_quote("일비 (1일당) 임원 정액 25,000", "25,000", table, table=False) is None
+    assert resolve_quote("일비 정액 27,000", "27,000", table, table=True) is None
+
+
+def test_out_of_bounds_amount_is_retried():
+    from reg.compare.extract import Candidate, Unit
+
+    item = load().item("travel", "lodging_cap")
+    assert item.min == 30000
+    text = "국내여비지급표 (단위 : 원) 일비 숙박비 식비 정액 25,000 실비 (상한액: 서울특별시 100,000, 광역시 80,000)"
+    cands = [Candidate(WID, WID + "@2024-01-17", "여비규정", "annex1", text, [Unit(1, "annex1", "annex", text)])]
+    llm = LineLLM("근거: C1\n값: 25,000\n인용: 정액 25,000", "근거: C1\n값: 100,000\n인용: 서울특별시 100,000")
+    cell = extract(llm, item, "KASI", cands)
+    assert (cell.method, cell.value_norm, cell.path) == ("llm", "100000", "annex1")
+    assert len(llm.calls) == 2 and "보기 어렵다" in llm.calls[1][1]["content"]

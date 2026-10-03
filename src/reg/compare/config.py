@@ -28,6 +28,8 @@ class Item:
     ask: str
     unit: str
     norm: str
+    min: float | None = None     # 정규화 값(원 단위 금액)의 그럴듯한 범위. 밖이면 다른 금액을 잘못 읽은 것으로 본다
+    max: float | None = None
 
 
 @dataclass
@@ -60,7 +62,8 @@ def parse(data: dict) -> Config:
         for r in rows:
             if r["norm"] not in NORMS:
                 raise ValueError(f"정규화 규칙이 잘못됐다: {tid}.{r['id']} {r['norm']}")
-            items[tid].append(Item(r["id"], tid, r["label"], r["query"], r["ask"], r.get("unit") or "", r["norm"]))
+            items[tid].append(Item(r["id"], tid, r["label"], r["query"], r["ask"], r.get("unit") or "", r["norm"],
+                                   r.get("min"), r.get("max")))
     return Config(topics, items)
 
 

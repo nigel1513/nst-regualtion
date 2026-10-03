@@ -7,6 +7,8 @@ _DURATION = re.compile(r"(\d+)\s*(주일|개월|일|주|월|년)")
 _WON_PART = re.compile(r"(\d+(?:\.\d+)?)(억|천만|백만|십만|만|천|백)?")
 _WON_UNITS = {"억": 10**8, "천만": 10**7, "백만": 10**6, "십만": 10**5, "만": 10**4, "천": 10**3, "백": 100, None: 1}
 _WON = re.compile(r"\d[\d,]*(?:\.\d+)?\s*(?:억|천만|백만|십만|만|천|백)?(?:\s*\d[\d,]*\s*(?:천만|백만|십만|만|천|백))*\s*원")
+# 인용 속 금액: 표(별표)는 '(단위: 원)' 아래 숫자만 적으므로 '원'이 없어도 금액으로 본다
+_WON_ANY = re.compile(r"\d[\d,]*(?:\.\d+)?\s*(?:억|천만|백만|십만|만|천|백)?(?:\s*\d[\d,]*\s*(?:천만|백만|십만|만|천|백))*\s*원?")
 _YES = {"있음", "있다", "예", "네", "필요", "필요함", "해당", "가능", "허용", "o", "y", "yes"}
 _NO = {"없음", "없다", "아니오", "아니요", "불필요", "해당없음", "불가", "불가능", "허용안함", "x", "n", "no"}
 
@@ -65,7 +67,7 @@ def _amounts(quote: str, rule: str) -> set[str]:
     if rule == "duration":
         return {duration(m[0]) for m in _DURATION.finditer(quote)} - {None}
     if rule == "won":
-        return {w for m in _WON.finditer(quote) if (w := won(m[0]))}
+        return {w for m in _WON_ANY.finditer(quote) if (w := won(m[0]))}
     return set()
 
 
@@ -142,3 +144,45 @@ def value_span(value: str, rule: str, text: str, within: tuple[int, int] | None 
                 return s + m.start(), s + m.end()
     got = quote_span(value, seg) if value else None
     return (s + got[0], s + got[1]) if got else None
+
+
+_NUM = re.compile(r"\d+")
+
+
+def fragments(quote: str, text: str, min_len: int = 4) -> list[str]:
+    """인용을 앞에서부터 원문에 그대로 있는 가장 긴 조각들로 나눈다(공백 무시). 원문 모양의 조각 목록."""
+    nq, nt = squash(quote), squash(text)
+    out, i = [], 0
+    while i < len(nq):
+        j = i
+        while j < len(nq) and nq[i:j + 1] in nt:
+            j += 1
+        if j - i >= min_len and (span := quote_span(nq[i:j], text)):
+            out.append(text[span[0]:span[1]])
+        i = max(j, i + 1)
+    return out
+
+
+def snap(quote: str, text: str, min_cov: float = 0.9) -> str | None:
+    """모델이 거의 그대로 옮긴 인용(조사·띄어쓰기·한두 글자 차이)을 원문 구간으로 바꾼다. 인용 글자의 min_cov 이상이
+    한 구간과 맞고 숫자가 모두 같을 때만. 돌려주는 것은 언제나 원문에 그대로 있는 구절이다(공백 포함 원래 모양)."""
+    from difflib import SequenceMatcher
+
+    nq = squash(quote)
+    pos = [i for i, ch in enumerate(text or "") if not ch.isspace()]
+    nt = "".join(text[i] for i in pos)
+    if len(nq) < 8 or not nt:
+        return None
+    width = len(nq) + 40
+    best = (0.0, 0, 0)
+    starts = {max(0, b.b - b.a) for b in SequenceMatcher(None, nq, nt, autojunk=False).get_matching_blocks() if b.size >= 4}
+    for st in starts:
+        win = nt[st:st + width]
+        blocks = [b for b in SequenceMatcher(None, nq, win, autojunk=False).get_matching_blocks() if b.size >= 3]
+        cov = sum(b.size for b in blocks) / len(nq)
+        if blocks and cov > best[0]:
+            best = (cov, st + blocks[0].b, st + blocks[-1].b + blocks[-1].size)
+    cov, s, e = best
+    if cov < min_cov or _NUM.findall(nt[s:e]) != _NUM.findall(nq):
+        return None
+    return text[pos[s]:pos[e - 1] + 1]
