@@ -5,7 +5,7 @@ from reg.platform.db.bootstrap import bootstrap
 from tests.conftest import _dsn
 
 TABLES = {"institution", "fetch_run", "request_log", "source_document",
-          "alio_rule", "alio_rule_file", "law_watch", "outbox"}
+          "alio_rule", "alio_rule_file", "outbox"}
 
 
 def test_tables_exist_and_app_can_write(conn):

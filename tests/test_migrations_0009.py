@@ -16,3 +16,8 @@ def test_alio_seq_lookup_uses_the_partial_index(conn):
     conn.execute("SET enable_seqscan = off")
     plan = "\n".join(r["QUERY PLAN"] for r in conn.execute("EXPLAIN " + WORK_BY_ALIO_SEQ, ("123",)))
     assert "work_alio_seq" in plan
+
+
+def test_law_watch_is_dropped(conn):
+    """배치 스펙 §5.4: law_watch 폐기 (쓰는 코드 없음, 2026-10-03 실서버에서 삭제)."""
+    assert conn.execute("SELECT to_regclass('regulation.law_watch') AS t").fetchone()["t"] is None

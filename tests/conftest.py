@@ -46,7 +46,7 @@ def conn(migrated):
             "TRUNCATE ops.pipeline_run, ops.embedding_cache, ops.email_delivery, ops.notification, ops.change_impact, ops.owner_assignment, ops.qa_log, ops.release_item, ops.release, regulation.reference, regulation.review_task, regulation.law_seed, regulation.provision_change, regulation.version_provision, regulation.provision_version,"
             " regulation.provision, regulation.amendment_history, regulation.work_version, regulation.work,"
             " ops.outbox, regulation.alio_rule_file, regulation.alio_rule,"
-            " regulation.law_watch, ops.request_log, ops.fetch_run,"
+            " ops.request_log, ops.fetch_run,"
             " regulation.source_document, regulation.institution CASCADE"
         )
     c.commit()
