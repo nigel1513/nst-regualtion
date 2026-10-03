@@ -88,13 +88,17 @@ def expand(conn, hits: list[dict], limit_articles: int = 4, budget: int = 8000, 
     used = 0
 
     def add(version_id: str, article: str, role: str, rel: str | None = None,
-            matched: list[str] | None = None, reason: str | None = None) -> list[int] | None:
+            matched: list[str] | None = None, reason: str | None = None,
+            part: tuple[str, str, str] | None = None) -> list[int] | None:
+        """part=(경로, 라벨, 본문): 조 전체 대신 그 조항 하나만 근거로 (그래프의 용어 정의)."""
         nonlocal used
-        if (version_id, article) in seen:
+        if (version_id, article) in seen or (part and (version_id, part[0]) in seen):
             return None
         meta = _version_meta(conn, version_id)
-        got = _article_text(conn, version_id, article) if meta else None
-        if not got or used + len(got[1]) > budget:
+        got = (part[1], part[2], [0]) if part and meta else _article_text(conn, version_id, article) if meta else None
+        if part:
+            article = part[0]
+        if not got or not got[1] or used + len(got[1]) > budget:
             return None
         seen.add((version_id, article))
         used += len(got[1])
@@ -144,12 +148,18 @@ def _graph_related(conn, primaries, related, add, as_of, release_id) -> bool:
     own = {h["work_id"]: h["version_id"] for h, _, _ in reversed(primaries)}
     n = 0
     for it in items:
-        if it.get("direction") == "parent" or n >= GRAPH_LIMIT:
+        # 상위 조문은 이미 조 단위 근거에 들어 있고, 별표·부칙은 길어서 작은 모델이 엉뚱한 숫자를 인용한다 (화면 관계도에서 본다)
+        if it.get("direction") == "parent" or not re.match(r"a\d", it["path"]) or n >= GRAPH_LIMIT:
             continue
         art = it["path"].split("#")[0].split(".")[0]
         vid = own.get(it["work_id"]) or _version_at(conn, it["work_id"], as_of, release_id)
         role = GRAPH_ROLE.get(it.get("direction")) or GRAPH_ROLE.get(it.get("rel")) or "cited"
         matched = [it["path"]] if it["path"] != art else []
-        if vid and add(vid, art, role, it.get("rel"), matched, it.get("reason")):
+        part = None
+        if role == "definition" and it["path"] != art and it.get("text"):
+            label = (it.get("full_label") or "").removeprefix(it.get("title") or "").strip()
+            label = re.sub(r"^.*?(?=제\d+조)", "", label) or it["path"]
+            part = (it["path"], label, it["text"])
+        if vid and add(vid, art, role, it.get("rel"), matched, it.get("reason"), part):
             n += 1
     return True

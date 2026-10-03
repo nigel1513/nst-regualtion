@@ -104,14 +104,19 @@ def test_graph_related_adds_definitions_and_falls_back_on_failure(conn, tmp_path
     def related(pv_ids, as_of):
         seen.append((list(pv_ids), as_of))
         return [{"work_id": v["work_id"], "path": "a2.i1", "reason": "용어 정의: 출장", "rel": "DEFINES",
-                 "direction": "term"},
+                 "direction": "term", "full_label": f"{v['title']} 제2조 제1호", "text": "\"출장\"이란 정의 문장이다."},
+                {"work_id": v["work_id"], "path": "annex1", "reason": "인용 조항", "rel": "CITATION", "direction": "out",
+                 "full_label": "별표 1", "text": "긴 표"},
                 {"work_id": v["work_id"], "path": "a26", "reason": "상위 조문", "rel": "CONTAINS", "direction": "parent"}]
 
     ev = expand(conn, [hit], related=related, as_of="2026-10-02")
     assert seen and seen[0][0] and seen[0][1] == "2026-10-02"
     d = [e for e in ev if e.role == "definition"]
-    assert [e.path for e in d] == ["a2"] and d[0].reason == "용어 정의: 출장" and d[0].matched_paths == ["a2.i1"]
+    # 정의는 조 전체가 아니라 그 정의 항목만 (작은 모델이 엉뚱한 숫자·문장을 인용하지 않게)
+    assert [(e.path, e.label, e.text) for e in d] == [("a2.i1", "제2조 제1호", '"출장"이란 정의 문장이다.')]
+    assert d[0].reason == "용어 정의: 출장" and d[0].matched_paths == ["a2.i1"]
     assert not any(e.path == "a26" for e in ev)  # 상위 조문(parent)은 이미 조 단위로 보여주므로 넣지 않는다
+    assert not any(e.path.startswith("annex") for e in ev)  # 그래프가 이은 별표·부칙은 답변 근거에 넣지 않는다
 
     def down(pv_ids, as_of):
         raise ConnectionError("neo4j down")
