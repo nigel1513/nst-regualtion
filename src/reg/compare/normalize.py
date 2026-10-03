@@ -45,7 +45,7 @@ def won(value: str) -> str | None:
         pos, seen = p.end(), True
         if p[2] is None:
             break
-    return str(int(round(total))) if seen and total > 0 else None
+    return str(round(total)) if seen and total > 0 else None
 
 
 def boolean(value: str) -> str | None:

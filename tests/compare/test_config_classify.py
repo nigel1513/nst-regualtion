@@ -40,7 +40,7 @@ def test_title_rules(cfg, title, want):
 
 class FakeEmbed:
     """주제 설명과 규정 글에 들어 있는 낱말로 만든 벡터 (결정적)."""
-    WORDS = ["공익신고", "여비", "연봉", "복지"]
+    WORDS = ("공익신고", "여비", "연봉", "복지")
 
     def __call__(self, texts):
         out = []

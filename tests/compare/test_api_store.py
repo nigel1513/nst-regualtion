@@ -102,7 +102,7 @@ def test_topics_counts(api):
 def test_compare_table(api):
     r = api.get("/api/v1/compare", params={"topic": "travel", "ours": "KASI"}).json()
     assert r["topic"] == "travel" and r["topic_label"] == "여비·출장"
-    assert [i["code"] for i in r["institutions"]][0] == "KASI" and r["institutions"][0]["ours"] is True
+    assert r["institutions"][0]["code"] == "KASI" and r["institutions"][0]["ours"] is True
     assert {i["code"] for i in r["institutions"]} == {"KASI", "ETRI", "KIST", "KRISS"}   # 값이 있는 기관만 기본
     assert r["items"][0] == {"id": "evidence_deadline", "label": "출장 증빙 제출 기한", "unit": "일"}
     ours = r["cells"]["evidence_deadline"]["KASI"]
