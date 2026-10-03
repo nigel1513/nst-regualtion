@@ -73,7 +73,8 @@ export default async function ViewerPage({ params, searchParams }: { params: Pro
   const supTitle = (p: Provision) => `부칙 ${fmtDate(p.path.split("@")[1]?.slice(0, 10) ?? null)}`;
   const head = (p: Provision) => cleanHeading(p.heading);
   const tocLabel = (p: Provision) => (p.unit === "supplement" ? supTitle(p) : `${p.label}${head(p) ? ` ${head(p)}` : ""}`);
-  const askHref = `/assistant?${new URLSearchParams({ q: `${work.title} `, work: work.id })}`;
+  // 이 규정에 묻기: 범위 = 그 기관 + 이 규정 하나 (규정 도우미 §5)
+  const askHref = `/assistant?${new URLSearchParams({ work: work.id, ...(work.institution ? { inst: work.institution } : {}) })}`;
   const text = (p: Provision) => (
     <ProvisionText text={p.text} refs={refs[String(p.id)]} workId={work.id} asOf={as_of} cites={cites?.[String(p.id)]} lawHref={lawPanelHref} />
   );
