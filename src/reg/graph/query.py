@@ -114,10 +114,10 @@ def _kind(n) -> str:
 
 NB_REL = f"{RELS}|AMENDED_TO|ADDED_IN|DELETED_IN|USES|DEFINES"
 # 한 조항의 이웃: 참조·계보·용어, 그 판본에서의 부모(판본 또는 상위 조항)와 자식(가장 늦은 판본 기준)
-Q_NB = ("MATCH (p:Provision {pv_id: $pv}) CALL {"
-        f" WITH p MATCH (p)-[r:{NB_REL}]-(x) RETURN r LIMIT $limit"
-        " UNION WITH p MATCH (x)-[r:CONTAINS]->(p) RETURN r"
-        " UNION WITH p MATCH (p)-[r:CONTAINS]->(x) WHERE $kids AND p.version_ids[-1] IN r.versions RETURN r"
+Q_NB = ("MATCH (p:Provision {pv_id: $pv}) CALL (p) {"
+        f" MATCH (p)-[r:{NB_REL}]-(x) RETURN r LIMIT $limit"
+        " UNION MATCH (x)-[r:CONTAINS]->(p) RETURN r"
+        " UNION MATCH (p)-[r:CONTAINS]->(x) WHERE $kids AND p.version_ids[-1] IN r.versions RETURN r"
         "} RETURN r, startNode(r) AS a, endNode(r) AS b")
 Q_TERM_DEFS = "MATCH (t:Term {key: $key})<-[r:DEFINES]-(d:Provision) RETURN r, d AS a, t AS b"
 
