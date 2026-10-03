@@ -13,6 +13,7 @@ def subcommands() -> list:
     from reg.alerts.cli import alerts, owners
     from reg.core.annex_cli import annex
     from reg.core.quality_cli import quality
+    from reg.core.refs_cli import refs
     from reg.graph.cli import graph
     from reg.index.cli import index
     from reg.ocr.cli import ocr  # M6-5
@@ -22,7 +23,7 @@ def subcommands() -> list:
     from reg.sources.lawgo.cli import law
 
     return [("alio", alio), ("law", law), ("index", index), ("graph", graph), ("alerts", alerts), ("owners", owners),
-            ("ocr", ocr), ("ops", ops), ("quality", quality), ("annex", annex),
+            ("ocr", ocr), ("ops", ops), ("quality", quality), ("annex", annex), ("refs", refs),
             ("search", search_app)]
 
 

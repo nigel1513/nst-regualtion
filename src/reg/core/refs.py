@@ -485,3 +485,59 @@ def resolve_and_store(conn, work_id: str) -> dict:
     rows, seeds = resolve_refs(conn, work_id)
     return store_refs(conn, work_id, rows, seeds)
 
+
+def _stored_keys(conn, work_id: str) -> list[tuple]:
+    return sorted((tuple(r.values()) for r in conn.execute(
+        "SELECT source_pv_id, span_start, span_end, evidence_text, rel_type, target_kind, target_work_id, target_path,"
+        " target_name, resolution, extractor FROM regulation.reference WHERE work_id = %s", (work_id,)).fetchall()),
+                  key=_sort_key)
+
+
+def _sort_key(k: tuple) -> tuple:
+    return tuple("" if v is None else v for v in k)
+
+
+def reresolve(conn, works: list[str] | None = None, dry_run: bool = False, log=None) -> dict:
+    """참조를 다시 해석한다 (02-data-loading §5.3). works가 없으면 미해석·모호 참조가 있는 work 전부.
+
+    먼저 처리된 규정이 나중에 적재된 규정을 가리킨 참조, 해석 규칙이 바뀐 뒤의 옛 결과를 고친다.
+    결과가 저장된 것과 같으면 다시 쓰지 않는다: 참조 id가 그대로라 그래프 지문(project.fingerprints)도 그대로이고,
+    다음 `reg graph sync`는 바뀐 work만 다시 넣는다. 바뀐 work는 참조 검수 작업도 다시 맞춘다. work마다 커밋한다.
+    dry_run이면 아무것도 쓰지 않고 바뀔 수만 센다."""
+    from reg.core.quality import record_reference_tasks
+
+    if works is None:
+        works = [r["work_id"] for r in conn.execute(
+            "SELECT DISTINCT work_id FROM regulation.reference WHERE resolution <> 'RESOLVED' ORDER BY 1").fetchall()]
+    st = {"works": len(works), "changed": 0, "unchanged": 0, "failed": 0, "resolved_before": 0, "resolved_after": 0,
+          "unresolved_before": 0, "unresolved_after": 0, "seeds": 0, "failed_works": []}
+    for n, wid in enumerate(works, 1):
+        try:
+            before = _stored_keys(conn, wid)
+            rows, seeds = resolve_refs(conn, wid)
+            after = sorted((r.key() for r in rows), key=_sort_key)
+            res_before = sum(k[9] == "RESOLVED" for k in before)
+            res_after = sum(r.resolution == "RESOLVED" for r in rows)
+            st["resolved_before"] += res_before
+            st["resolved_after"] += res_after
+            st["unresolved_before"] += len(before) - res_before
+            st["unresolved_after"] += len(rows) - res_after
+            if before == after:
+                st["unchanged"] += 1
+                conn.rollback()
+                continue
+            st["changed"] += 1
+            if dry_run:
+                conn.rollback()
+                continue
+            st["seeds"] += store_refs(conn, wid, rows, seeds)["seeds"]
+            record_reference_tasks(conn, wid)
+            conn.commit()
+        except Exception as e:  # 한 work의 실패가 나머지를 막지 않는다. 실패 목록은 stats에 남는다
+            conn.rollback()
+            st["failed"] += 1
+            if len(st["failed_works"]) < 20:
+                st["failed_works"].append(f"{wid}: {type(e).__name__}: {e}"[:300])
+        if log and n % 200 == 0:
+            log(f"{n}/{len(works)} changed={st['changed']} failed={st['failed']}")
+    return st

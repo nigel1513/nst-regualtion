@@ -8,7 +8,7 @@ DAG_IDS = {"reg_law_daily", "reg_law_full", "reg_law_link", "reg_alio_daily", "r
 ALLOWED = {
     "reg.sources.alio.tasks": {"active_institutions", "collect_institution", "reconcile"},
     "reg.sources.lawgo.tasks": {"sync_daily", "sync_full", "link", "promote"},
-    "reg.core.ingest.tasks": {"process_all", "quality_summary"},
+    "reg.core.ingest.tasks": {"process_all", "quality_summary", "reresolve_refs"},  # 참조 재해석
     "reg.core.annex_tasks": {"render_current", "convert_tables"},  # M6-6 별표 이미지·표
     "reg.ocr.tasks": {"run_pending"},
     "reg.graph.tasks": {"sync"},
@@ -78,3 +78,27 @@ def test_process_all_registers_sources_first():
     calls = [n.func.id for stmt in fn.body for n in ast.walk(stmt)
              if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)]
     assert calls[:2] == ["register_sources", "run"], calls
+
+
+def _task_fn(tree, name):
+    return next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == name)
+
+
+def _outlets(fn) -> list[str]:
+    dec = next(d for d in fn.decorator_list if isinstance(d, ast.Call) and getattr(d.func, "id", "") == "task")
+    kw = {k.arg: k.value for k in dec.keywords}
+    return [e.id for e in kw["outlets"].elts] if "outlets" in kw else []
+
+
+def test_refs_reresolve_runs_after_process_all_and_announces_structured():
+    """참조 재해석이 끝난 뒤에 regulation_structured를 알린다: reg_publish의 graph_sync(증분)가 재해석 결과를 본다."""
+    tree = _trees()["reg_process"]
+    assert _outlets(_task_fn(tree, "process_all")) == []
+    assert _outlets(_task_fn(tree, "refs_reresolve")) == ["STRUCTURED"]
+    body = _task_fn(tree, "reg_process").body
+    call = next(n.value for n in body if isinstance(n, ast.Assign) and isinstance(n.value, ast.Call)
+                and getattr(n.value.func, "id", "") == "refs_reresolve")
+    assert [a.id for a in call.args] == ["p"]  # process_all 결과를 받는다 = process_all 뒤
+    pub = _trees()["reg_publish"]
+    dec = next(d for d in _task_fn(pub, "reg_publish").decorator_list if isinstance(d, ast.Call))
+    assert {k.arg: getattr(k.value, "id", None) for k in dec.keywords}["schedule"] == "STRUCTURED"
