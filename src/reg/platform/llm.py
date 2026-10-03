@@ -43,6 +43,10 @@ class EmbeddingProvider:
         return out
 
 
+# 리랭커에 보내는 문서 길이 상한: 긴 별표·표 본문은 토큰화에 묶여 리랭커가 멈춘다 (2026-10-04). 앞부분으로 충분하다.
+RERANK_MAX_CHARS = 2000
+
+
 class RerankProvider:
     def __init__(self, url: str, model: str, timeout: float = 30.0):
         self.url, self.model, self.timeout = url.rstrip("/"), model, timeout
@@ -50,6 +54,7 @@ class RerankProvider:
     def rerank(self, query: str, docs: list[str]) -> list[tuple[int, float]]:
         if not docs:
             return []
+        docs = [d[:RERANK_MAX_CHARS] for d in docs]
         res = _post(f"{self.url}/rerank", {"model": self.model, "query": query, "documents": docs}, self.timeout, 2, 1.0)
         return sorted(((r["index"], r["relevance_score"]) for r in res["results"]), key=lambda x: -x[1])
 

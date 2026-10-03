@@ -746,3 +746,9 @@ uv run ruff check src tests
 | 수집되는 테스트 (`--collect-only`, 2026-10-03) | 664개 중 661개 선택, `integration` 3개 제외 |
 | 최근 전체 실행 결과 | 657 passed (호출자가 알려 준 값. 이 문서를 쓰면서 다시 실행하지 않음) |
 | 커버리지 측정 | 설정 없음 |
+
+## 8. GPU PC 운영 메모 (2026-10-04)
+
+- **기동 순서**: `vllm-llm-1`(gpu 0.40)을 MinerU(`gpu-mineru-vlm-1`, `gpu-mineru-api-1`)보다 **먼저** 띄운다. MinerU가 먼저 메모리를 잡으면 LLM이 "No available memory for the cache blocks"로 뜨지 못한다. 복구: `docker stop gpu-mineru-vlm-1 gpu-mineru-api-1` → `docker restart vllm-llm-1`(정상 확인) → `docker start gpu-mineru-vlm-1 gpu-mineru-api-1`.
+- **느려짐 증상**: LLM 생성이 15 tok/s 이하로 떨어지거나(정상 약 150 tok/s, 200토큰 1.4초) 리랭커가 요청 없이 CPU 99%로 멈추면 해당 컨테이너만 재시작한다. 리랭커에는 문서당 2,000자까지만 보낸다(`RERANK_MAX_CHARS`).
+- **GPU를 오래 쓰는 일괄 작업**(별표 표 변환 `reg annex tables`, 비교값 `reg compare build`)은 서비스 시간대에 돌리지 않는다. Airflow에서는 `gpu_pool`(슬롯 1)로 서로 겹치지 않는다.
