@@ -38,6 +38,14 @@ def test_mentions_in_order_and_boundaries():
     ("출장 증빙 기한", only("KASI", "KBSI"), "comparison", ["KASI", "KBSI"], None),
     ("천문연 수의계약 비교견적 생략 기준은?", ALL, "question", ["KASI"], "KASI"),   # 비교견적은 비교 요청이 아니다
     ("천문연 여비규정 27조에 따르면 증빙 기한은?", ALL, "question", ["KASI"], "KASI"),
+    # 전체 범위·기관 없음: 비교할 값(기한·금액·횟수…)이나 비교 표현이 있을 때만 비교, 아니면 전체 기관 질문
+    ("연구장비 구매 절차", ALL, "question", None, None),
+    ("연구노트는 어떻게 작성하나요?", ALL, "question", None, None),
+    ("국내 출장 숙박비 상한은 얼마인가요?", ALL, "comparison", None, None),
+    ("수의계약 한도 금액", ALL, "comparison", None, None),
+    ("연차는 언제까지 써야 하나요?", ALL, "comparison", None, None),
+    ("어디가 유연근무 신청이 쉬운가요?", ALL, "comparison", None, None),
+    ("연구장비 구매 절차를 기관별로 알려 주세요", ALL, "comparison", None, None),
 ])
 def test_plan(q, scope, intent, insts, focus):
     p = plan(q, scope, ALIASES)
@@ -154,7 +162,7 @@ def _hit(inst, name, title, text, score, art="a10"):
 
 HITS = [_hit("KASI", "한국천문연구원", "여비규정", "제10조(출장증빙) ① 출장자는 출장 후 7일 이내에 증빙서를 제출하여야 한다.", 0.9),
         _hit("KBSI", "한국기초과학지원연구원", "여비지침", "제10조(출장증빙) 출장자는 귀임 후 5일 이내에 증빙서류를 제출한다.", 0.8),
-        _hit("KASI", "한국천문연구원", "회계규정", "제3조 다른 조문", 0.5),
+        _hit("KASI", "한국천문연구원", "회계규정", "제3조 다른 조문", 0.5, art="a3"),
         _hit("KIST", "한국과학기술연구원", "여비규정", "제10조(출장증빙) 출장 증빙은 소속 부서장이 정한다.", 0.7)]
 
 
@@ -185,6 +193,9 @@ class FakeConn:
         if "information_schema.columns" in sql:
             return Rows([{"column_name": c} for c in ("topic", "item_label", "institution", "value", "quote",
                                                        "provision_version_id")])
+        if "FROM regulation.work w" in sql:
+            return Rows([{"id": h["work_id"], "code": h["institution"], "name": h["institution_name"]} for h in HITS
+                         if h["work_id"] in params[0]])
         if "FROM regulation.compare_cell" in sql:
             return Rows(self.cells)
         if "WHERE pv.id = %s" in sql:
@@ -334,3 +345,68 @@ def test_title_falls_back_from_work_id():
     h = {"work_id": "kr/reg/KIT/여비규정", "version_id": "v", "path": "a1", "title": "kr/reg/KIT/[본원규정]여비규정",
          "matches": [], "text": "x"}
     assert card(h)["title"] == "[본원규정]여비규정"
+
+
+def test_standalone_compare_request_follow_up():
+    q, rw = standalone(None, _msgs("연구장비 구매 절차", "…", "기관별로 비교해 주세요"), ALIASES)
+    assert rw and q == "연구장비 구매 절차 다른 기관도" and plan(q, ALL, ALIASES)["intent"] == "comparison"
+
+
+# ---------------------------------------------------------------- 전체 기관 질문 (비교할 값 없음)
+
+class OverviewLLM:
+    """분석 → 정리. 정리는 E1(원문 인용)과 E2(원문에 없는 인용)를 든다."""
+
+    def __init__(self, expl="기관들은 출장 후 정해진 기한 안에 증빙서를 제출하도록 한다."):
+        self.expl, self.calls = expl, []
+
+    def regex(self, messages, pattern, **kw):
+        self.calls.append(pattern)
+        if pattern.startswith("유형"):
+            return "유형: 절차\n검색어: 증빙"
+        assert pattern.startswith("설명")
+        return (f"설명: {self.expl}\n근거: E1\n인용: 출장자는 출장 후 7일 이내에 증빙서를 제출하여야 한다\n"
+                "근거: E2\n인용: 출장자는 언제든지 영수증을 낸다")
+
+
+@pytest.fixture
+def fake_expand(monkeypatch):
+    from reg.qa.evidence import Evidence
+
+    def expand(conn, hits, limit_articles=4, **kw):
+        return [Evidence(f"E{i + 1}", h["work_id"], h["version_id"], h["title"], h["article_path"], h["path_label"],
+                         h["text"], "primary", None) for i, h in enumerate(hits[:limit_articles])]
+
+    monkeypatch.setattr(chat_mod, "expand", expand)
+
+
+def test_all_institution_question_groups_cards_and_summarises(fake_search, fake_expand):
+    llm = OverviewLLM()
+    ev = _events(FakeConn(), llm, "출장 증빙 제출 절차")
+    kinds = [e["event"] for e in ev]
+    assert ev[0]["data"]["intent"] == "question" and ev[0]["data"]["institutions"] == []
+    assert "table" not in kinds and kinds.index("results") < kinds.index("answer") < kinds.index("citations")
+    assert fake_search[0]["institution"] is None and fake_search[0]["kind"] == "reg"
+    cards = next(e["data"]["cards"] for e in ev if e["event"] == "results")
+    assert [c["institution"]["code"] for c in cards] == ["KASI", "KASI", "KBSI", "KIST"]      # 기관별로 묶고 최대 2장
+    ans = next(e["data"] for e in ev if e["event"] == "answer")
+    assert ans["conclusion"] is None and ans["based_on"] == [{"code": "KASI", "name": "한국천문연구원"}]
+    assert ans["sentences"][0]["text"].startswith("한국천문연구원 규정을 바탕으로") and all(s["cites"] for s in ans["sentences"])
+    cites = next(e["data"]["items"] for e in ev if e["event"] == "citations")
+    assert len(cites) == 1 and cites[0]["quote"] in HITS[0]["text"]                     # 원문에 없는 E2 인용은 버린다
+    assert ev[-1]["data"]["status"] == "answered"
+
+
+def test_diverse_caps_cards_per_institution():
+    from reg.qa.chat import diverse
+
+    cs = [{"id": str(i), "institution": {"code": c}} for i, c in enumerate("AAABBAC")]
+    assert [c["institution"]["code"] for c in diverse(cs)] == ["A", "A", "B", "B", "C"]
+
+
+def test_all_institution_answer_with_invented_number_falls_back_to_cards(fake_search, fake_expand):
+    llm = OverviewLLM(expl="모든 기관이 출장 후 15일 이내에 증빙서를 제출하도록 한다.")
+    ev = _events(FakeConn(), llm, "출장 증빙 제출 절차")
+    assert "answer" not in [e["event"] for e in ev] and ev[-1]["data"]["status"] == "evidence_only"
+    assert sum(p.startswith("설명") for p in llm.calls) == 2                               # 한 번 다시 묻는다
+    assert next(e["data"]["cards"] for e in ev if e["event"] == "results")

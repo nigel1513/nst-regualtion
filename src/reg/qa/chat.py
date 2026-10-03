@@ -37,13 +37,16 @@ Event = tuple[str, dict]
 
 # 여러 기관 비교 표현. '비교견적'(계약 용어)은 비교 요청이 아니다
 RE_COMPARE = re.compile(r"다른\s*(?:기관|곳|연구원|연구소|데)|타\s*기관|기관\s*별|기관마다|여러\s*기관|각\s*기관|모든\s*기관|"
-                        r"전체\s*기관|비교(?!\s*견적)")
+                        r"전체\s*기관|어디가|비교(?!\s*견적)")
+# 비교할 수 있는 값(수량·한도·기한)을 묻는 말 — 전체 범위에서 이것이 있어야 기관별 비교표를 만든다
+RE_VALUE = re.compile(r"며칠|몇|얼마|기한|한도|금액|기간|이내|상한|이상|이하|비율|횟수|언제\s*까지")
 # 질문 표현: 이것이 없고 번호 인용·규정명뿐이면 조문 찾기다
 RE_QUESTION = re.compile(r"[?？]|나요|까요|가요|은요|는요|인가|인지|할까|되나|돼요|되요|어요|아요|해요|했는데|어떻게|어떤|언제|"
                          r"며칠|얼마|무엇|뭐|몇|가능|해야|하나|알려|설명|지났|넘었|궁금|따르면|대해|관해|기한|절차|방법")
 RE_TITLE_TAIL = re.compile(r"(?:규정|규칙|지침|요령|세칙|기준|내규|정관|편람|법|법률|시행령|시행규칙)$")
 # 앞 대화 없이는 뜻이 안 통하는 후속 질문
 RE_FOLLOW = re.compile(r"^\s*(?:그럼|그러면|그건|그거|그것|거기|그\s|이\s|저\s|그리고|또|그런데|근데|다른|나머지|그때|그\s*경우|"
+                       r"기관\s*별|기관마다|비교|"
                        r"반대로|만약)|(?:은요|는요|도요|이면요|라면요|면요|도\s*(?:같나요|그런가요|알려\s*주세요))\s*[?？.]?\s*$")
 
 REWRITE_SYSTEM = ("앞 대화를 참고해 마지막 질문을 앞 대화 없이도 뜻이 통하는 한 문장 질문으로 바꿔라. 앞 질문의 기관명·규정명·"
@@ -53,6 +56,12 @@ REWRITE_PATTERN = r"질문: ([^\n]{2,200})"
 EXTRACT_SYSTEM = ("너는 기관별 규정 비교표를 만든다. 질문에 대한 이 기관 규정의 값을 20자 이내로 짧게 적고(예: 7일 이내, 30만원), "
                   "그 값이 나온 본문 구절을 글자 그대로 옮겨라. 본문에 답이 없으면 값과 인용 모두 '없음'이라고 적어라.")
 EXTRACT_PATTERN = r"값: ([^\n]{1,40})\n인용: ([^\n]{2,160})"
+OVERVIEW_SYSTEM = ("너는 공공연구기관 내부규정 안내자다. 여러 기관의 근거(E1, E2…)만 읽고 질문에 대해 기관들에 공통된 내용을 "
+                   "3문장 이내로 정리하라. 기관마다 다른 점이 있으면 한 문장으로 덧붙인다. 근거에 없는 내용·숫자는 쓰지 않는다. "
+                   "인용에는 근거 본문의 핵심 구절을 글자 그대로(80자 이내) 옮기고, 서로 다른 기관의 근거를 2~3개 인용하라.")
+OVERVIEW_EVIDENCE = 4      # 전체 기관 질문: 기관마다 1위 조 하나씩, 이만큼
+OVERVIEW_CARDS = 10
+PER_INSTITUTION = 2        # 전체 기관 질문의 카드: 기관당 최대
 
 
 # ---------------------------------------------------------------- 범위·의도
@@ -95,20 +104,23 @@ def strip_compare(query: str) -> str:
 
 def plan(query: str, scope: dict, aliases: dict[str, list[str]]) -> dict:
     """→ {intent, institutions, focus}. 범위가 '기관 선택'이면 선택이 질문 속 언급보다 우선한다.
-    비교: 기관이 정해지지 않았거나(전체 범위), 둘 이상이거나, '다른 기관도'·'기관별'·'비교' 같은 말이 있을 때.
+    비교: 기관이 둘 이상이거나, '다른 기관'·'기관별'·'비교'·'어디가' 같은 말이 있거나, 기관이 정해지지 않았는데 비교할
+    값(며칠·얼마·기한·한도·이내…)을 묻을 때. 기관도 값도 없으면("연구장비 구매 절차") 전체 기관에 대한 질문이다.
     institutions=None은 전체 기관이다. focus는 비교표 첫 줄에 둘 기관."""
     selected = [c for c in (scope.get("institutions") or []) if c in aliases] if scope.get("mode") == "institutions" else []
     insts = selected or mentions(query, aliases)
     if is_lookup(query, aliases):
         return {"intent": "lookup", "institutions": insts or None, "focus": insts[0] if len(insts) == 1 else None}
-    if RE_COMPARE.search(query) or len(insts) != 1:
+    if RE_COMPARE.search(query) or len(insts) >= 2 or (not insts and RE_VALUE.search(query)):
         many = len(insts) >= 2
         return {"intent": "comparison", "institutions": insts if many else None,
                 "focus": insts[0] if len(insts) == 1 else None}
+    if not insts:
+        return {"intent": "question", "institutions": None, "focus": None}
     return {"intent": "question", "institutions": insts, "focus": insts[0]}
 
 
-RE_TAIL = re.compile(r"(?:은|는|도|의|에서|에|이|가)?\s*(?:요|어때요|어떤가요|같나요|알려\s*주세요)?\s*[?？.]?\s*$")
+RE_TAIL = re.compile(r"(?:은|는|도|의|에서|에|이|가|로)?\s*(?:요|어때요|어떤가요|같나요|(?:알려|보여|해)?\s*주세요)?\s*[?？.]?\s*$")
 REWRITE_MIN_OVERLAP = 0.6   # 바꾼 질의의 두 글자 조각 중 앞 대화·마지막 질문에 있어야 하는 비율 (주제를 지어내지 않게)
 
 
@@ -501,6 +513,9 @@ def _lookup(db, deps, query, p, aliases, works, as_of, st, results) -> Iterator[
 
 
 def _question(db, deps, query, p, aliases, works, as_of, st, results) -> Iterator[Event]:
+    if not p["institutions"]:
+        yield from _overview(db, deps, query, p, aliases, works, as_of, st, results)
+        return
     inst = p["institutions"][0]
     llm = deps.get("llm")
     yield "status", {"stage": "search", "label": "관련 규정을 찾고 있습니다"}
@@ -557,6 +572,112 @@ def _question(db, deps, query, p, aliases, works, as_of, st, results) -> Iterato
     related = [e for e in evidence if e.role != "primary"]
     extra = [f"{related[0].title} {_art_label(related[0].label)}도 알려 주세요"] if related else []
     yield "followups", {"items": followups("question", qtype=a.question_type, extra=extra)}
+
+
+def diverse(cs: list[dict], per: int = PER_INSTITUTION, limit: int = OVERVIEW_CARDS) -> list[dict]:
+    """카드를 기관별로 묶는다: 기관은 가장 잘 맞은 카드 순서로, 기관마다 최대 per장."""
+    groups: dict[str, list[dict]] = {}
+    for c in cs:
+        g = groups.setdefault(c["institution"]["code"] or "", [])
+        if len(g) < per:
+            g.append(c)
+    return [c for g in groups.values() for c in g][:limit]
+
+
+def _overview_pattern(ids: list[str]) -> str:
+    alt = "|".join(map(re.escape, ids))
+    return r"설명: ([^\n]{10,500})(?:\n근거: (?:" + alt + r")\n인용: [^\n]{5,160}){1,3}"
+
+
+def overview_answer(llm, question: str, evidence: list[Evidence], meta: dict) -> dict | None:
+    """전체 기관 질문의 짧은 정리: 설명 + 근거·인용 1~3개. 숫자가 근거에 없으면 한 번 다시 묻고, 그래도면 None."""
+    def name(e):
+        return (meta.get(e.work_id) or {}).get("name") or "법령"
+
+    ev = "\n\n".join(f"[{e.id}] {name(e)} {e.title} {e.label}\n{e.text}" for e in evidence)
+    pattern = _overview_pattern([e.id for e in evidence])
+    by_id = {e.id: e for e in evidence}
+    note = ""
+    for _ in (1, 2):
+        user = f"질문: {question}\n\n근거:\n{ev}{note}\n\n형식:\n설명: …\n근거: E번호\n인용: …(근거·인용 줄을 1~3번)"
+        try:
+            out = llm.regex([{"role": "system", "content": OVERVIEW_SYSTEM}, {"role": "user", "content": user}],
+                            pattern, max_tokens=700)
+        except ProviderError:
+            return None
+        m = re.fullmatch(pattern, out)
+        if not m:
+            return None
+        cites = [{"id": i, "인용": q.strip().strip('"“”\'')} for i, q in re.findall(r"\n근거: (E\d+)\n인용: ([^\n]+)", out)]
+        cited = " ".join(f"{by_id[c['id']].label} {by_id[c['id']].text}" for c in cites if c["id"] in by_id)
+        nums = set(RE_NUM.findall(m[1])) - set(RE_NUM.findall(cited)) - set(RE_NUM.findall(question))
+        if not nums:
+            return {"결론": None, "설명": m[1].strip(), "근거": cites, "확인_필요": [], "문의처": None, "mode": "overview"}
+        note = "\n\n이전 답변의 문제: 근거에 없는 숫자(" + ", ".join(sorted(nums)) + ")를 썼다. 근거에 있는 숫자만 쓸 것."
+    return None
+
+
+def _overview(db, deps, query, p, aliases, works, as_of, st, results) -> Iterator[Event]:
+    """전체 기관 질문 (비교할 값이 없는 물음, 예: "연구장비 구매 절차"): 기관별로 묶은 카드, 기관마다 1위 조로 공통 내용을
+    짧게 정리하고 근거 기관을 밝힌다. 결론(충족 여부)은 내지 않는다."""
+    llm = deps.get("llm")
+    yield "status", {"stage": "search", "label": "기관별 규정을 찾고 있습니다"}
+    with ThreadPoolExecutor(1) as ex:
+        fut = ex.submit(analyze, llm, query, aliases)
+        found0, _ = retrieve(deps, query, None, as_of, aliases, size=30, kind="reg")
+        first = diverse(cards(found0, as_of, works, limit=60))
+        yield results(first)
+        a = fut.result()
+    as_of0, as_of = as_of, as_of or a.as_of
+    st["as_of"] = as_of
+    found = found0
+    if a.terms or as_of != as_of0:
+        found, _ = retrieve(deps, " ".join([query, *a.terms]), None, as_of, aliases, size=30, kind="reg")
+        cs = diverse(cards(found, as_of, works, limit=60))
+        if [c["id"] for c in cs] != [c["id"] for c in first]:
+            yield results(cs)
+    hits = _filter([h for h in found["hits"] if h.get("family") == "reg"], works)
+    picked = _pick_per_institution(hits, None, OVERVIEW_EVIDENCE)
+    st.update(release_id=found.get("release_id"), retrieved=_retrieved(picked))
+    top = picked[0].get("rerank_score", 1.0) if picked else 0.0
+    if not picked or (found.get("reranked") and top < MIN_SCORE):
+        st.update(status="not_found", note="관련 규정을 찾지 못했습니다")
+        yield "followups", {"items": followups("question", qtype=a.question_type)}
+        return
+    yield "status", {"stage": "read", "label": "조문을 읽고 있습니다"}
+    with _db(db) as conn:
+        evidence = [e for e in expand(conn, picked, limit_articles=OVERVIEW_EVIDENCE, as_of=as_of,
+                                      release_id=found.get("release_id")) if e.role == "primary"]
+        meta = _work_meta(conn, [e.work_id for e in evidence])
+        conn.commit()
+    yield "status", {"stage": "write", "label": "답변을 쓰고 있습니다"}
+    ans = overview_answer(llm, query, evidence, meta) if llm and evidence else None
+    cites: list[dict] = []
+    if ans:
+        by_id = {e.id: e for e in evidence}
+        with _db(db) as conn:
+            for c in ans["근거"]:
+                if c["id"] in by_id and (x := citation(conn, len(cites) + 1, by_id[c["id"]], c["인용"], meta, as_of)):
+                    cites.append(x)
+            conn.commit()
+    if ans and cites:
+        based = list({c["institution"]["code"]: c["institution"] for c in cites}.values())
+        lead = f"{', '.join(i['name'] or i['code'] or '' for i in based)} 규정을 바탕으로 정리했습니다."
+        sents = [{"text": lead, "cites": [c["n"] for c in cites]}]
+        for sent in _sentences(ans["설명"]):
+            named = [c["n"] for c in cites if any(a in sent for a in aliases.get(c["institution"]["code"] or "", []))]
+            sents.append({"text": sent, "cites": named or [c["n"] for c in cites]})
+        ev = {"conclusion": None, "sentences": sents, "explanation": ans["설명"], "checks": [], "contact": None,
+              "based_on": based}
+        st["verification"] = {"ok": True, "mode": "overview", "dropped_citations": len(ans["근거"]) - len(cites)}
+        yield "answer_delta", {"text": " ".join(x["text"] for x in sents)}
+        yield "answer", ev
+        yield "citations", {"items": cites}
+        st.update(status="answered", answer=ans)
+    else:
+        st.update(status="evidence_only", note="자동 설명을 만들지 못해 근거 조문만 보여드립니다",
+                  verification={"ok": False, "mode": "overview"})
+    yield "followups", {"items": followups("question", qtype=a.question_type, extra=["기관별로 비교해 주세요"])}
 
 
 def _comparison(db, deps, query, p, aliases, works, as_of, st, results) -> Iterator[Event]:
