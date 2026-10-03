@@ -98,3 +98,9 @@ def test_department():
     assert R.department("A1044") == {"code": "A1044", "name": "과학기술정보통신부", "scope": "주무부처"}
     assert R.department("A9999")["name"] is None
     assert R.department(None) is None
+
+
+def test_problem_does_not_repeat_name_already_in_evidence():
+    p = R.problem("REFERENCE", {"name": "영년직 연구원 운영지침", "evidence": "「영년직 연구원 운영지침」제3조"})
+    assert p.count("영년직") == 1 and p.endswith("「영년직 연구원 운영지침」제3조.")
+    assert "「감사규정」 별표 1" in R.problem("REFERENCE", {"name": "감사규정", "evidence": "별표 1"})

@@ -122,23 +122,31 @@ def path_labels(paths: list[str], n: int = 3) -> str:
     return "·".join(labels) + (f" 외 {len(paths) - n}곳" if len(paths) > n else "")
 
 
+def _cite(d: dict) -> str:
+    """인용 표시: 근거 글에 이름이 있으면 근거 글만, 없으면 「이름」 근거 글."""
+    name, ev = d.get("name") or "", (d.get("evidence") or "").strip()
+    if ev and name and name in ev:
+        return ev
+    return f"「{name}」 {ev}".strip() if name else ev or "-"
+
+
 def problem(kind: str, d: dict) -> str:
+    """종류별 문제 문장. 이름 뒤 조사를 피하려고 '…: 인용' 꼴로 쓴다."""
     d = d or {}
-    name, ev = d.get("name") or "", d.get("evidence") or ""
-    cite = f" ({ev})" if ev and ev != name else ""
+    name = d.get("name") or ""
     if kind == "REFERENCE":
         if is_law_pending(kind, d):
-            return f"법령 「{name}」{cite}이 아직 적재되지 않아 연결을 기다립니다."
-        return f"「{name}」{cite} 인용을 어느 규정·법령에도 연결하지 못했습니다."
+            return f"인용한 법령이 아직 적재되지 않아 연결을 기다립니다: {_cite(d)}."
+        return f"인용을 어느 규정·법령에도 연결하지 못했습니다: {_cite(d)}."
     if kind == "REF_LAW_AMBIGUOUS":
         n = len(d.get("candidates") or [])
-        return f"법령 이름 「{name}」{cite}이 법령 {n}개에 맞아 하나로 정하지 못했습니다."
+        return f"법령 이름에 맞는 법령이 {n}개라 하나로 정하지 못했습니다: {_cite(d)}."
     if kind == "REF_LAW_GONE":
-        tp = path_label(d.get("target_path")) if d.get("target_path") else "조문"
-        return {"law_abolished": f"인용한 법령 「{name}」이 폐지되었습니다.",
-                "article_deleted": f"인용한 「{name}」 {tp}이 삭제되었습니다.",
-                "article_missing": f"인용한 「{name}」 {tp}을 현행 법령에서 찾지 못했습니다."}.get(
-            d.get("reason"), f"인용한 법령 「{name}」을 현행에서 찾지 못했습니다.")
+        tp = f"「{name}」 {path_label(d.get('target_path'))}" if d.get("target_path") else f"「{name}」"
+        return {"law_abolished": f"인용한 법령이 폐지되었습니다: 「{name}」.",
+                "article_deleted": f"인용한 조문이 삭제되었습니다: {tp}.",
+                "article_missing": f"인용한 조문을 현행 법령에서 찾지 못했습니다: {tp}."}.get(
+            d.get("reason"), f"인용한 법령을 현행에서 찾지 못했습니다: 「{name}」.")
     if kind == "PARSE":
         if d.get("check") == "toc":
             return f"목차와 본문의 조문이 다릅니다: {path_labels(d.get('diff') or [])}."

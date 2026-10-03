@@ -57,20 +57,20 @@ class BulkAssignIn(BaseModel):
     _s = field_validator("assignee")(_strip)
 
 
-# 작업 → 규범문서·기관·ALIO 원장. 원본 단위 LOW_TEXT(source:{id})는 work_id가 없어 ALIO 파일·seq로 찾는다.
+# 작업 → 규범문서·기관. 대부분은 work_id로 바로 잇는다(해시 조인). 원본 단위 LOW_TEXT(source:{id})는 work_id가
+# 없어 ALIO seq(detail.seq 또는 파일 원장)로 규정·기관을 찾는다. 모두 해시 조인이 되게 등식 조인만 쓴다.
 BASE = f"""
 SELECT t.id, t.kind, t.target, t.work_id, t.detail, t.status, t.assignee, t.decision, t.created_at, t.resolved_at,
-  w.id AS wid, coalesce(w.title, ar.title) AS work_title, i.code AS inst_code, i.name AS inst_name,
-  ar.detail->>'jidtDptm' AS dept_code, {R.LAW_PENDING_SQL} AS law_pending
+  coalesce(w.id, w2.id) AS wid, coalesce(w.title, w2.title, ar.title) AS work_title, i.code AS inst_code,
+  i.name AS inst_name, coalesce(w.external_ids->>'alio_seq', ar.seq) AS alio_seq, {R.LAW_PENDING_SQL} AS law_pending
 FROM regulation.review_task t
-LEFT JOIN LATERAL (SELECT f.seq FROM regulation.alio_rule_file f WHERE t.work_id IS NULL AND t.target LIKE 'source:%%'
-  AND f.source_document_id = CASE WHEN t.target ~ '^source:[0-9]+$' THEN substr(t.target, 8)::bigint END LIMIT 1) sf
-  ON true
-LEFT JOIN LATERAL (SELECT w2.id FROM regulation.work w2 WHERE t.work_id IS NULL AND w2.external_ids ? 'alio_seq'
-  AND w2.external_ids->>'alio_seq' = coalesce(t.detail->>'seq', sf.seq)) ws ON true
-LEFT JOIN regulation.work w ON w.id = coalesce(t.work_id, ws.id)
-LEFT JOIN regulation.alio_rule ar ON ar.seq = coalesce(w.external_ids->>'alio_seq', t.detail->>'seq', sf.seq)
-LEFT JOIN regulation.institution i ON i.id = coalesce(w.institution_id, ar.institution_id)
+LEFT JOIN regulation.work w ON w.id = t.work_id
+LEFT JOIN (SELECT DISTINCT ON (source_document_id) 'source:' || source_document_id AS target, seq
+  FROM regulation.alio_rule_file WHERE source_document_id IS NOT NULL ORDER BY source_document_id, ord DESC) sf
+  ON sf.target = t.target
+LEFT JOIN regulation.alio_rule ar ON t.work_id IS NULL AND ar.seq = coalesce(t.detail->>'seq', sf.seq)
+LEFT JOIN regulation.work w2 ON t.work_id IS NULL AND w2.external_ids ? 'alio_seq' AND w2.external_ids->>'alio_seq' = ar.seq
+LEFT JOIN regulation.institution i ON i.id = coalesce(w.institution_id, w2.institution_id, ar.institution_id)
 """
 
 
@@ -94,7 +94,7 @@ def _where(status, inst, kind, assignee, q, group, ids=None) -> tuple[str, dict]
         cond.append("t.assignee = %(assignee)s")
         p["assignee"] = assignee
     if q:
-        cond.append("(coalesce(w.title, ar.title) ILIKE %(q)s ESCAPE '\\' OR t.detail::text ILIKE %(q)s ESCAPE '\\')")
+        cond.append("(coalesce(w.title, w2.title, ar.title) ILIKE %(q)s ESCAPE '\\' OR t.detail::text ILIKE %(q)s ESCAPE '\\')")
         p["q"] = "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
     if group == "law_pending":
         cond.append(R.LAW_PENDING_SQL)
@@ -180,6 +180,9 @@ def _enrich(conn, rows: list[dict]) -> list[dict]:
         return []
     ver = _versions(conn, rows)
     prov, supp = _texts(conn, rows, ver)
+    seqs = list({r["alio_seq"] for r in rows if r["alio_seq"]})
+    dept = {x["seq"]: x["code"] for x in conn.execute(
+        "SELECT seq, detail->>'jidtDptm' AS code FROM regulation.alio_rule WHERE seq = ANY(%s)", (seqs,))} if seqs else {}
     out = []
     for r in rows:
         d, v, k = r["detail"] or {}, ver[r["id"]], r["kind"]
@@ -207,7 +210,7 @@ def _enrich(conn, rows: list[dict]) -> list[dict]:
             "location": {"label": label, "path": path},
             "excerpt": ex,
             "problem": R.problem(k, d), "todo": R.todo(k, d), "law_pending": r["law_pending"],
-            "department": R.department(r["dept_code"]),
+            "department": R.department(dept.get(r["alio_seq"])),
             "assignee": r["assignee"], "decision": r["decision"],
             "links": _links(r["wid"], v, path),
         })
