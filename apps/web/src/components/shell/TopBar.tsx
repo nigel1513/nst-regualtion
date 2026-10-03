@@ -1,6 +1,6 @@
 "use client";
 import { Menu, Search } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { buttonClass } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { Kbd } from "@/components/ui/kbd";
@@ -10,12 +10,10 @@ import { useCommandPalette } from "./CommandPalette";
 
 /** 애플 키보드는 ⌘, 아니면 Ctrl. 마운트 전에는 모른다(자리만 잡아 둔다). */
 function useModKey(): "⌘" | "Ctrl" | null {
-  const [mod, setMod] = useState<"⌘" | "Ctrl" | null>(null);
-  useEffect(() => {
+  return useSyncExternalStore(() => () => {}, () => {
     const p = (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform ?? navigator.platform ?? "";
-    setMod(/mac|iphone|ipad/i.test(p) ? "⌘" : "Ctrl");
-  }, []);
-  return mod;
+    return /mac|iphone|ipad/i.test(p) ? "⌘" : "Ctrl";
+  }, () => null);
 }
 
 /** 48px 불투명 상단 바 (§1): 왼쪽 경로, 오른쪽 ⌘K 찾기. 휴대폰은 메뉴 버튼이 시트를 연다. */

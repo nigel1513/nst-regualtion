@@ -18,7 +18,12 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [collapsed, toggle] = useSidebarCollapsed();
   const [sheetOpen, setSheetOpen] = useState(false);
 
-  useEffect(() => setSheetOpen(false), [pathname]);
+  // 다른 화면으로 가면 시트를 닫는다 (렌더 중 이전 경로와 비교: effect 안 setState 대신)
+  const [lastPath, setLastPath] = useState(pathname);
+  if (lastPath !== pathname) {
+    setLastPath(pathname);
+    setSheetOpen(false);
+  }
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 768px)");
     const onChange = () => mq.matches && setSheetOpen(false);

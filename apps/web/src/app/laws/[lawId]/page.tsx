@@ -61,7 +61,7 @@ export default async function LawPage({ params, searchParams }: {
           <div className="px-2.5 pb-2 text-xs font-semibold text-[var(--muted)]">목차</div>
           {tops.map((x) => (
             <a key={x.path} href={`${x.unit === "article" ? q({ a: x.path }) : ""}#${x.path}`}
-              className={`block rounded-md px-2.5 py-1 text-[var(--ink-2)] hover:bg-[#ebeef2] hover:no-underline ${x.unit === "article" ? "pl-5" : "font-semibold"} ${x.path === selected?.path ? "bg-[var(--accent-soft)] text-[var(--accent)]" : ""}`}>
+              className={`block rounded-md px-2.5 py-1 text-[var(--ink-2)] hover:bg-bg-hover hover:no-underline ${x.unit === "article" ? "pl-5" : "font-semibold"} ${x.path === selected?.path ? "bg-[var(--accent-soft)] text-[var(--accent)]" : ""}`}>
               {x.unit === "chapter" || x.unit === "section" ? `${x.label} ${x.heading ?? ""}` : title(x)}
             </a>
           ))}
@@ -74,7 +74,7 @@ export default async function LawPage({ params, searchParams }: {
             }
             const on = x.path === selected?.path;
             return (
-              <section key={x.path} id={x.path} className={`scroll-mt-4 py-3 ${on ? "-mx-4 rounded-xl bg-[#f5f8fe] px-4 outline outline-1 outline-[var(--accent-line)]" : ""}`}>
+              <section key={x.path} id={x.path} className={`scroll-mt-4 py-3 ${on ? "-mx-4 rounded-md bg-accent-soft/50 px-4 outline outline-1 outline-[var(--accent-line)]" : ""}`}>
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <div className="font-semibold">{title(x)}</div>
                   {x.unit === "article" && !on && <Link className="font-sans text-xs" href={`${q({ a: x.path })}#${x.path}`} scroll={false}>인용 보기</Link>}

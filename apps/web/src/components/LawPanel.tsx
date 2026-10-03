@@ -11,7 +11,7 @@ export function LawPanel({ d, closeHref, showLawLink = true }: { d: LawArticleDe
   const a = d.article;
   const stale = d.law.status !== "현행" ? "폐지된 법령" : a.gone || a.deleted ? "현행 판본에서 삭제된 조문" : null;
   return (
-    <section className="card p-4" aria-label="법령 조문">
+    <section className="rounded-md border border-border bg-bg-panel p-4" aria-label="법령 조문">
       <div className="mb-2 flex items-start justify-between gap-2">
         <div>
           <div className="text-xs text-[var(--muted)]">{d.law.kind ?? "법령"}</div>
@@ -21,7 +21,7 @@ export function LawPanel({ d, closeHref, showLawLink = true }: { d: LawArticleDe
       </div>
       {d.version && <p className="mb-3 text-xs text-[var(--muted)]">{d.version.edition_line}</p>}
       {stale && <p className="mb-3"><span className="chip chip-amber">{stale}</span></p>}
-      <div className="max-h-[50vh] overflow-auto font-serif text-[14px] leading-[1.8]">
+      <div className="max-h-[50vh] overflow-auto text-body">
         {a.text && <p>{a.text}</p>}
         {d.children.map((c) => <p key={c.id} className={`mt-1 ${INDENT[c.unit] ?? ""}`}>{c.label} {c.text}</p>)}
       </div>

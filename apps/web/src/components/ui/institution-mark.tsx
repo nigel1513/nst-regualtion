@@ -1,18 +1,12 @@
 import { cn } from "./cn";
 
-/** 기관 표시: 기관 코드 앞 두 글자(작은 칸) 또는 코드 전체. 인디고 3단계 면 + 11단계 글자, 반경 sm. */
-export function InstitutionMark({ code, full, className }: { code: string | null | undefined; full?: boolean; className?: string }) {
+/** 기관 표시: 기관 코드(KASI, KICT …)를 인디고 3단계 면 + 11단계 글자로. 두 글자로 줄이면 KIST·KICT·KIER가 겹쳐 코드 전체를 쓴다. */
+export function InstitutionMark({ code, className }: { code: string | null | undefined; full?: boolean; className?: string }) {
   if (!code) return null;
   return (
-    <span
-      aria-hidden="true"
-      className={cn(
-        "inline-flex h-[22px] shrink-0 items-center justify-center rounded-sm bg-accent-soft text-micro font-semibold text-accent-fg",
-        full ? "px-1.5" : "w-[22px]",
-        className,
-      )}
-    >
-      {full ? code : code.slice(0, 2)}
+    <span aria-hidden="true"
+      className={cn("inline-flex h-5 min-w-[22px] shrink-0 items-center justify-center rounded-sm bg-accent-soft px-1 font-mono text-micro font-semibold tracking-tight text-accent-fg", className)}>
+      {code}
     </span>
   );
 }

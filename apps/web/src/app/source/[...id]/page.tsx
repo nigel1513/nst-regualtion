@@ -32,7 +32,7 @@ export default async function SourcePage({ params, searchParams }: {
         <nav aria-label="조문 위치" className="card flex max-h-[calc(100vh-9rem)] flex-col gap-0.5 self-start overflow-auto p-2">
           {arts.map((p) => (
             <Link key={p.path} href={`?${new URLSearchParams({ a: p.path, ...(version ? { version } : {}), ...(as_of ? { as_of } : {}) })}`}
-              className={`flex justify-between gap-2 rounded-lg px-3 py-2 text-[13px] text-[var(--ink-2)] hover:bg-[#ebeef2] hover:no-underline ${p.path === sel?.path ? "bg-[var(--accent-soft)] text-[var(--accent)]" : ""}`}>
+              className={`flex justify-between gap-2 rounded-lg px-3 py-2 text-[13px] text-[var(--ink-2)] hover:bg-bg-hover hover:no-underline ${p.path === sel?.path ? "bg-[var(--accent-soft)] text-[var(--accent)]" : ""}`}>
               <span><span className="font-medium">{p.label}</span> {p.heading}</span>
               <span className="text-[var(--muted)]">{p.anchor ? `${p.anchor.page}쪽` : "-"}</span>
             </Link>

@@ -164,3 +164,54 @@ export type ProvisionPopup = {
   lines: { path: string; label: string; text: string; target: boolean }[];
   href: string;
 };
+
+// --- 서비스 UI 개편 (2026-10-03) ---
+export type InstStats = {
+  code: string; name: string; current_works: number; versions: number; last_amended: string | null;
+  last_fetched: string | null; open_reviews: number;
+};
+export type ChangeSummary = {
+  articles: { path: string; label: string; heading: string | null; kind: "ADDED" | "DELETED" | "MODIFIED" | "RENUMBERED"; detail: string | null }[];
+  more: number; text: string;
+};
+export type RecentChange = {
+  work_id: string; title: string; version_id: string; effective_from: string | null; amendment_kind: string | null;
+  kind_label: "제정" | "개정" | "전부개정"; href: string; changes: ChangeSummary;
+};
+export type TopicCount = { topic: string; label: string; count: number };
+export type HomeData = {
+  institution: InstStats | null; recent: RecentChange[]; topics: TopicCount[] | null;
+  institutions: InstStats[] | null;
+  totals: { institutions: number; current_works: number; versions: number; open_reviews: number; last_fetched: string | null } | null;
+};
+/** GET /api/v1/compare/divergences?inst=&limit= (기관 비교 작업이 만든다): 우리 기관 값이 다수 기관과 다른 항목. */
+export type Divergence = {
+  topic: string; topic_label: string; item: string; item_label: string;
+  ours: { value: string; work_id: string; path: string; label: string };
+  majority: { value: string; count: number };
+  total: number;
+};
+export type RegulationRow = {
+  id: string; title: string; institution: string | null; institution_name: string | null; kind: "reg" | "guide" | "standard" | "law";
+  kind_label: string; topics: { topic: string; label: string }[]; effective_from: string | null; version_state: string | null;
+  articles: number; status: string; abolished_on: string | null; href: string;
+};
+export type FacetItem = { value: string; count: number; name?: string; label?: string };
+export type RegulationsResult = {
+  total: number; page: number; size: number; sort: string; items: RegulationRow[];
+  facets: { institution: FacetItem[]; kind: FacetItem[]; status: FacetItem[]; topic: FacetItem[] }; topics_available: boolean;
+};
+export type SimilarItem = {
+  institution: string; institution_name: string; work_id: string; version_id: string; title: string; article_path: string;
+  label: string; heading: string | null; full_label: string; snippet: string; score: number; href: string;
+};
+export type SimilarResult = { source: { pv_id: number; work_id: string; institution: string | null; label: string; title: string }; items: SimilarItem[] };
+
+/** 다른 작업이 아직 만들지 않았을 수 있는 API: 404·오류면 null. */
+export async function apiTry<T>(path: string, params: Record<string, string | undefined> = {}): Promise<T | null> {
+  try {
+    return await apiGet<T>(path, params);
+  } catch {
+    return null;
+  }
+}

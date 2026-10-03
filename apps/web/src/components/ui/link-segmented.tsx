@@ -1,7 +1,7 @@
 import Link from "next/link";
 import * as React from "react";
 import { cn } from "./cn";
-import { segItem, segOn, segTrack } from "./segmented";
+import { segItem, segOn, segTrack } from "./styles";
 
 /** 주소(?view=)로 상태를 갖는 SegmentedControl. 서버 화면에서 쓴다. */
 export function LinkSegmented({ items, value, className, "aria-label": ariaLabel }: {

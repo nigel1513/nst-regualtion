@@ -6,7 +6,7 @@ import { type ReactNode, useEffect, useState } from "react";
 import { type AnnexInfo, sourceHref } from "@/lib/api";
 
 const TABLE_CSS = "[&_table]:border-collapse [&_td]:border [&_td]:border-[var(--line-strong)] [&_td]:px-1.5 [&_td]:py-1 "
-  + "[&_th]:border [&_th]:border-[var(--line-strong)] [&_th]:bg-[#f3f5f8] [&_th]:px-1.5 [&_th]:py-1 text-[13px]";
+  + "[&_th]:border [&_th]:border-[var(--line-strong)] [&_th]:bg-bg-subtle [&_th]:px-1.5 [&_th]:py-1 text-[13px]";
 
 /** 별표·별지: 원문 영역 이미지(클릭하면 크게), 원문 쪽으로 이동, 표 HTML(있으면), 추출 텍스트(접힘). */
 export function RegAnnexCard({ workId, versionId, path, label, heading, children }: {
@@ -44,7 +44,7 @@ export function RegAnnexCard({ workId, versionId, path, label, heading, children
     <div className="mt-2 font-sans">
       {info === undefined && <p className="text-xs text-[var(--muted)]">원문 이미지를 불러오는 중…</p>}
       {info && (
-        <figure className="overflow-hidden rounded-lg border border-[var(--line-strong)] bg-white">
+        <figure className="overflow-hidden rounded-md border border-border bg-bg-panel">
           {showTable && table !== null ? (
             // 서버가 허용 목록(table·tr·td·th, colspan·rowspan)으로 정화한 HTML이다 (reg.core.annex_tables)
             <div className={`overflow-x-auto p-3 ${TABLE_CSS}`} dangerouslySetInnerHTML={{ __html: table }} />
@@ -59,29 +59,29 @@ export function RegAnnexCard({ workId, versionId, path, label, heading, children
             {showTable && <span>표 변환: MinerU (자동 변환이라 원문 이미지와 다를 수 있음)</span>}
             <span className="ml-auto flex gap-2">
               {info.table.url && (
-                <button type="button" className="btn h-8" onClick={() => setShowTable((s) => !s)}>{showTable ? "이미지로 보기" : "표로 보기"}</button>
+                <button type="button" className="btn h-7" onClick={() => setShowTable((s) => !s)}>{showTable ? "이미지로 보기" : "표로 보기"}</button>
               )}
-              <Link className="btn h-8" href={jump}>원문 쪽으로 이동</Link>
+              <Link className="btn h-7" href={jump}>원문 쪽으로 이동</Link>
             </span>
           </figcaption>
         </figure>
       )}
       <details className="mt-2 text-sm" open={info === null}>
         <summary className="cursor-pointer text-xs text-[var(--muted)]">추출 텍스트{info === null ? " (원문 이미지 없음)" : ""}</summary>
-        <p className="mt-1 font-serif">{children}</p>
+        <p className="mt-1 text-small">{children}</p>
       </details>
       {open && info && (
-        <div role="dialog" aria-modal="true" aria-label={`${title} 원문`} className="fixed inset-0 z-50 overflow-auto bg-black/80 p-4"
+        <div role="dialog" aria-modal="true" aria-label={`${title} 원문`} className="fixed inset-0 z-[var(--z-dialog)] overflow-auto bg-scrim p-4"
           onClick={() => setOpen(false)}>
           <div className="mx-auto flex max-w-5xl flex-col gap-3" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center gap-2 text-white">
-              <span className="text-sm">{title}</span>
+            <div className="flex items-center gap-2 rounded-md bg-bg-panel px-3 py-2">
+              <span className="text-small font-medium">{title}</span>
               <Link className="btn ml-auto h-8" href={jump}>원문 쪽으로 이동</Link>
               <button type="button" className="btn h-8" onClick={() => setOpen(false)}>닫기</button>
             </div>
             {info.segments.map((s) => (
               // eslint-disable-next-line @next/next/no-img-element -- API가 그린 PNG
-              <img key={s.n} src={s.url} alt={`${title} ${s.page}쪽`} className="w-full bg-white" />
+              <img key={s.n} src={s.url} alt={`${title} ${s.page}쪽`} className="w-full rounded-sm bg-bg-panel" />
             ))}
           </div>
         </div>

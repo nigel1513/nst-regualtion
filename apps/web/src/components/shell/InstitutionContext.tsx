@@ -29,16 +29,18 @@ export function InstitutionProvider({ insts, initial, children }: { insts: InstO
   const pathname = usePathname();
 
   useEffect(() => {
-    const fromUrl = new URLSearchParams(window.location.search).get("inst");
+    // 홈의 ?inst=만 "우리 기관"을 바꾼다 (규정 찾기의 inst는 필터라서 다르다)
+    const fromUrl = window.location.pathname === "/" ? new URLSearchParams(window.location.search).get("inst") : null;
     let stored: string | null = null;
     try {
       stored = window.localStorage.getItem(INST_STORAGE_KEY);
     } catch {
       stored = null;
     }
+    // 하이드레이션 뒤 브라우저 저장소·주소와 맞춘다 (서버는 쿠키만 안다) — 외부 상태 동기화라 effect에서 한 번 설정한다
     if (fromUrl && (fromUrl === ALL || insts.some((i) => i.code === fromUrl))) {
       const code = fromUrl === ALL ? null : fromUrl;
-      setInst(code);
+      setInst(code); // eslint-disable-line react-hooks/set-state-in-effect
       persist(code);
     } else if (stored !== null) {
       setInst(stored || null);

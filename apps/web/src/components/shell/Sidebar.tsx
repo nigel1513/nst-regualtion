@@ -3,12 +3,13 @@ import { ChevronsUpDown, Moon, PanelLeftClose, PanelLeftOpen, Sun, SunMoon } fro
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/components/ui/cn";
 import { InstitutionMark } from "@/components/ui/institution-mark";
 import { focusRing, iconStroke } from "@/components/ui/styles";
 import { Tooltip } from "@/components/ui/tooltip";
+import { setLocalValue, useIsClient, useLocalValue } from "@/lib/hooks";
 import { ALERTS, NAV, type NavItem } from "@/lib/nav";
 import { useInstitution } from "./InstitutionContext";
 
@@ -16,24 +17,8 @@ const COLLAPSE_KEY = "nst-reg-sidebar-collapsed";
 
 /** 접힘(64px 아이콘 레일) 여부를 브라우저에 기억한다. 저장소가 막혀 있으면 이 페이지에서만. */
 export function useSidebarCollapsed(): [boolean, () => void] {
-  const [collapsed, setCollapsed] = useState(false);
-  useEffect(() => {
-    try {
-      if (window.localStorage.getItem(COLLAPSE_KEY) === "1") setCollapsed(true);
-    } catch {
-      /* 펼친 채로 */
-    }
-  }, []);
-  const toggle = useCallback(() => {
-    setCollapsed((c) => {
-      try {
-        window.localStorage.setItem(COLLAPSE_KEY, c ? "0" : "1");
-      } catch {
-        /* 이 페이지에서만 */
-      }
-      return !c;
-    });
-  }, []);
+  const collapsed = useLocalValue(COLLAPSE_KEY) === "1";
+  const toggle = useCallback(() => setLocalValue(COLLAPSE_KEY, collapsed ? "0" : "1"), [collapsed]);
   return [collapsed, toggle];
 }
 
@@ -53,8 +38,7 @@ function NavLink({ item, active, compact, onNavigate }: { item: NavItem; active:
 
 function ThemeButton({ compact }: { compact: boolean }) {
   const { theme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const mounted = useIsClient();
   const order = ["system", "light", "dark"] as const;
   const cur = mounted ? ((theme as (typeof order)[number]) ?? "system") : "system";
   const next = order[(order.indexOf(cur) + 1) % order.length];

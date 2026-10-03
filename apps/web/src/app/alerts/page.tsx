@@ -56,14 +56,14 @@ export default async function AlertsPage({ searchParams }: { searchParams: Promi
               </p>
               <div>
                 <h3 className="mb-1.5 text-xs font-semibold text-[var(--muted)]">영향받는 조문 · <Link href={workHref(sel.affected_work_id)}>{title(sel, "affected")}</Link></h3>
-                <p className="whitespace-pre-wrap rounded-[10px] bg-[#f7f8fa] p-3 font-[family-name:var(--font-serif)] text-[15px] leading-relaxed">{sel.affected_text ?? sel.evidence ?? "-"}</p>
+                <p className="whitespace-pre-wrap rounded-md bg-bg-subtle p-3 font-[family-name:var(--font-serif)] text-[15px] leading-relaxed">{sel.affected_text ?? sel.evidence ?? "-"}</p>
                 {sel.evidence && <p className="mt-1 text-xs text-[var(--muted)]">근거 문구: <mark>{sel.evidence}</mark></p>}
               </div>
               <div>
                 <h3 className="mb-1.5 text-xs font-semibold text-[var(--muted)]">상위 조문 신구 비교</h3>
                 <div className="grid gap-2 md:grid-cols-2">
-                  <div className="rounded-[10px] border border-[var(--line)] p-3"><p className="mb-1 text-xs font-semibold text-[var(--red)]">구</p><p className="whitespace-pre-wrap text-sm">{sel.cause_old ?? "(없음)"}</p></div>
-                  <div className="rounded-[10px] border border-[var(--line)] p-3"><p className="mb-1 text-xs font-semibold text-[var(--green)]">신</p><p className="whitespace-pre-wrap text-sm">{sel.cause_new ?? "(삭제)"}</p></div>
+                  <div className="rounded-md border border-[var(--line)] p-3"><p className="mb-1 text-xs font-semibold text-[var(--red)]">구</p><p className="whitespace-pre-wrap text-sm">{sel.cause_old ?? "(없음)"}</p></div>
+                  <div className="rounded-md border border-[var(--line)] p-3"><p className="mb-1 text-xs font-semibold text-[var(--green)]">신</p><p className="whitespace-pre-wrap text-sm">{sel.cause_new ?? "(삭제)"}</p></div>
                 </div>
               </div>
               {sel.resolution_note && <p className="text-sm">처리 의견: {sel.resolution_note}</p>}

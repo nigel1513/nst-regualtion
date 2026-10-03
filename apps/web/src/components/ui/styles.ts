@@ -31,3 +31,12 @@ export const listItem = [
 
 /** lucide 아이콘 선 굵기 1.75 (§1). */
 export const iconStroke = 1.75;
+
+/** SegmentedControl 트랙·칸 (서버·클라이언트 모두 쓰므로 "use client" 밖에 둔다). */
+export const segTrack = "inline-flex h-7 items-center gap-0.5 rounded-sm bg-bg-hover p-0.5";
+export const segItem = [
+  "inline-flex h-6 cursor-pointer select-none items-center gap-1.5 rounded-xs px-2.5 text-small font-medium text-fg-muted outline-none",
+  "no-underline hover:text-fg hover:no-underline focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-focus [&_svg]:size-3.5",
+].join(" ");
+export const segOn = "bg-bg-raised text-fg shadow-raised";
+

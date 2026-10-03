@@ -37,3 +37,22 @@ export function fmtDateTime(iso: string | null | undefined): string {
 export function fmtNum(n: number | null | undefined): string {
   return n == null ? "-" : n.toLocaleString("ko-KR");
 }
+
+const CIRCLED = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳";
+
+/** 조항 경로 → 화면 라벨: a27.p3 → 제27조 제3항, a3-2 → 제3조의2, annex1 → 별표 1, form2 → 서식 2. 기술 경로를 그대로 보이지 않는다. */
+export function pathLabel(path: string): string {
+  const out: string[] = [];
+  for (const seg of path.split("#")[0].split(".")) {
+    let m: RegExpMatchArray | null;
+    if ((m = seg.match(/^a(\d+)(?:-(\d+))?/))) out.push(`제${m[1]}조${m[2] ? `의${m[2]}` : ""}`);
+    else if ((m = seg.match(/^p(\d+)/))) out.push(CIRCLED[Number(m[1]) - 1] ?? `제${m[1]}항`);
+    else if ((m = seg.match(/^i(\d+)(?:-(\d+))?/))) out.push(`제${m[1]}호${m[2] ? `의${m[2]}` : ""}`);
+    else if ((m = seg.match(/^s(.)/))) out.push(`${m[1]}목`);
+    else if ((m = seg.match(/^annex(\d+)(?:-(\d+))?/))) out.push(`별표 ${m[1]}${m[2] ? `의${m[2]}` : ""}`);
+    else if ((m = seg.match(/^form(\d+)(?:-(\d+))?/))) out.push(`서식 ${m[1]}${m[2] ? `의${m[2]}` : ""}`);
+    else if (seg.startsWith("supp")) out.push("부칙");
+    else out.push(seg);
+  }
+  return out.join(" ");
+}
