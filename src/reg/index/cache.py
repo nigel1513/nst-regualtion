@@ -23,13 +23,18 @@ def store(conn, model: str, vecs: dict[str, list[float]]) -> None:
                         " ON CONFLICT DO NOTHING", [(h, model, v) for h, v in vecs.items()])
 
 
+# bge-m3 입력 한도 8,192 토큰 (2026-10-03 실측: 넘으면 400). 한글은 글자당 1~2토큰이라 넉넉히 자른다.
+# 자르는 것은 임베딩 입력뿐이고, BM25로 검색하는 본문은 그대로 색인된다.
+EMBED_MAX_CHARS = 4000
+
+
 def embed_cached(conn, embedder, model: str, texts: dict[str, str]) -> tuple[dict[str, list[float]], int]:
     """texts = {hash: text}. 캐시에 없는 것만 임베딩하고 캐시에 넣은 뒤 커밋한다.
     커밋하는 이유: 빌드가 뒤에서 실패(GPU 꺼짐)해도 이미 임베딩한 묶음은 재시도 때 다시 하지 않는다."""
     got = lookup(conn, model, list(texts))
     miss = [h for h in texts if h not in got]
     if miss:
-        new = embedder.embed([texts[h] for h in miss])
+        new = embedder.embed([texts[h][:EMBED_MAX_CHARS] for h in miss])
         if len(new) != len(miss):
             raise RuntimeError(f"임베딩 수 불일치 {len(new)} != {len(miss)}")
         fresh = dict(zip(miss, new))

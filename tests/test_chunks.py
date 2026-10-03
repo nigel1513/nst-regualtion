@@ -42,3 +42,16 @@ def test_supplement_and_annex_chunks():
     cs = chunk_version("v", "w", "규정", provs)
     assert [c.path for c in cs] == ["a1", "supp@2024-01-17", "annex1"]
     assert cs[1].text.startswith("부칙 2024. 1. 17.")
+
+
+def test_long_paragraph_chunks_are_windowed():
+    """실데이터(2026-10-03): 항·호 하나가 수만 자인 별표·조가 한 청크가 되어 bge-m3 한도(8k 토큰)를 넘었다."""
+    from reg.index.chunks import MAX_CHARS, chunk_version
+
+    provs = [{"path": "annex1", "unit": "annex", "label": "별표 1", "heading": None, "text": "", "parent": None},
+             {"path": "annex1.p1", "unit": "paragraph", "label": "①", "heading": None, "text": "가" * 5000, "parent": "annex1"},
+             {"path": "annex1.p2", "unit": "paragraph", "label": "②", "heading": None, "text": "짧다", "parent": "annex1"}]
+    chunks = chunk_version("v", "w", "규정", provs)
+    assert max(len(c.text) for c in chunks) <= MAX_CHARS
+    assert sum(c.text.count("가") for c in chunks) == 5000  # 잘라 버리지 않고 나눈다
+    assert any(c.chunk_id == "v|annex1.p2" for c in chunks)

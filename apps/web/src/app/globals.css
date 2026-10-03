@@ -26,7 +26,9 @@
 .btn:hover { text-decoration: none; }
 .btn-dark { background: var(--ink); color: #fff; border-color: var(--ink); }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
-.ref { color: var(--accent); border-bottom: 1px dashed #9fb4dd; }
+.ref { color: var(--accent); border-bottom: 1px dashed #9fb4dd; background: var(--accent-soft); border-radius: 3px; padding: 0 2px; }
+button.ref { font: inherit; line-height: inherit; cursor: pointer; border-top: 0; border-left: 0; border-right: 0; }
+button.ref:hover, button.ref[aria-expanded="true"] { background: var(--mark); }
 .ref-unresolved { color: var(--ink-2); border-bottom: 1px dotted var(--amber); }
 .note { font-family: var(--font-ui); font-size: 12px; color: var(--amber); }
 @media (prefers-reduced-motion: reduce) { .btn { transition: none; } }

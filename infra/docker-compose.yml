@@ -30,7 +30,7 @@ x-airflow-common: &airflow-common
     REG_DATABASE_URL: ${REG_DATABASE_URL_DOCKER:?set REG_DATABASE_URL_DOCKER}
     REG_S3_ENDPOINT: http://storage:8333
     REG_OS_URL: ${REG_OS_URL_DOCKER:?set REG_OS_URL_DOCKER}
-    REG_NEO4J_URL: bolt://neo4j:7687
+    REG_NEO4J_URL: bolt://192.168.0.2:8006  # GPU PC Neo4j (2026-10-03)
     REG_SMTP_HOST: mailpit
     REG_SMTP_PORT: "1025"
     REG_CONVERTER_URL: http://converter:8080
@@ -52,22 +52,16 @@ services:
       - storage-data:/data
       - ./storage/s3.json:/etc/seaweedfs/s3.json:ro
     restart: unless-stopped
-  # 공유 nst-nexus OpenSearch(내부 전용)를 이 서버의 프로세스에서 쓰기 위한 중계: 127.0.0.1:21067 → opensearch:9200
-  opensearch-proxy:
+  # Neo4j는 GPU PC(192.168.0.2:8006 bolt / 8007 브라우저)로 옮김 (2026-10-03). 이 서버는 내부망 사용자를 위해 중계만 한다.
+  neo4j-proxy:
     image: alpine/socat:1.8.0.0
-    command: TCP-LISTEN:9200,fork,reuseaddr TCP:opensearch:9200
-    ports: ["127.0.0.1:21067:9200"]
-    networks: [default, nais]
+    command: TCP-LISTEN:7687,fork,reuseaddr TCP:192.168.0.2:8006
+    ports: ["0.0.0.0:21064:7687"]
     restart: unless-stopped
-  # 개정 영향 탐색용 그래프 (PostgreSQL에서 파생, 언제든 재투영 가능)
-  neo4j:
-    image: neo4j:5.26-community
-    environment:
-      NEO4J_AUTH: neo4j/${REG_NEO4J_PASSWORD:?set REG_NEO4J_PASSWORD}
-      NEO4J_server_memory_heap_max__size: 2G
-    ports: ["0.0.0.0:21064:7687", "0.0.0.0:21065:7474"]  # 내부망 공개 (비밀번호 보호)
-    volumes:
-      - neo4j-data:/data
+  neo4j-browser-proxy:
+    image: alpine/socat:1.8.0.0
+    command: TCP-LISTEN:7474,fork,reuseaddr TCP:192.168.0.2:8007
+    ports: ["0.0.0.0:21065:7474"]
     restart: unless-stopped
   # 공유 nst-nexus Mailpit(개발용 SMTP)으로의 중계: 127.0.0.1:21068 → mailpit:1025
   mailpit-proxy:
@@ -138,7 +132,7 @@ services:
   opensearch-dashboards:
     image: opensearchproject/opensearch-dashboards:2.19.1
     environment:
-      OPENSEARCH_HOSTS: '["http://opensearch:9200"]'
+      OPENSEARCH_HOSTS: '["http://192.168.0.2:8005"]'   # GPU PC 전용 OpenSearch (2026-10-03)
       OPENSEARCH_USERNAME: kibanaserver
       OPENSEARCH_PASSWORD: ${REG_OS_DASHBOARDS_PASSWORD:?set REG_OS_DASHBOARDS_PASSWORD}
       OPENSEARCH_SECURITY_COOKIE_SECURE: "false"   # HTTP(내부망)로 접속

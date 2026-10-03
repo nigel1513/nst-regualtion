@@ -194,4 +194,7 @@ def create_app(dsn: str, blob: BlobStore, search_deps: dict | None = None) -> Fa
 
     from reg.api.law_routes import router as law_router  # M6-1 법령 미러
     app.include_router(law_router)
+    from reg.api.provision_routes import router as provision_router  # 참조 팝업
+
+    app.include_router(provision_router)
     return app
