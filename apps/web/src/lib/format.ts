@@ -23,3 +23,17 @@ export const TASK_LABEL: Record<string, string> = {
   PARSE: "구조 파싱", EFFECTIVE_DATE: "시행일", REFERENCE: "참조 해석", CONFLICT: "출처 충돌", LOW_TEXT: "텍스트 부족",
   REF_LAW_AMBIGUOUS: "법령명 모호", REF_LAW_GONE: "인용 조문 삭제·폐지",
 };
+
+/** "2026. 10. 2. 23:27" (한국 시간). */
+export function fmtDateTime(iso: string | null | undefined): string {
+  if (!iso) return "-";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "-";
+  const p = new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", year: "numeric", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(d);
+  const g = (t: string) => p.find((x) => x.type === t)?.value ?? "";
+  return `${g("year")}. ${g("month")}. ${g("day")}. ${g("hour")}:${g("minute")}`;
+}
+
+export function fmtNum(n: number | null | undefined): string {
+  return n == null ? "-" : n.toLocaleString("ko-KR");
+}
