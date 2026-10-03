@@ -40,7 +40,9 @@ def index_body(dim: int, synonyms: list[str] | None = None, userdict: list[str] 
             "full_label": {**ko, "fields": {"kw": kw}},
             "heading": ko_syn,
             "title": {**ko, "fields": {"kw": kw}},
-            "title_suggest": {"type": "search_as_you_type", "analyzer": "ko"},
+            # 자동완성은 공백 단위(standard): nori mixed는 같은 자리에 토큰을 겹쳐 내서 shingle(_2gram·_3gram)이 깨진다
+            # (실데이터 "희망퇴직요령" 등 26건, 2026-10-03). 낱말 앞부분으로 찾으므로 형태소 분석도 필요 없다.
+            "title_suggest": {"type": "search_as_you_type", "analyzer": "standard"},
             "institution": kw, "institution_name": {**ko, "fields": {"kw": kw}}, "institution_aliases": kw,
             "family": kw, "work_kind": kw,
             "effective_from": {"type": "date"}, "effective_to": {"type": "date"}, "version_state": kw,

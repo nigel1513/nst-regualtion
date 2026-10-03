@@ -109,5 +109,7 @@ def test_mapping_accepts_synonyms_and_userdict(os_url):
             assert want in {t["token"] for t in r["tokens"]}, (word, r)
         r = httpx.post(f"{os_url}/reg-provisions-rtest/_analyze", json={"analyzer": "ko", "text": "에트리 출장복명서"}).json()
         assert {"에트리", "출장복명서", "복명서"} <= {t["token"] for t in r["tokens"]}
+        from tests.index.fakes import make_doc    # 복합어 제목(nori mixed는 같은 자리에 토큰을 겹쳐 낸다)도 자동완성 색인에 들어간다
+        os.bulk("reg-provisions-rtest", [make_doc(title=t, title_suggest=t) for t in ("희망퇴직요령", "3100 취업규칙", "위임전결지침")])
     finally:
         os.delete_index("reg-provisions-rtest")
