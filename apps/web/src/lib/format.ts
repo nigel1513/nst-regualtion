@@ -56,3 +56,9 @@ export function pathLabel(path: string): string {
   }
   return out.join(" ");
 }
+
+/** 제목 끝에 붙은 개정 주석("<개정 '19.1.21.>", 닫히지 않은 "<개정 …")을 뗀다. 원문 본문은 그대로 둔다. */
+export function cleanHeading(h: string | null | undefined): string | null {
+  const s = (h ?? "").replace(/\s*[<〈][^>〉]*[>〉]?.*$/, "").trim();
+  return s || null;
+}

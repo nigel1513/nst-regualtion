@@ -22,7 +22,7 @@ import {
   apiGet, type DiffData, decodeSegments, type Institution, type LawArticleDetail, type LawCite, type Provision, sourceHref,
   validDate, type VersionRow, type ViewData, type Work, type WorkStatusFields, workHref,
 } from "@/lib/api";
-import { CHANGE_LABEL, fmtDate, pathLabel, STATE_LABEL, STATUS_LABEL, TASK_LABEL } from "@/lib/format";
+import { CHANGE_LABEL, cleanHeading, fmtDate, pathLabel, STATE_LABEL, STATUS_LABEL, TASK_LABEL } from "@/lib/format";
 
 const INDENT: Record<string, string> = { paragraph: "", item: "pl-5", subitem: "pl-10" };
 const TABS = ["text", "history", "graph", "annex"] as const;
@@ -71,7 +71,8 @@ export default async function ViewerPage({ params, searchParams }: { params: Pro
   const kids = (path: string): Provision[] => provisions.filter((p) => p.parent === path);
   const subtree = (path: string): Provision[] => kids(path).flatMap((k) => [k, ...subtree(k.path)]);
   const supTitle = (p: Provision) => `부칙 ${fmtDate(p.path.split("@")[1]?.slice(0, 10) ?? null)}`;
-  const tocLabel = (p: Provision) => (p.unit === "supplement" ? supTitle(p) : `${p.label}${p.heading ? ` ${p.heading}` : ""}`);
+  const head = (p: Provision) => cleanHeading(p.heading);
+  const tocLabel = (p: Provision) => (p.unit === "supplement" ? supTitle(p) : `${p.label}${head(p) ? ` ${head(p)}` : ""}`);
   const askHref = `/assistant?${new URLSearchParams({ q: `${work.title} `, work: work.id })}`;
   const text = (p: Provision) => (
     <ProvisionText text={p.text} refs={refs[String(p.id)]} workId={work.id} asOf={as_of} cites={cites?.[String(p.id)]} lawHref={lawPanelHref} />
@@ -157,7 +158,7 @@ export default async function ViewerPage({ params, searchParams }: { params: Pro
           <article className="min-w-0 max-w-[72ch] text-long text-fg">
             {tops.map((p) => {
               if (p.unit === "chapter" || p.unit === "section") {
-                return <h2 key={p.path} id={p.path} className="mb-2 mt-8 scroll-mt-20 text-small font-semibold text-fg-muted first:mt-0">{p.label} {p.heading}</h2>;
+                return <h2 key={p.path} id={p.path} className="mb-2 mt-8 scroll-mt-20 text-small font-semibold text-fg-muted first:mt-0">{p.label} {head(p)}</h2>;
               }
               const on = p.path === selected?.path;
               return (
@@ -167,7 +168,7 @@ export default async function ViewerPage({ params, searchParams }: { params: Pro
                       <Link href={`${q({ a: p.path })}#${p.path}`} scroll={false} className="text-fg no-underline hover:text-fg hover:underline">
                         {p.label}{p.heading ? ` (${p.heading})` : ""}
                       </Link>
-                    ) : p.unit === "supplement" ? supTitle(p) : `${p.label}${p.heading ? ` ${p.heading}` : ""}`}
+                    ) : p.unit === "supplement" ? supTitle(p) : `${p.label}${head(p) ? ` ${head(p)}` : ""}`}
                   </h3>
                   {p.unit === "annex" ? (
                     <RegAnnexCard workId={work.id} versionId={v.id} path={p.path} label={p.label} heading={p.heading}>{text(p)}</RegAnnexCard>
@@ -210,7 +211,7 @@ export default async function ViewerPage({ params, searchParams }: { params: Pro
           <div className="flex max-w-[960px] flex-col gap-8">
             {annexes.map((p) => (
               <section key={p.path} id={p.path} aria-label={p.label} className="scroll-mt-20">
-                <h2 className="text-heading text-fg">{p.label}{p.heading ? ` ${p.heading}` : ""}</h2>
+                <h2 className="text-heading text-fg">{p.label}{head(p) ? ` ${head(p)}` : ""}</h2>
                 <RegAnnexCard workId={work.id} versionId={v.id} path={p.path} label={p.label} heading={p.heading}>{text(p)}</RegAnnexCard>
               </section>
             ))}
@@ -248,7 +249,7 @@ async function History({ workId, current, versions, history, sp, q, articleLabel
   const shown = notes ? all : all.filter((c) => c.kind !== "ANNOTATION_ONLY");
   // 항·호만 바뀌면 "①"만 보이므로 소속 조를 앞에 붙인다
   const where = (c: (typeof all)[number], s: { label: string; heading: string | null }) => {
-    if (!c.path.includes(".")) return `${s.label}${s.heading ? ` (${s.heading})` : ""}`;
+    if (!c.path.includes(".")) return `${s.label}${cleanHeading(s.heading) ? ` (${cleanHeading(s.heading)})` : ""}`;
     const art = c.path.split(".")[0];
     return `${articleLabels[art] ?? pathLabel(art)} ${s.label}`;
   };
