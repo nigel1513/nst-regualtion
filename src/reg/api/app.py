@@ -246,4 +246,11 @@ def create_app(dsn: str, blob: BlobStore, search_deps: dict | None = None) -> Fa
     from reg.api.graph_routes import router as graph_router  # M7-G 구조 그래프
 
     app.include_router(graph_router)
+    from reg.api.home import router as home_router  # 서비스 UI 개편: 홈·규정 찾기·다른 기관의 같은 조항
+    from reg.api.regulations import router as regulations_router
+    from reg.api.similar_routes import router as similar_router
+
+    app.include_router(home_router)
+    app.include_router(regulations_router)
+    app.include_router(similar_router)
     return app
