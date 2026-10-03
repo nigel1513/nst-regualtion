@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Crumbs } from "@/components/shell/Breadcrumbs";
 import { notFound } from "next/navigation";
 import { PdfPaneLazy as PdfPane } from "@/components/PdfPaneLazy";
 import { apiGet, decodeSegments, validDate, type ViewData, workHref } from "@/lib/api";
@@ -21,14 +22,15 @@ export default async function SourcePage({ params, searchParams }: {
   const fileUrl = `/api/v1/file?version=${encodeURIComponent(v.id)}&kind=view`;
   const original = `/api/v1/file?version=${encodeURIComponent(v.id)}&kind=original`;
   return (
-    <main className="pb-8">
-      <div className="flex flex-wrap items-center gap-3 px-6 py-3.5">
+    <div className="max-w-[1440px]">
+      <Crumbs items={[{ label: work.title, href: workHref(work.id) }, { label: "원문 대조" }]} />
+      <div className="mb-4 flex flex-wrap items-center gap-3">
         <Link className="btn" href={workHref(work.id, `?${new URLSearchParams({ ...(v.effective_from && v.version_state !== "CURRENT" ? { as_of: v.effective_from } : {}), ...(sel ? { a: sel.path } : {}) })}${sel ? `#${sel.path}` : ""}`)}>← 조문 보기</Link>
         <h1 className="text-[17px] font-bold">{work.title} · 원문 대조</h1>
         <span className="chip">{fmtDate(v.effective_from)} 시행본</span>
         <a className="text-[13px]" href={original}>원본 내려받기{v.source.file_name ? ` (${v.source.file_name})` : ""}</a>
       </div>
-      <div className="grid grid-cols-1 gap-4 px-6 lg:grid-cols-[380px_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
         <nav aria-label="조문 위치" className="card flex max-h-[calc(100vh-9rem)] flex-col gap-0.5 self-start overflow-auto p-2">
           {arts.map((p) => (
             <Link key={p.path} href={`?${new URLSearchParams({ a: p.path, ...(version ? { version } : {}), ...(as_of ? { as_of } : {}) })}`}
@@ -48,6 +50,6 @@ export default async function SourcePage({ params, searchParams }: {
           </div>
         )}
       </div>
-    </main>
+    </div>
   );
 }

@@ -19,7 +19,7 @@ export default async function AlertsPage({ searchParams }: { searchParams: Promi
   const selId = id && /^\d+$/.test(id) ? id : list[0]?.id?.toString();
   const sel = selId ? await apiGet<AlertDetail>(`/api/v1/alerts/${selId}`) : null;
   return (
-    <main className="mx-auto max-w-7xl px-6 py-6">
+    <div className="max-w-[1280px]">
       <h1 className="mb-1 text-2xl font-bold">개정 알림함</h1>
       <p className="mb-4 text-[13px] text-[var(--muted)]">법령·상위 규정이 바뀌어 검토가 필요한 조항입니다. 자동 탐지 결과이며 법적 판단이 아닙니다.</p>
       <div className="mb-4 flex gap-2">
@@ -72,6 +72,6 @@ export default async function AlertsPage({ searchParams }: { searchParams: Promi
           )}
         </div>
       )}
-    </main>
+    </div>
   );
 }

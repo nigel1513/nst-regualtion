@@ -76,6 +76,11 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
 
   const t = q.trim();
   const navs = useMemo(() => NAV.filter((n) => !t || n.label.includes(t)), [t]);
+  // 결과가 새로 오면 맨 위 항목을 고른다 (cmdk는 처음 그린 항목을 계속 붙잡는다). 사용자가 옮긴 선택은 같은 결과 안에서만 유지
+  const first = remote.arts[0] ? `art-${remote.arts[0].doc_id}` : remote.regs[0] ? `reg-${remote.regs[0].work_id}` : t.length >= 2 ? "ask" : navs[0] ? `nav-${navs[0].href}` : "";
+  const [picked, setPicked] = useState<{ key: string; value: string }>({ key: "", value: "" });
+  const resultKey = `${remote.q}|${remote.arts.length}|${remote.regs.length}|${t.length >= 2}`;
+  const selected = picked.key === resultKey ? picked.value : first;
   return (
     <Ctx.Provider value={{ open, setOpen }}>
       {children}
@@ -84,7 +89,8 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
           <BaseDialog.Backdrop className="fixed inset-0 z-[var(--z-dialog)] bg-scrim" />
           <BaseDialog.Popup aria-label="찾기와 이동"
             className="fixed inset-x-0 top-[12dvh] z-[var(--z-dialog)] mx-auto w-[calc(100vw-2rem)] max-w-[640px] overflow-hidden rounded-lg border border-border bg-bg-panel shadow-dialog outline-none">
-            <Command label="찾기와 이동" shouldFilter={false} loop className="flex w-full flex-col text-fg">
+            <Command label="찾기와 이동" shouldFilter={false} loop value={selected} onValueChange={(v) => setPicked({ key: resultKey, value: v })}
+              className="flex w-full flex-col text-fg">
               <div className="flex items-center gap-2 border-b border-border px-3">
                 <Search aria-hidden="true" className="size-4 shrink-0 text-fg-muted" strokeWidth={iconStroke} />
                 <Command.Input value={q} onValueChange={setQ} placeholder="규정 이름, 조문(예: 천문연 여비규정 27조) 또는 질문"

@@ -3,6 +3,7 @@
 import { ArrowRight, ExternalLink, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { LawArticleDetail, ProvisionPopup } from "@/lib/api";
 import { fmtDate } from "@/lib/format";
 
@@ -81,7 +82,8 @@ export function RefPopover({ target, tip, children }: { target: Target; tip: str
       <button ref={btn} type="button" className="ref" title={tip} aria-expanded={open} aria-haspopup="dialog" onClick={() => void show()}>
         {children}
       </button>
-      {open && (
+      {/* 조문 <p> 안에 놓이므로 팝업은 body로 보낸다 (p 안 div는 HTML 위반·하이드레이션 오류) */}
+      {open && createPortal(
         <div ref={box} role="dialog" aria-label={view?.heading ?? "참조 조문"}
           className="fixed z-[var(--z-popover)] flex max-h-[60vh] w-[min(560px,calc(100vw-32px))] flex-col overflow-hidden rounded-md border border-border bg-bg-panel text-left shadow-popover"
           style={{ top: pos.top, left: pos.left }}>
@@ -106,7 +108,8 @@ export function RefPopover({ target, tip, children }: { target: Target; tip: str
               {view.external && <a href={view.external} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1">law.go.kr에서 보기<ExternalLink aria-hidden="true" className="size-3.5" strokeWidth={1.75} /></a>}
             </div>
           )}
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );

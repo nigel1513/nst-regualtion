@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Crumbs } from "@/components/shell/Breadcrumbs";
 import { notFound } from "next/navigation";
 import { AnnexList } from "@/components/AnnexList";
 import { AnnexViewer } from "@/components/AnnexViewer";
@@ -33,11 +34,9 @@ export default async function LawPage({ params, searchParams }: {
   const title = (x: LawArticle) => x.unit === "supplement" ? "부칙" : `${x.label}${x.heading ? `(${x.heading})` : ""}`;
 
   return (
-    <main className="pb-8">
-      <div className="flex flex-wrap items-center gap-1.5 px-6 pt-4 text-[13px] text-[var(--muted)]">
-        <Link href="/regulations?kind=law">법령</Link><span>/</span><span className="text-[var(--ink)]">{law.name}</span>
-      </div>
-      <section className="card mx-6 mt-3 flex flex-wrap items-end gap-6 px-6 py-5">
+    <div className="max-w-[1440px]">
+      <Crumbs items={[{ label: law.name }]} />
+      <section className="card flex flex-wrap items-end gap-6 px-6 py-5">
         <div className="flex grow flex-col gap-2.5">
           <h1 className="text-[26px] font-bold tracking-tight">{law.name}</h1>
           {v && <p className="text-[13px] text-[var(--ink-2)]">{v.edition_line}</p>}
@@ -56,7 +55,7 @@ export default async function LawPage({ params, searchParams }: {
         </div>
       </section>
 
-      <div className="grid grid-cols-1 gap-4 px-6 pt-4 lg:grid-cols-[240px_minmax(0,1fr)_380px]">
+      <div className="grid grid-cols-1 gap-4 pt-4 lg:grid-cols-[240px_minmax(0,1fr)_380px]">
         <nav aria-label="목차" className="card hidden self-start p-2 text-[13px] lg:block lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-auto">
           <div className="px-2.5 pb-2 text-xs font-semibold text-[var(--muted)]">목차</div>
           {tops.map((x) => (
@@ -102,6 +101,6 @@ export default async function LawPage({ params, searchParams }: {
           )}
         </aside>
       </div>
-    </main>
+    </div>
   );
 }
