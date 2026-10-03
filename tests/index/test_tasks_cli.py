@@ -62,7 +62,7 @@ def test_embed_check_and_prune(env, monkeypatch):
 def test_cli_build_runs_gate_then_publish(monkeypatch):
     calls = []
     monkeypatch.setattr(tasks, "build", lambda force=False: calls.append(("build", force)) or
-                        {"skipped": False, "release_id": 7, "index": "nais-regulations-r7", "chunks": 1})
+                        {"skipped": False, "release_id": 7, "index": "reg-provisions-r7", "chunks": 1})
     monkeypatch.setattr(tasks, "gate", lambda rid: calls.append(("gate", rid)) or {"passed": True, "reasons": []})
     monkeypatch.setattr(tasks, "publish", lambda rid: calls.append(("publish", rid)) or {"published": True})
     r = CliRunner().invoke(cli.index, ["build", "--force"])

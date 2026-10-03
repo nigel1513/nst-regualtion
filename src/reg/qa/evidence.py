@@ -1,5 +1,16 @@
-"""근거 확장 (spec 8.2-5): 조 전체 + 예외 조항 + 참조 대상 — PostgreSQL에서 읽는다."""
-from dataclasses import dataclass
+"""근거 확장 (spec 8.2-5): 조 전체 + 예외 조항 + 참조 대상 — 본문은 PostgreSQL에서 읽는다.
+M7: 검색이 조 안에서 맞은 항·호(matches)를 matched_paths로 넘겨, 답변이 그 항을 인용하고 화면이 강조하게 한다.
+M7-Q: 관계 찾기는 구조 그래프(related, reg.graph.query.expand를 API가 넘김)를 먼저 쓴다 — 용어 정의·예외·위임·준용을
+따라간다. 그래프가 없거나 실패하면 예전 PostgreSQL 참조 표 방식으로 돌아간다."""
+import logging
+import re
+from collections.abc import Callable
+from dataclasses import dataclass, field
+
+log = logging.getLogger(__name__)
+# 그래프 관계 → 근거 역할 (direction 'parent'는 넣지 않는다: 근거는 이미 조 단위)
+GRAPH_ROLE = {"term": "definition", "EXCEPTION": "exception"}
+GRAPH_LIMIT = 6
 
 
 @dataclass
@@ -14,6 +25,26 @@ class Evidence:
     role: str
     effective_from: str | None
     rel: str | None = None
+    matched_paths: list[str] = field(default_factory=list)
+    reason: str | None = None
+
+
+def sub_label(path: str) -> str:
+    """조 아래 경로의 정식 라벨: a27.p1.i3.s가 → '제1항 제3호 가목' (조 자체는 '')."""
+    out = []
+    for seg in path.split(".")[1:]:
+        if m := re.fullmatch(r"p(\d+)(?:~\d+)?", seg):
+            out.append(f"제{int(m[1])}항")
+        elif m := re.fullmatch(r"i(\d+)(?:-(\d+))?(?:~\d+)?", seg):
+            out.append(f"제{int(m[1])}호" + (f"의{int(m[2])}" if m[2] else ""))
+        elif m := re.fullmatch(r"s([가-힣])(?:~\d+)?", seg):
+            out.append(f"{m[1]}목")
+    return " ".join(out)
+
+
+def _matched(h: dict, art: str) -> list[str]:
+    paths = [m["path"] for m in h.get("matches") or []] or [h["path"]]
+    return list(dict.fromkeys(p for p in paths if p.startswith(art + ".")))
 
 
 def _article_text(conn, version_id: str, article: str) -> tuple[str, str, list[int]] | None:
@@ -50,23 +81,30 @@ def _version_at(conn, work_id: str, as_of: str | None, release_id: int | str | N
 
 
 def expand(conn, hits: list[dict], limit_articles: int = 4, budget: int = 8000, as_of: str | None = None,
-           release_id: int | str | None = None) -> list[Evidence]:
+           release_id: int | str | None = None,
+           related: Callable[[list[int], str | None], list[dict]] | None = None) -> list[Evidence]:
     out: list[Evidence] = []
     seen: set[tuple[str, str]] = set()
     used = 0
 
-    def add(version_id: str, article: str, role: str, rel: str | None = None) -> list[int] | None:
+    def add(version_id: str, article: str, role: str, rel: str | None = None,
+            matched: list[str] | None = None, reason: str | None = None,
+            part: tuple[str, str, str] | None = None) -> list[int] | None:
+        """part=(경로, 라벨, 본문): 조 전체 대신 그 조항 하나만 근거로 (그래프의 용어 정의)."""
         nonlocal used
-        if (version_id, article) in seen:
+        if (version_id, article) in seen or (part and (version_id, part[0]) in seen):
             return None
         meta = _version_meta(conn, version_id)
-        got = _article_text(conn, version_id, article) if meta else None
-        if not got or used + len(got[1]) > budget:
+        got = (part[1], part[2], [0]) if part and meta else _article_text(conn, version_id, article) if meta else None
+        if part:
+            article = part[0]
+        if not got or not got[1] or used + len(got[1]) > budget:
             return None
         seen.add((version_id, article))
         used += len(got[1])
         out.append(Evidence(f"E{len(out) + 1}", meta["work_id"], version_id, meta["title"], article, got[0], got[1],
-                            role, meta["effective_from"].isoformat() if meta["effective_from"] else None, rel))
+                            role, meta["effective_from"].isoformat() if meta["effective_from"] else None, rel,
+                            matched or [], reason))
         return got[2]
 
     primaries = []
@@ -74,9 +112,11 @@ def expand(conn, hits: list[dict], limit_articles: int = 4, budget: int = 8000, 
         art = h["path"].split("#")[0].split(".")[0]
         if len(primaries) >= limit_articles or (h["version_id"], art) in seen:
             continue
-        pv_ids = add(h["version_id"], art, "primary")
+        pv_ids = add(h["version_id"], art, "primary", matched=_matched(h, art))
         if pv_ids:
             primaries.append((h, art, pv_ids))
+    if related and primaries and _graph_related(conn, primaries, related, add, as_of, release_id):
+        return out
     for h, art, pv_ids in primaries:
         exc = conn.execute(
             "SELECT DISTINCT split_part(spv.path, '.', 1) AS art FROM regulation.reference r"
@@ -96,3 +136,30 @@ def expand(conn, hits: list[dict], limit_articles: int = 4, budget: int = 8000, 
             if vid and c["art"] != art:
                 add(vid, c["art"], "cited", c["rel_type"])
     return out
+
+
+def _graph_related(conn, primaries, related, add, as_of, release_id) -> bool:
+    """그래프가 찾은 관련 조항을 조 단위 근거로 붙인다. 그래프 호출이 실패하면 False (PG 방식으로)."""
+    try:
+        items = related([i for _, _, ids in primaries for i in ids], as_of)
+    except Exception as e:  # 그래프 장애가 답변을 막지 않게 한다
+        log.warning("graph expand failed, falling back to PostgreSQL references: %s: %s", type(e).__name__, e)
+        return False
+    own = {h["work_id"]: h["version_id"] for h, _, _ in reversed(primaries)}
+    n = 0
+    for it in items:
+        # 상위 조문은 이미 조 단위 근거에 들어 있고, 별표·부칙은 길어서 작은 모델이 엉뚱한 숫자를 인용한다 (화면 관계도에서 본다)
+        if it.get("direction") == "parent" or not re.match(r"a\d", it["path"]) or n >= GRAPH_LIMIT:
+            continue
+        art = it["path"].split("#")[0].split(".")[0]
+        vid = own.get(it["work_id"]) or _version_at(conn, it["work_id"], as_of, release_id)
+        role = GRAPH_ROLE.get(it.get("direction")) or GRAPH_ROLE.get(it.get("rel")) or "cited"
+        matched = [it["path"]] if it["path"] != art else []
+        part = None
+        if role == "definition" and it["path"] != art and it.get("text"):
+            label = (it.get("full_label") or "").removeprefix(it.get("title") or "").strip()
+            label = re.sub(r"^.*?(?=제\d+조)", "", label) or it["path"]
+            part = (it["path"], label, it["text"])
+        if vid and add(vid, art, role, it.get("rel"), matched, it.get("reason"), part):
+            n += 1
+    return True

@@ -21,7 +21,9 @@ def cfg():
 
 
 def test_existing_services_kept(cfg):
-    assert {"storage", "opensearch-proxy", "neo4j", "mailpit-proxy", "converter", *AIRFLOW} <= set(cfg["services"])
+    # 2026-10-03: OpenSearch·Neo4j는 GPU PC로 옮겼고 이 서버에는 중계(neo4j-proxy)와 대시보드만 남는다
+    assert {"storage", "neo4j-proxy", "neo4j-browser-proxy", "mailpit-proxy", "converter", "opensearch-dashboards",
+            *AIRFLOW} <= set(cfg["services"])
 
 
 def test_apiserver_on_21062(cfg):
@@ -47,8 +49,8 @@ def test_airflow_env_and_networks(cfg, svc):
     assert env["AIRFLOW__CORE__EXECUTION_API_SERVER_URL"] == "http://airflow-apiserver:8080/execution/"
     assert env["REG_DATABASE_URL"].split("@")[1].startswith("postgres:5432/")
     assert env["REG_S3_ENDPOINT"] == "http://storage:8333"
-    assert env["REG_OS_URL"] == "http://opensearch:9200"
-    assert env["REG_NEO4J_URL"] == "bolt://neo4j:7687"
+    assert env["REG_OS_URL"].endswith("@192.168.0.2:8005")    # GPU PC 전용 OpenSearch (계정 포함)
+    assert env["REG_NEO4J_URL"] == "bolt://192.168.0.2:8006"  # GPU PC Neo4j
     assert (env["REG_SMTP_HOST"], env["REG_SMTP_PORT"]) == ("mailpit", "1025")
     assert env["REG_CONVERTER_URL"] == "http://converter:8080"
     assert env["REG_AIRFLOW_LOG_DIR"] == "/opt/airflow/logs"

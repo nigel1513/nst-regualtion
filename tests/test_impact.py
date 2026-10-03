@@ -123,7 +123,7 @@ def test_missing_graph_raises_so_the_event_is_retried(conn, tmp_path, neo4j_driv
     vid = setup(conn, tmp_path, [Prov("a5", "article", "제5조", "정산", "정산은 10일 이내에 한다."),
                                  Prov("a6", "article", "제6조", "기록", "기록한다.")])
     with neo4j_driver.session() as s:
-        s.run("MATCH (n) WHERE any(l IN labels(n) WHERE l STARTS WITH 'Reg') DETACH DELETE n")
+        s.run("MATCH (n) DETACH DELETE n")
     with pytest.raises(LookupError):
         analyze_version(conn, neo4j_driver, "kr/law/L1", vid)
 
@@ -133,11 +133,12 @@ def test_second_hop_follows_delegation_at_paragraph_level_and_caps_severity(conn
                                  Prov("a6", "article", "제6조", "기록", "기록한다.")])
     sync_graph(conn, neo4j_driver)
     with neo4j_driver.session() as s:  # 세부지침 제2조가 여비규정 제3조(근거로 법 제5조를 인용)를 시행, 제4조(단순 인용)도 시행
-        s.run("CREATE (a:RegProvision {key: 'kr/reg/KASI/지침|a2', work_id: 'kr/reg/KASI/지침', path: 'a2'}),"
-              " (b:RegProvision {key: 'kr/reg/KASI/지침|a9', work_id: 'kr/reg/KASI/지침', path: 'a9'})"
-              " WITH a, b MATCH (t:RegProvision {key: 'kr/reg/KASI/여비|a3'}), (u:RegProvision {key: 'kr/reg/KASI/여비|a8'})"
-              " CREATE (a)-[:IMPLEMENTS {evidence: '여비규정 제3조', source_path: 'a2'}]->(t),"
-              " (b)-[:IMPLEMENTS {evidence: '여비규정 제8조', source_path: 'a9'}]->(u)")
+        s.run("CREATE (a:Provision {pv_id: -2, lineage: -2, work_id: 'kr/reg/KASI/지침', path: 'a2', current: true}),"
+              " (b:Provision {pv_id: -9, lineage: -9, work_id: 'kr/reg/KASI/지침', path: 'a9', current: true})"
+              " WITH a, b MATCH (t:Provision {work_id: 'kr/reg/KASI/여비', path: 'a3', current: true}),"
+              " (u:Provision {work_id: 'kr/reg/KASI/여비', path: 'a8', current: true})"
+              " CREATE (a)-[:IMPLEMENTS {evidence: '여비규정 제3조'}]->(t),"
+              " (b)-[:IMPLEMENTS {evidence: '여비규정 제8조'}]->(u)")
     rows = analyze_version(conn, neo4j_driver, "kr/law/L1", vid)
     hop2 = [(r["affected_work_id"], r["affected_path"], r["severity"]) for r in rows if r["hops"] == 2]
     assert hop2 == [("kr/reg/KASI/지침", "a2", "HIGH")]  # a8(법 전체 인용, 약한 관계)에서는 넘어가지 않는다
@@ -178,3 +179,16 @@ def test_internal_regulation_amendments_do_not_raise_alerts(conn, tmp_path, neo4
     conn.commit()
     sync_graph(conn, neo4j_driver)
     assert analyze_version(conn, neo4j_driver, "kr/reg/KASI/여비", vid) == []
+
+
+def test_stale_graph_raises_so_the_event_is_retried(conn, tmp_path, neo4j_driver):
+    """재적재로 계보 id가 바뀌었는데 그래프가 그 전 상태면 빈 결과로 끝내지 않는다 (리뷰 C2)."""
+    import pytest
+
+    vid = setup(conn, tmp_path, [Prov("a5", "article", "제5조", "정산", "정산은 10일 이내에 한다."),
+                                 Prov("a6", "article", "제6조", "기록", "기록한다.")])
+    sync_graph(conn, neo4j_driver)
+    rebuild_work(conn, "kr/law/L1", T)
+    conn.commit()
+    with pytest.raises(LookupError, match="오래"):
+        analyze_version(conn, neo4j_driver, "kr/law/L1", vid)

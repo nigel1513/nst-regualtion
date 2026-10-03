@@ -1,5 +1,7 @@
-"""개정 영향 분석 (spec 9.2): 실질 변경 조항 → Neo4j 역방향 탐색 → change_impact."""
+"""개정 영향 분석 (spec 9.2, 2026-10-03 §1.3-4): 실질 변경 조항 → Neo4j 법령 구조 그래프 역방향 탐색 → change_impact."""
 import re
+
+from reg.graph.project import fingerprints
 
 # 알림 원인은 law.go.kr에서 받은 상위 규범만 (사용자 결정 2026-10-02, spec §9).
 # 내부규정끼리의 영향(NST ↔ 산하기관, 기관 내 규정 사이)은 당분간 만들지 않는다. 다시 켜려면 여기에 "kr/reg/"를 더한다.
@@ -42,25 +44,47 @@ def impact_kind(change: str, rel: str, whole: bool = False) -> str:
 def _changes(conn, version_id: str) -> list[dict]:
     """그 버전에서 실질적으로 바뀐 조항. 삭제·번호 이동은 이전 경로가 참조되던 자리다."""
     return conn.execute(
-        "SELECT c.kind, c.from_version_id, t.path AS to_path, f.path AS from_path"
+        "SELECT c.kind, c.from_version_id, c.to_version_id, c.provision_id, t.path AS to_path, f.path AS from_path"
         " FROM regulation.provision_change c"
         " LEFT JOIN regulation.provision_version t ON t.id = c.to_pv_id"
         " LEFT JOIN regulation.provision_version f ON f.id = c.from_pv_id"
         " WHERE c.to_version_id = %s AND c.kind <> 'ANNOTATION_ONLY'", (version_id,)).fetchall()
 
 
-# 1단계: 바뀐 조항(또는 그 조)을 가리키는 다른 규범문서의 조항 — 대상 노드에서 출발해 인덱스를 탄다
-Q1 = ("UNWIND $causes AS c MATCH (t:RegProvision {key: c.key})<-[r]-(src:RegProvision)"
-      " WHERE type(r) IN $rels AND src.work_id <> c.work"
-      " RETURN DISTINCT t.path AS cause_path, c.kind AS change, src.work_id AS work_id, src.path AS path,"
-      " type(r) AS rel, r.evidence AS evidence")
+def _lineages(conn, version_id: str, paths: set[str]) -> dict[str, int]:
+    """그 판본에서 경로 → 조항 계보(provision.id = 그래프 Provision.lineage)."""
+    if not version_id or not paths:
+        return {}
+    return {r["path"]: r["provision_id"] for r in conn.execute(
+        "SELECT pv.path, pv.provision_id FROM regulation.version_provision vp"
+        " JOIN regulation.provision_version pv ON pv.id = vp.provision_version_id"
+        " WHERE vp.work_version_id = %s AND pv.path = ANY(%s)", (version_id, list(paths))).fetchall()}
+
+
+# 그래프 (spec 2026-10-03 §1): 참조는 출처 판본 시행일의 대상 조항 판본에 이어져 있으므로 바뀐 조항과 그 상위 항·조의
+# 계보(lineage)로 찾는다. 영향받는 쪽은 현행 판본의 조항(current)만.
+# 1단계: 바뀐 조항(또는 그 조)을 가리키는 다른 규범문서의 조항 — 대상 노드에서 출발해 계보 인덱스를 탄다
+# 원인 경로는 참조된 판본의 경로(t.path)가 아니라 이 판본에서 그 계보의 경로(c.key_path): 번호 이동 전후 판본을
+# 함께 가리키는 출처가 한 변경에 두 건으로 잡히지 않게
+Q1 = ("UNWIND $causes AS c MATCH (t:Provision {lineage: c.lineage})<-[r]-(src:Provision)"
+      " WHERE type(r) IN $rels AND src.work_id <> c.work AND src.current"
+      " RETURN DISTINCT c.key_path AS cause_path, c.kind AS change, src.work_id AS work_id, src.path AS path,"
+      " src.pv_id AS pv_id, type(r) AS rel, r.evidence AS evidence")
+# 어느 판본에도 없는 경로를 가리키던 참조(missing)
+Q1_MISSING = ("UNWIND $causes AS c MATCH (t:MissingProvision {key: c.key})<-[r]-(src:Provision)"
+              " WHERE type(r) IN $rels AND src.work_id <> c.work AND src.current"
+              " RETURN DISTINCT t.path AS cause_path, c.kind AS change, src.work_id AS work_id, src.path AS path,"
+              " src.pv_id AS pv_id, type(r) AS rel, r.evidence AS evidence")
 # 규범문서 전체를 가리키는 참조: 버전당 원인 하나 (어느 조든 바뀌면 검토 대상, spec 9.2-2)
-Q1_WORK = ("MATCH (t:RegWork {work_id: $work})<-[r]-(src:RegProvision) WHERE type(r) IN $rels AND src.work_id <> $work"
+Q1_WORK = ("MATCH (t:Work {id: $work})<-[r]-(src:Provision) WHERE type(r) IN $rels AND src.work_id <> $work"
+           " AND src.current"
            " RETURN DISTINCT $path AS cause_path, $kind AS change, src.work_id AS work_id, src.path AS path,"
-           " type(r) AS rel, r.evidence AS evidence, true AS whole")
+           " src.pv_id AS pv_id, type(r) AS rel, r.evidence AS evidence, true AS whole")
 # 2단계: 1단계에서 강한 관계(근거·위임·준용·시행)로 영향받은 조항(또는 그 상위 항·조)을 위임·시행 관계로 가리키는 조항
-Q2 = ("UNWIND $first AS f UNWIND f.keys AS k MATCH (:RegProvision {key: k})<-[r:DELEGATION|IMPLEMENTS]-(src:RegProvision)"
-      " WHERE src.work_id <> f.work_id AND src.work_id <> $cause_work"
+Q2 = ("UNWIND $first AS f MATCH (s:Provision {pv_id: f.pv_id})"
+      " MATCH (a:Provision)-[:CONTAINS*0..4]->(s) WHERE a.current AND (a = s OR s.path STARTS WITH a.path + '.')"
+      " MATCH (:Provision {lineage: a.lineage})<-[r:DELEGATION|IMPLEMENTS]-(src:Provision)"
+      " WHERE src.current AND src.work_id <> f.work_id AND src.work_id <> $cause_work"
       " RETURN DISTINCT f.cause_path AS cause_path, f.change AS change, f.sev AS cap, src.work_id AS work_id,"
       " src.path AS path, type(r) AS rel, r.evidence AS evidence")
 RELS = ["BASIS", "DELEGATION", "IMPLEMENTS", "MUTATIS", "EXCEPTION", "CITATION"]
@@ -92,8 +116,11 @@ def analyze_version(conn, driver, work_id: str, version_id: str, status: str = "
         return []
     rank = {"DELETED": 0, "MODIFIED": 1, "RENUMBERED": 2, "ADDED": 3}
     causes, added, touched = [], [], []
+    from_version = next((c["from_version_id"] for c in changes if c["from_version_id"]), None)
+    located = []  # (변경, 경로, 그 경로를 찾을 판본)
     for ch in changes:
-        path = ch["from_path"] if ch["kind"] in ("DELETED", "RENUMBERED") else ch["to_path"]
+        old_side = ch["kind"] in ("DELETED", "RENUMBERED")
+        path = ch["from_path"] if old_side else ch["to_path"]
         if not path:
             continue
         body = re.fullmatch(r"a\d+(?:-\d+)?", path.split(".")[0])  # 본문 조 (부칙·별표·서식 신설은 개정마다 생긴다)
@@ -103,13 +130,29 @@ def analyze_version(conn, driver, work_id: str, version_id: str, status: str = "
             continue
         if body:
             touched.append((rank[ch["kind"]], ch["kind"], path.split(".")[0]))
+        located.append((ch, path, ch["from_version_id"] if old_side else ch["to_version_id"]))
+    lineages: dict[str, dict] = {}
+    for vid in {v for _, _, v in located}:
+        lineages[vid] = _lineages(conn, vid, {a for _, p, v in located if v == vid for a in _ancestors(p)})
+    for ch, path, vid in located:
         for key_path in _ancestors(path):  # 그 조항과 상위 항·조
-            causes.append({"key": f"{work_id}|{key_path}", "work": work_id, "path": path, "kind": ch["kind"]})
-    from_version = next((c["from_version_id"] for c in changes if c["from_version_id"]), None)
+            lin = ch["provision_id"] if key_path == path else lineages[vid].get(key_path)
+            causes.append({"lineage": lin, "key": f"{work_id}|{key_path}", "key_path": key_path, "work": work_id,
+                           "path": path, "kind": ch["kind"]})
     with driver.session() as s:
-        if not s.run("MATCH (w:RegWork {work_id: $w}) RETURN count(w) AS n", w=work_id).single()["n"]:
-            raise LookupError(f"그래프에 {work_id}가 없습니다 (reg graph sync 필요)")
-        first = [{**dict(r), "hops": 1, "whole": False} for r in s.run(Q1, causes=causes, rels=RELS)] if causes else []
+        g = s.run("OPTIONAL MATCH (w:Work {id: $w}) OPTIONAL MATCH (v:Version {id: $v})"
+                  " RETURN w.id AS w, w.fp AS fp, v.id AS v", w=work_id, v=version_id).single()
+        if g["w"] is None or g["v"] is None:
+            raise LookupError(f"그래프에 {work_id}({version_id})가 없습니다 (reg graph sync 필요)")
+        # 계보 id(provision.id)는 재적재 때마다 바뀐다. 그래프가 PostgreSQL보다 오래됐으면 원인을 못 찾고 빈 결과로
+        # 처리 완료되므로, 다시 시도하게 실패로 알린다
+        if g["fp"] != fingerprints(conn, [work_id]).get(work_id):
+            raise LookupError(f"그래프의 {work_id}가 PostgreSQL보다 오래되었습니다 (reg graph sync 필요)")
+        first = []
+        if causes:
+            with_lineage = [c for c in causes if c["lineage"] is not None]
+            for q, cs in ((Q1, with_lineage), (Q1_MISSING, causes)):
+                first += [{**dict(r), "hops": 1, "whole": False} for r in s.run(q, causes=cs, rels=RELS)]
         if touched:
             kind = min(touched)[1]
             first += [{**dict(r), "hops": 1} for r in s.run(Q1_WORK, work=work_id, kind=kind, rels=RELS,
@@ -119,8 +162,7 @@ def analyze_version(conn, driver, work_id: str, version_id: str, status: str = "
                                                               path=_label(added))]
         for f in first:
             f["sev"] = severity(f["change"], f["rel"], f["whole"])
-        strong = [{**f, "keys": [f"{f['work_id']}|{k}" for k in _ancestors(f["path"])]}
-                  for f in first if f["rel"] in STRONG]
+        strong = [f for f in first if f["rel"] in STRONG]
         second = [{**dict(r), "hops": 2, "whole": False} for r in s.run(Q2, first=strong, cause_work=work_id)] \
             if strong else []
     for f in second:  # 2단계는 1단계보다 무겁지 않다

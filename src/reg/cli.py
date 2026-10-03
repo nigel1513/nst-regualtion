@@ -83,7 +83,9 @@ app.add_typer(evalc, name="eval")
 
 @evalc.command("qa")
 def eval_qa(limit: int = typer.Option(None, help="앞에서 N문항만"),
-            out: Path = typer.Option(ROOT / "docs/reports/2026-10-02-qa-eval.md")) -> None:
+            out: Path = typer.Option(ROOT / "docs/reports/2026-10-02-qa-eval.md"),
+            no_log: bool = typer.Option(False, "--no-log", help="읽기 전용: 질의 기록을 남기지 않는다 (DB 연결을 read-only로)"),
+            graph: bool = typer.Option(True, "--graph/--no-graph", help="근거 확장에 구조 그래프(Neo4j)를 쓴다")) -> None:
     from datetime import datetime
 
     from reg.index.os import OpenSearch
@@ -92,16 +94,23 @@ def eval_qa(limit: int = typer.Option(None, help="앞에서 N문항만"),
 
     s = get_settings()
     conn = connect(s.database_url)
+    if no_log:
+        conn.read_only = True
     deps = {"os": OpenSearch(s.os_url), "embedder": EmbeddingProvider(s.embed_url, s.embed_model),
             "reranker": RerankProvider(s.rerank_url, s.rerank_model), "llm": LLMProvider(s.llm_url, s.llm_model),
             "llm_model": s.llm_model}
+    if graph:  # 운영 API와 같게: 근거 확장에 구조 그래프를 쓴다 (실패하면 PG 방식)
+        from reg.graph.query import expand as graph_expand
+        from reg.platform.neo4j import neo4j_driver
+
+        driver = neo4j_driver()
+        deps["related"] = lambda ids, as_of: graph_expand(driver, ids, as_of, depth=1)
     cases = yaml.safe_load((ROOT / "eval/qa_cases.yaml").read_text(encoding="utf-8"))[:limit]
-    r = run_eval(conn, deps, cases)
-    detail = {row["qa_id"]: row for row in r["cases"]}
-    logs = {x["id"]: x for x in conn.execute(
-        "SELECT id, status, verdict, retrieved FROM ops.qa_log WHERE id = ANY(%s)", (list(detail),)).fetchall()}
+    r = run_eval(conn, deps, cases, log=not no_log)
+    target = deps["os"].alias_target()
     lines = [f"# 질의응답 평가 ({datetime.now():%Y-%m-%d %H:%M})", "",
-             f"- 모델: {s.llm_model} · 임베딩 {s.embed_model} · 리랭커 {s.rerank_model} · 문항 {r['n']}개", "",
+             (f"- 모델: {s.llm_model} · 임베딩 {s.embed_model} · 리랭커 {s.rerank_model} · 문항 {r['n']}개"
+              f" · 색인 {target}{' · 그래프 근거 확장' if graph else ''}{' · 읽기 전용(기록 없음)' if no_log else ''}"), "",
              "| 지표 | 값 | 목표 (spec 12) |", "|---|---|---|",
              f"| 상태 일치율 | {r['status_acc']} | - |", f"| 인용 정확도 (답변이 인용한 조문이 기대 조문) | {r['citation_hit']} | ≥ 0.90 |",
              f"| 검색 적중률 (기대 조문이 근거 1·2위) | {r['retrieval_hit']} | - |",
@@ -110,11 +119,9 @@ def eval_qa(limit: int = typer.Option(None, help="앞에서 N문항만"),
              f"| p95 응답 시간(ms) | {r['p95_latency_ms']} | < 10000 |", "",
              "| 문항 | 기대 상태 | 실제 상태 | 근거 | 결론 | 근거 1위 |", "|---|---|---|---|---|---|"]
     for c, row in zip(cases, r["cases"]):
-        lg = logs.get(row["qa_id"]) or {}
-        top = (lg.get("retrieved") or [{}])[0]
         mark = lambda v: "-" if v is None else ("O" if v else "X")
         lines.append(f"| {c['id']} | {c['expect']['status']} | {row['status']} | {mark(row['citation_ok'])} | "
-                     f"{mark(row['verdict_ok'])} {lg.get('verdict') or ''} | {top.get('version_id', '')} {top.get('path', '')} |")
+                     f"{mark(row['verdict_ok'])} {row.get('verdict') or ''} | {row.get('top') or ''} |")
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text("\n".join(lines) + "\n", encoding="utf-8")
     typer.echo({k: v for k, v in r.items() if k != "cases"})
