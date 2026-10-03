@@ -128,6 +128,16 @@ def _hit(g: list[dict], all_units: list[dict], with_units: bool) -> dict:
     return out
 
 
+def cited_hit(os, u: dict, with_units: bool = False, index: str | None = None) -> dict:
+    """번호 조회(lookup)로 찾은 단위 하나 → 하이브리드 결과와 같은 모양의 조 묶음. 인용한 조를 1위로 둘 때 쓴다."""
+    key = f"{u['version_id']}|{u['article_path']}"
+    best = {**u, "base_path": u["path"], "article_key": key, "highlight": None}
+    fetched = _fetch_units(os, [key], {"index": index} if index else {})
+    out = _hit([best], fetched.get(key, []), with_units)
+    out.pop("release_id", None)
+    return out
+
+
 def search(os, embedder, reranker, q: str, institution: str | None = None, as_of: str | None = None,
            kind: str | None = None, rerank: bool = True, size: int = 10, index: str | None = None,
            unit: str | list[str] | None = None, current_only: bool = True, with_units: bool = False) -> dict:

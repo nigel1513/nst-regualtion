@@ -6,13 +6,15 @@ from typing import Literal
 from urllib.parse import quote
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
-from fastapi.responses import Response
+from fastapi.responses import Response, StreamingResponse
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 from pydantic import BaseModel, Field
+from starlette.background import BackgroundTask
 
 from reg.api import queries as Q
 from reg.api.annex_routes import router as annex_router
+from reg.api.compare_routes import router as compare_router
 from reg.platform.storage.blob import BlobStore
 
 QA_SLOTS = 3  # 동시에 생성하는 답변 수 (vLLM 한 대, DB 풀 8개 중 일부만 쓴다)
@@ -23,6 +25,25 @@ class QaIn(BaseModel):
     institution: str | None = None
     user_institution: str | None = None
     as_of: date | None = None
+
+
+class ChatMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=2000)
+
+
+class ChatScope(BaseModel):
+    mode: Literal["all", "institutions"] = "all"
+    institutions: list[str] = Field(default_factory=list, max_length=30)
+    topic: str | None = Field(None, max_length=100)
+    work_ids: list[str] = Field(default_factory=list, max_length=50)
+
+
+class ChatIn(BaseModel):
+    messages: list[ChatMessage] = Field(min_length=1, max_length=12)   # 6턴(질문·답) 까지
+    scope: ChatScope = Field(default_factory=ChatScope)
+    as_of: date | None = None
+    conversation_id: str | None = Field(None, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
 
 
 class AlertStatusIn(BaseModel):
@@ -124,11 +145,6 @@ def create_app(dsn: str, blob: BlobStore, search_deps: dict | None = None) -> Fa
     def search(q: str = Query(..., min_length=2), institution: str | None = None, c=Depends(conn)):
         return Q.search(c, q, institution)
 
-    @app.get("/api/v1/review-tasks")
-    def review_tasks(status: str = Query("OPEN", pattern="^(OPEN|RESOLVED|DISMISSED)$"), kind: str | None = None,
-                     c=Depends(conn)):
-        return Q.review_tasks(c, status, kind)
-
     def _search_deps() -> dict:
         deps = app.state.search
         if not deps or deps["os"].alias_target() is None:
@@ -202,6 +218,45 @@ def create_app(dsn: str, blob: BlobStore, search_deps: dict | None = None) -> Fa
         finally:
             app.state.qa_slots.release()
 
+    @app.post("/api/v1/chat")
+    def chat(body: ChatIn, request: Request, stream: bool = True):
+        """규정 도우미 (UI v2 §5): 검색과 질의응답을 한 대화로. 기본은 text/event-stream(SSE),
+        ?stream=false면 같은 이벤트를 [{event, data}…] JSON으로 모아 돌려준다. QA와 같은 슬롯을 쓴다."""
+        from reg.qa.chat import chat as chat_turn
+        from reg.qa.chat import collect, sse
+
+        deps = app.state.search
+        if deps and "related" not in deps:
+            deps = {**deps, "related": _graph_related(request)}
+        if not deps or deps["os"].alias_target() is None:
+            raise HTTPException(503, "검색 색인이 아직 없습니다")
+        if not app.state.qa_slots.acquire(blocking=False):
+            raise HTTPException(429, "질의가 몰려 있습니다. 잠시 후 다시 시도해 주세요")
+        events = chat_turn(app.state.pool, deps, [m.model_dump() for m in body.messages], body.scope.model_dump(),
+                           body.as_of.isoformat() if body.as_of else None, body.conversation_id)
+        once = threading.Lock()
+
+        def release():      # 생성기 끝·연결 끊김·응답 뒤처리 어느 쪽에서 불려도 한 번만
+            if once.acquire(blocking=False):
+                app.state.qa_slots.release()
+
+        if not stream:
+            try:
+                return collect(events)
+            finally:
+                release()
+
+        def frames():
+            try:
+                for e, d in events:
+                    yield sse(e, d)
+            finally:
+                events.close()
+                release()
+
+        return StreamingResponse(frames(), media_type="text/event-stream", background=BackgroundTask(release),
+                                 headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
     @app.get("/api/v1/alerts")
     def alerts(status: str = Query("open", pattern="^(open|done|NEW|ACKED|ACTION_REQUIRED|NO_ACTION|RESOLVED)$"),
                institution: str | None = None, severity: str | None = Query(None, pattern="^(HIGH|MEDIUM|LOW)$"),
@@ -246,4 +301,15 @@ def create_app(dsn: str, blob: BlobStore, search_deps: dict | None = None) -> Fa
     from reg.api.graph_routes import router as graph_router  # M7-G 구조 그래프
 
     app.include_router(graph_router)
+    from reg.api.home import router as home_router  # 서비스 UI 개편: 홈·규정 찾기·다른 기관의 같은 조항
+    from reg.api.regulations import router as regulations_router
+    from reg.api.similar_routes import router as similar_router
+
+    app.include_router(home_router)
+    app.include_router(regulations_router)
+    app.include_router(similar_router)
+    from reg.api.review_routes import router as review_router  # 검수 (서비스 UI 스펙 §6)
+
+    app.include_router(review_router)
+    app.include_router(compare_router)  # 기관 비교 (UI 개편 §4)
     return app

@@ -227,7 +227,7 @@ flowchart LR
 |---|---|---|---|
 | 1. 인용 해석 | `reg.search.citation.parse_citation` | 정규식: 조 `제?N조(의M)?`, 항 `제N항`·①~⑳, 호 `제N호(의M)?`, 목 `가목`, 별표·별지 `별표 제N호(의M)`. 번호가 없으면 인용이 아니다. 기관은 약칭표에서 긴 것부터 찾고, 둘 이상 보이면 정하지 않는다. 남은 앞부분이 규정명이 된다 | `천문연 여비규정 27조 1항` → `{institution: KASI, title: 여비규정, article: 27, paragraph: 1}` |
 | 2. 번호 조회 | `reg.search.lookup` | filter: 단위·번호 term + `window ≤ 1` + 현행(또는 as_of). must: `title.kw` 정확 일치(공백 포함/제거 각 boost 20) ∨ `match_phrase`(5) ∨ `match` and(2). 정렬 `_score, title.kw, ord`. 결과가 없으면 목→호→항 순으로 넓히고 `relaxed=true` | 단일 항 조문을 "제2조 제1항"으로 인용하는 경우가 흔하다(Task 7). 제목은 모든 낱말이 맞아야 한다. 60% 완화를 뺀 것은 `공사관리규정`이 `여비규정`에 잡혔기 때문이다(Task 8) |
-| 3. 기관 전파 | `reg.search.service.search` | 요청에 기관이 없고 인용에 기관이 있으면 hybrid·facets 필터로 쓴다. lookup은 규정명 또는 기관이 있을 때만 하고, 3건을 돌려준다 | 다른 기관의 제27조가 섞이는 문제가 실화면에서 보였다(Task 8) |
+| 3. 기관 전파·인용 조 고정 | `reg.search.service.search` | 요청에 기관이 없으면 질의가 말한 기관(인용의 기관, 인용이 아니면 `mentioned_institution`: 약칭표에서 하나만 보일 때)을 hybrid·facets 필터로 쓴다. 요청의 기관이 늘 우선이다. lookup은 규정명 또는 기관이 있을 때만 하고, 3건을 돌려준다. 기관이 정해졌고 lookup 1위가 `kind`에 맞으면 그 조를 hits 1위로 둔다(이미 있으면 앞으로 옮기고, 없으면 `reg.index.service.cited_hit`로 만든다) | 다른 기관의 제27조가 섞이는 문제(Task 8), 같은 기관 다른 규정의 제27조(스쿨운영규정 제27조(여비))가 리랭크 1위가 되는 문제, 기관만 말한 질의(`천문연 출장 증빙`)에 다른 기관이 섞이는 문제가 실화면에서 보였다(search-inst) |
 | 4. 하이브리드 | `reg.index.service.search` | `query.hybrid.queries = [BM25, knn]`. BM25 = `multi_match(text^3, heading^2, full_label, breadcrumb, article_text)` + `should match institution_name` + filter. knn = `k=100` + 같은 filter. `search_pipeline=reg-provisions-hybrid` (min_max 정규화, arithmetic_mean, 가중치 **0.4/0.6**). `size=100`, highlight `text`(조각 0 = 전체) | 임베딩 서버 장애(`ProviderError`)면 BM25만 쓰고 `mode=bm25` |
 | 5. 리랭크 | 같은 함수 | 상위 40개를 **bge-reranker**(`:8003`, `REG_RERANK_URL`)로 리랭크. 입력 = 제목 + context + (조 문서면 조 전체, 아니면 marker+본문), 1,500자 | 리랭커가 실패하면 하이브리드 점수를 그대로 쓴다 |
 | 6. 조 단위 묶기 | `_group` | `article_key`로 묶는다. 묶음 순위는 대표 단위의 (rerank_score, score) 순. 묶음마다 matches(최고 단위 + 하이라이트가 있는 단위, 최대 5개) | **OS 2.19는 hybrid 아래에서 `collapse`·`inner_hits`를 거부한다**("hybrid query must be a top level query", 전용 클러스터에서 확인). 그래서 묶기를 클라이언트에서 한다. 비용은 검색당 단위 조회 1회가 더 드는 것이다(판정) |
@@ -457,7 +457,7 @@ graph LR
 | CONTAINS에 `versions[]` | 공유된 부모 판본이 판본마다 다른 자식을 가질 수 있다 | Task 3 |
 | 날짜는 ISO 문자열 | `valid_from` 등을 문자열로 둔다. 사전순 비교 = 날짜 비교이고, API JSON에 그대로 쓸 수 있다 | Cypher 날짜 함수는 쓰지 못한다(Task 3) |
 | 제외 | `UNDATED` 판본, `REJECTED` 참조 | Task 3 |
-| 단위 라벨 | `Provision`에 단위 라벨을 하나 더 붙인다(`Article, Paragraph, Item, Subitem, Annex, Supplement, SuppArticle, Chapter, Section`). 코드에는 `Form`도 있지만 PostgreSQL에서 서식의 unit이 `annex`라 실제로는 **서식도 `Annex`**(path `form…`)다 | 실측: Annex 25,159 = annex 14,209 + form 10,950 |
+| 단위 라벨 | `Provision`에 단위 라벨을 하나 더 붙인다(`Article, Paragraph, Item, Subitem, Annex, Supplement, SuppArticle, Chapter, Section`). PostgreSQL은 서식도 unit `annex`(path `form…`)로 두지만, 그래프는 경로로 갈라 서식에 **`Form`** 라벨을 붙인다(`model.node_label`, 2026-10-03) | 실측: Annex 14,209 · Form 10,950 |
 
 ### B3. 라벨과 속성 (실측 개수: `MATCH (n) UNWIND labels(n) AS l RETURN l, count(*)`)
 

@@ -12,10 +12,10 @@ from itertools import pairwise
 from reg.graph.model import (
     CONTEXT_UNITS,
     REF_RELS,
-    UNIT_LABELS,
     extract_terms,
     full_label,
     is_definition_article,
+    node_label,
     uses_terms,
 )
 
@@ -159,7 +159,7 @@ def work_rows(conn, ids: list[str]) -> Rows:
     for pid, vs in pv_versions.items():
         row, last = pvs[pid], vs[-1]
         open_end = any(v["effective_to"] is None for v in vs)
-        out.provisions[UNIT_LABELS.get(row["unit"], "")].append({"pv_id": pid, "props": {
+        out.provisions[node_label(row["unit"], row["path"])].append({"pv_id": pid, "props": {
             "work_id": pv_work[pid], "lineage": row["provision_id"], "path": row["path"],
             "parent_path": row["parent_path"], "unit": row["unit"], "label": row["number_label"],
             "heading": row["heading"], "text": row["text"],

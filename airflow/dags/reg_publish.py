@@ -1,7 +1,7 @@
 """게시 (Asset regulation_structured 갱신 시, spec §6·§7·§9)
 
-graph_sync → alerts_scan  /  embed_check → index_build → index_gate → index_publish  (두 사슬은 서로 기다리지 않음)
-→ daily_summary (all_done). GPU가 꺼져 있으면 embed_check가 30분 간격 6회 재시도하고, 검색은 이전 release로 동작한다.
+graph_sync → alerts_scan  /  embed_check → index_build → index_gate → index_publish → topics_classify → compare_build
+(두 사슬은 서로 기다리지 않음) → daily_summary (all_done). 기관 비교값은 새 색인으로 찾으므로 게시 뒤에 바뀐 기관만 다시 뽑는다. GPU가 꺼져 있으면 embed_check가 30분 간격 6회 재시도하고, 검색은 이전 release로 동작한다.
 """
 from airflow.sdk import dag, task
 from reg_common import GATE, INDEX, LIGHT, ONCE, STRUCTURED, dag_kwargs, skip, watcher
@@ -56,6 +56,18 @@ def reg_publish():
 
         return publish(release_id)
 
+    @task(trigger_rule="all_done", **LIGHT)
+    def topics_classify() -> dict:
+        from reg.compare.tasks import classify_topics
+
+        return classify_topics()
+
+    @task(pool="gpu_pool", **LIGHT)
+    def compare_build() -> dict:
+        from reg.compare.tasks import build_compare
+
+        return build_compare(changed_only=True)
+
     @task(trigger_rule="all_done", **ONCE)
     def daily_summary() -> dict:
         from reg.ops.tasks import daily_summary as summarize
@@ -68,10 +80,13 @@ def reg_publish():
     b = index_build(e)
     gt = index_gate(b)
     p = index_publish(gt)
+    tc = topics_classify()
+    cb = compare_build()
     summary = daily_summary()
     g >> s
-    [s, p] >> summary
-    [g, s, e, b, gt, p, summary] >> watcher()
+    p >> tc >> cb
+    [s, cb] >> summary
+    [g, s, e, b, gt, p, tc, cb, summary] >> watcher()
 
 
 reg_publish()

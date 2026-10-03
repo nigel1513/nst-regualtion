@@ -46,7 +46,7 @@ def record(conn, work_id: str, version_id: str, issues: list[Issue]) -> str:
                      (i.kind, version_id, work_id, json.dumps(i.detail, ensure_ascii=False)))
         kinds.add(i.kind)
     conn.execute("UPDATE regulation.review_task SET status = 'RESOLVED', resolved_at = now()"
-                 " WHERE target = %s AND status = 'OPEN' AND NOT (kind = ANY(%s))", (version_id, list(kinds)))
+                 " WHERE target = %s AND status IN ('OPEN', 'HOLD') AND NOT (kind = ANY(%s))", (version_id, list(kinds)))
     status = "REVIEW" if kinds & BLOCKING else "PASSED"
     conn.execute("UPDATE regulation.work_version SET validation_status = %s WHERE id = %s", (status, version_id))
     return status
@@ -69,5 +69,5 @@ def record_reference_tasks(conn, work_id: str) -> int:
                      (key, work_id, json.dumps({"name": r["target_name"], "evidence": r["evidence_text"],
                                                 "path": r["path"]}, ensure_ascii=False)))
     conn.execute("UPDATE regulation.review_task SET status = 'RESOLVED', resolved_at = now() WHERE kind = 'REFERENCE'"
-                 " AND work_id = %s AND status = 'OPEN' AND NOT (target = ANY(%s))", (work_id, keys))
+                 " AND work_id = %s AND status IN ('OPEN', 'HOLD') AND NOT (target = ANY(%s))", (work_id, keys))
     return len(rows)

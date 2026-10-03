@@ -1,6 +1,7 @@
 """일 변경분·주간 전체 대조 (spec §3A.4). 네트워크는 client, 해석은 xml, DB 쓰기는 mirror가 맡는다.
 
-- 일: 법령·행정규칙 목록을 최신순(sort=ddes)으로 받아 없는 MST만 본문을 받는다. 마지막 성공일보다
+- 법령은 현행 중 필요한 것만 받는다(scope.py: 설정 시드 + 내부규정 인용 + 시행령·시행규칙, 이미 미러된 것).
+- 일: 법령·행정규칙 목록을 최신순(sort=ddes)으로 받아 대상 중 없는 MST만 본문을 받는다. 마지막 성공일보다
   buffer_days 이전 공포일이 나오면 멈춘다. 변경이력 API는 쓰지 않는다.
 - 주: 전체 목록 대조(누락 보충·폐지), 행정규칙 카탈로그, 선별 행정규칙, 법령 별표 전체 목록.
 - 항목 하나의 실패는 errors에 남기고 다음으로 간다. 키·차단 신호는 즉시 멈춘다.
@@ -31,6 +32,7 @@ from reg.sources.lawgo.mirror import (
     store_annex_body,
     upsert_catalog,
 )
+from reg.sources.lawgo.scope import law_plan, mirrored_law_ids, select_rows
 from reg.sources.lawgo.select import selected_admruls
 from reg.sources.lawgo.xml import (
     AdmrulRow,
@@ -214,10 +216,18 @@ def fetch_annex_bodies(ctx: Ctx, st: dict, limit: int) -> int:
     return n
 
 
+def law_selection(ctx: Ctx, rows: list, known: set[str] | None = None):
+    """목록 행 중 미러 대상 (법령 범위, scope.py). known: 이미 미러된 현행 법령ID."""
+    keep = mirrored_law_ids(ctx.conn) if known is None else known
+    return select_rows(law_plan(ctx.conn, ctx.cfg), rows, keep)
+
+
 def sync_daily(ctx: Ctx, since: date) -> dict:
     st = new_stats() | {"since": since.isoformat()}
-    for r in scan_recent(ctx, "law", since):
-        if r.status != "현행" or has_version(ctx.conn, r.mst):
+    sel = law_selection(ctx, scan_recent(ctx, "law", since))
+    st["law_scope"] = sel.stats()
+    for r in sel.rows:
+        if has_version(ctx.conn, r.mst):
             continue
         if guarded(ctx, st, f"law {r.mst} {r.name}", lambda r=r: ingest_law(ctx, r)) is not None:
             st["law_new"] += 1
@@ -239,7 +249,9 @@ def sync_full(ctx: Ctx) -> dict:
     if known and len(seen) < len(known) * ctx.cfg.abolish_min_ratio:
         raise ResponseChanged(f"law 전체 목록이 {len(seen)}건으로 기존 현행 {len(known)}건보다 너무 적습니다."
                               " 폐지 처리를 멈춥니다")
-    for r in rows:
+    sel = law_selection(ctx, rows, known)
+    st["law_scope"] = sel.stats(sample=50)
+    for r in sel.rows:
         if not has_version(ctx.conn, r.mst) and guarded(
                 ctx, st, f"law {r.mst} {r.name}", lambda r=r: ingest_law(ctx, r)) is not None:
             st["law_new"] += 1

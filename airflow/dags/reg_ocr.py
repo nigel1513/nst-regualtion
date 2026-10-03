@@ -11,7 +11,8 @@ from reg_common import MARK, OCR_DONE, STRUCTURED, dag_kwargs, skip
 
 @dag(schedule=STRUCTURED, **dag_kwargs(__doc__))
 def reg_ocr():
-    @task(retries=2, retry_delay=timedelta(minutes=10), execution_timeout=timedelta(minutes=120))
+    # MinerU는 GPU PC를 임베딩·답변 생성과 나눠 쓴다: gpu_pool(슬롯 1)로 GPU 작업이 겹치지 않게
+    @task(pool="gpu_pool", retries=2, retry_delay=timedelta(minutes=10), execution_timeout=timedelta(minutes=120))
     def run_pending() -> dict:
         from reg.ocr.tasks import run_pending as run
 

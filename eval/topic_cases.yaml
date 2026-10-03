@@ -1,0 +1,405 @@
+# 주제 분류 정답 표본 (2026-10-03, 수기 표시). 현행 내부규정 3,829건(색인 r16)에서 무작위 4묶음 × 100건.
+# gold: 맞다고 볼 수 있는 주제(첫째가 가장 알맞은 것). 평가: 예측 첫째 주제가 gold 안에 있으면 맞음(strict는 gold 첫째와 같을 때).
+# A는 키워드를 다듬으며 본 표본. B·C·D는 표시한 뒤 처음 잰 값이 블라인드 정확도이고(B 0.91, C 0.86, D 0.83),
+# 그 뒤 일반 규칙(키워드·목적 조항·주제 벡터)을 고쳤다. reg topics eval이 읽는다.
+cases:
+  - {set: A, work_id: "kr/reg/ETRI/임금피크제운영기준", title: "임금피크제 운영기준", gold: [pay, hr]}
+  - {set: A, work_id: "kr/reg/KIST/훈련생운영규정", title: "훈련생 운영 규정", gold: [training, hr]}
+  - {set: A, work_id: "kr/reg/WIKIM/명예및희망퇴직시행요령", title: "명예 및 희망 퇴직 시행요령", gold: [hr]}
+  - {set: A, work_id: "kr/reg/ETRI/공익신고처리및신고자보호지침", title: "<최종공포일 2022.8.19.>", gold: [audit]}
+  - {set: A, work_id: "kr/reg/KICT/선택적복지제도운영지침", title: "선택적복지제도운영지침", gold: [welfare]}
+  - {set: A, work_id: "kr/reg/NST/직제규정", title: "직제규정", gold: [org]}
+  - {set: A, work_id: "kr/reg/KASI/산업안전보건위원회규정", title: "산업안전보건위원회규정", gold: [safety]}
+  - {set: A, work_id: "kr/reg/KRRI/연구시설장비관리요령", title: "4500 연구시설·장비관리요령", gold: [research, facility]}
+  - {set: A, work_id: "kr/reg/KIMS/08-11내부평가요령", title: "내부평가요령", gold: [hr]}
+  - {set: A, work_id: "kr/reg/KFE/통신시설의배치및관리기준", title: "통신시설의 배치 및 관리기준 기-6", gold: [it, facility]}
+  - {set: A, work_id: "kr/reg/KIMS/여비지급요령", title: "여비지급요령", gold: [travel]}
+  - {set: A, work_id: "kr/reg/KARI/업무자문변호사노무사회계사활용지침", title: "업무자문 변호사·노무사·회계사 활용지침", gold: [external]}
+  - {set: A, work_id: "kr/reg/KISTI/문서관리규정", title: "문서관리규정", gold: [records]}
+  - {set: A, work_id: "kr/reg/KIER/융합연구단운영지침", title: "융합연구단 운영지침", gold: [research]}
+  - {set: A, work_id: "kr/reg/KIMS/15-16기술료보상금지급기준", title: "기술료보상금 지급기준", gold: [ip, pay]}
+  - {set: A, work_id: "kr/reg/KFRI/급식위원회운영지침", title: "급식위원회운영지침", gold: [welfare]}
+  - {set: A, work_id: "kr/reg/KAERI/민원사무처리규정", title: "민원사무처리규정", gold: [external]}
+  - {set: A, work_id: "kr/reg/ETRI/안전보건시설관리규정", title: "안전보건·시설관리규정", gold: [safety, facility]}
+  - {set: A, work_id: "kr/reg/KIT/연구문서관리지침", title: "연구문서 관리지침", gold: [records, research]}
+  - {set: A, work_id: "kr/reg/KIMM/14-07공익신고처리및신고자보호등에관한요령", title: "공익신고 처리 및 신고자 보호 등에 관한 요령(14-07)", gold: [audit]}
+  - {set: A, work_id: "kr/reg/KIER/신원특이자보안관리지침", title: "신원특이자 보안관리 지침", gold: [security]}
+  - {set: A, work_id: "kr/reg/KRICT/화재안전사고예방지침", title: "화재․안전사고 예방지침", gold: [safety]}
+  - {set: A, work_id: "kr/reg/KARI/직원채용지침", title: "직원채용지침", gold: [hr]}
+  - {set: A, work_id: "kr/reg/KISTI/연차저축제운영지침", title: "연차저축제 운영지침", gold: [service]}
+  - {set: A, work_id: "kr/reg/NIMS/지-02일상감사지침", title: "일상감사지침", gold: [audit]}
+  - {set: A, work_id: "kr/reg/KRIBB/퇴직금지급규정", title: "퇴직금지급규정", gold: [pay]}
+  - {set: A, work_id: "kr/reg/KARI/판공비류지급기준", title: "판공비류 지급기준", gold: [accounting]}
+  - {set: A, work_id: "kr/reg/KRRI/공익신고처리및신고자보호등에관한운영지침", title: "공익신고 처리 및 신고자 보호 등에 관한 운영지침", gold: [audit]}
+  - {set: A, work_id: "kr/reg/KISTI/동호인회활동비지급지침", title: "동호인회 활동비 지급지침", gold: [welfare]}
+  - {set: A, work_id: "kr/reg/KIMS/14-04공직자의이해충돌방지제도운영지침", title: "공직자의 이해충돌 방지제도 운영지침", gold: [audit]}
+  - {set: A, work_id: "kr/reg/KAERI/생물안전위원회규정", title: "생물안전위원회 규정", gold: [safety]}
+  - {set: A, work_id: "kr/reg/KIT/직무발명관리요령", title: "직무발명 관리요령", gold: [ip]}
+  - {set: A, work_id: "kr/reg/KERI/방사선작업종사자에대한보상기준", title: "방사선 작업종사자에 대한 보상기준(Ⅱ-2-2)", gold: [safety]}
+  - {set: A, work_id: "kr/reg/KIOM/정책연구용역관리지침", title: "정책연구용역 관리지침", gold: [research, contract]}
+  - {set: A, work_id: "kr/reg/KRRI/민원사무처리지침", title: "404 민원사무 처리지침", gold: [external]}
+  - {set: A, work_id: "kr/reg/KIMS/07-05차량관리요령", title: "차량관리요령", gold: [facility]}
+  - {set: A, work_id: "kr/reg/KASI/손망실처리요령", title: "원규분류기호", gold: [facility]}
+  - {set: A, work_id: "kr/reg/KERI/성희롱성폭력예방지침", title: "성희롱･성폭력 예방 지침(II-2-12)", gold: [audit, service]}
+  - {set: A, work_id: "kr/reg/KFRI/별정직개인평가지침", title: "별정직 개인평가 지침", gold: [hr]}
+  - {set: A, work_id: "kr/reg/KICT/업무용통신기기활용지원에관한지침", title: "업무용 통신기기 활용지원에 관한 지침", gold: [it, facility]}
+  - {set: A, work_id: "kr/reg/KISTI/차량관리요령", title: "차량관리요령", gold: [facility]}
+  - {set: A, work_id: "kr/reg/KICT/국외파견관리및체재비지급지침", title: "국외파견관리및체재비지급지침", gold: [hr, travel]}
+  - {set: A, work_id: "kr/reg/ETRI/콘도회원권관리기준", title: "콘도 회원권 관리 기준", gold: [welfare]}
+  - {set: A, work_id: "kr/reg/KERI/청렴계약제시행지침", title: "청렴계약제 시행지침(Ⅱ-6-4)", gold: [audit, contract]}
+  - {set: A, work_id: "kr/reg/KBSI/선도장비이용요령", title: "선도장비 이용요령", gold: [research, facility]}
+  - {set: A, work_id: "kr/reg/KIMS/12-05공사관리규정", title: "공사관리규정", gold: [contract, facility]}
+  - {set: A, work_id: "kr/reg/NIMS/지-50휴대용저장매체보안관리지침", title: "휴대용 저장매체 보안관리지침", gold: [security, it]}
+  - {set: A, work_id: "kr/reg/KITECH/방첩업무요령", title: "방첩업무요령", gold: [security]}
+  - {set: A, work_id: "kr/reg/KRIBB/외국업체와의계약업무윤리지침", title: "외국업체와의 계약업무 윤리 지침", gold: [contract, audit]}
+  - {set: A, work_id: "kr/reg/KAERI/KAERISchool운영요령", title: "KAERI School 운영요령", gold: [training]}
+  - {set: A, work_id: "kr/reg/KFRI/장학위원회운영지침", title: "장학위원회 운영지침", gold: [welfare, training]}
+  - {set: A, work_id: "kr/reg/KIMM/06-25수습직원운용지침", title: "수습직원 운용지침", gold: [hr]}
+  - {set: A, work_id: "kr/reg/KICT/혁신제안지침", title: "혁신제안지침", gold: [hr, org]}
+  - {set: A, work_id: "kr/reg/ETRI/중소중견기업인력파견운영지침", title: "중소·중견기업 인력파견 운영지침", gold: [ip, hr, external]}
+  - {set: A, work_id: "kr/reg/NIMS/0501-08포상세칙", title: "포상세칙", gold: [hr]}
+  - {set: A, work_id: "kr/reg/KBSI/연구수당지급기준", title: "연구수당 지급기준", gold: [pay, research]}
+  - {set: A, work_id: "kr/reg/KAERI/핵연료물질및방사성동위원소등면허소지자보수교육수탁업무처리규정", title: "핵연료물질 및 방사성동위원소등 면허소지자", gold: [safety]}
+  - {set: A, work_id: "kr/reg/KIT/화학물질위해성연구위원회운영지침", title: "화학물질위해성연구위원회 운영 지침", gold: [research, safety]}
+  - {set: A, work_id: "kr/reg/KRRI/게시물관리지침", title: "게시물 관리지침", gold: [external, facility]}
+  - {set: A, work_id: "kr/reg/KFRI/직장어린이집운영규정", title: "직장어린이집 운영규정", gold: [welfare]}
+  - {set: A, work_id: "kr/reg/KIST/연구개발적립금관리지침", title: "연구개발적립금 관리지침", gold: [accounting, research]}
+  - {set: A, work_id: "kr/reg/KITECH/연봉평가요령", title: "1차개정 2007.03.27.", gold: [pay, hr]}
+  - {set: A, work_id: "kr/reg/KRIBB/한국생명공학연구원정관", title: "한국생명공학연구원 정관", gold: [charter]}
+  - {set: A, work_id: "kr/reg/KRISS/직제규정", title: "직제규정", gold: [org]}
+  - {set: A, work_id: "kr/reg/KFE/학생연구원지원기준", title: "학생연구원 지원기준", gold: [research, hr]}
+  - {set: A, work_id: "kr/reg/KFRI/기술지원업무지침", title: "기술지원업무지침", gold: [ip, research, external]}
+  - {set: A, work_id: "kr/reg/KIMM/08-03임용기준및경력평정요령", title: "임용기준 및 경력평정요령", gold: [hr]}
+  - {set: A, work_id: "kr/reg/KERI/고충처리기본규정", title: "고충처리 기본규정(Ⅱ-1-9))", gold: [hr, audit, service]}
+  - {set: A, work_id: "kr/reg/KRIBB/판공비류지급지침", title: "판공비류 지급지침", gold: [accounting]}
+  - {set: A, work_id: "kr/reg/KARI/차량관리규정", title: "차량관리규정", gold: [facility]}
+  - {set: A, work_id: "kr/reg/KIMS/감사규정", title: "감사규정", gold: [audit]}
+  - {set: A, work_id: "kr/reg/KFRI/연구업무규정", title: "연구업무규정", gold: [research]}
+  - {set: A, work_id: "kr/reg/KIGAM/기숙사운영관리지침", title: "기숙사운영관리지침", gold: [welfare, facility]}
+  - {set: A, work_id: "kr/reg/KIT/성희롱성폭력예방지침", title: "성희롱·성폭력 예방지침", gold: [audit, service]}
+  - {set: A, work_id: "kr/reg/KASI/연구개발적립금관리요령", title: "연구개발적립금관리요령", gold: [accounting, research]}
+  - {set: A, work_id: "kr/reg/KFRI/수습제도운영지침", title: "수습제도 운영지침", gold: [hr]}
+  - {set: A, work_id: "kr/reg/KIMS/17-01일반시험검사업무요령", title: "일반시험검사업무요령", gold: [ip, research, external]}
+  - {set: A, work_id: "kr/reg/KBSI/일반전화및이동통신단말기사용기준", title: "일반전화 및 이동통신단말기 사용기준", gold: [it, facility]}
+  - {set: A, work_id: "kr/reg/KFRI/연구기기장비유지관리및공동활용지침", title: "연구기기장비 유지관리 및 공동활용지침", gold: [research, facility]}
+  - {set: A, work_id: "kr/reg/KERI/조직공헌통합마일리지제도운영지침", title: "조직공헌 통합마일리지 제도 운영기준(Ⅱ-2-20)", gold: [hr, welfare]}
+  - {set: A, work_id: "kr/reg/KBSI/생물안전규정", title: "생물안전규정", gold: [safety]}
+  - {set: A, work_id: "kr/reg/KARI/재정보증지침", title: "재정보증지침", gold: [accounting]}
+  - {set: A, work_id: "kr/reg/KIMS/건설공사안전관리지침", title: "건설공사안전관리지침", gold: [safety, facility, contract]}
+  - {set: A, work_id: "kr/reg/KRRI/연구개발능률성과급지급지침", title: "연구개발능률성과급 지급지침", gold: [pay]}
+  - {set: A, work_id: "kr/reg/KIOM/보안업무관리규정", title: "보안업무관리규정", gold: [security]}
+  - {set: A, work_id: "kr/reg/ETRI/회계요령", title: "회계요령", gold: [accounting]}
+  - {set: A, work_id: "kr/reg/KIOM/선택적복지제도운영지침", title: "선택적복지제도 운영지침", gold: [welfare]}
+  - {set: A, work_id: "kr/reg/KAERI/차량관리규정", title: "차량관리규정", gold: [facility]}
+  - {set: A, work_id: "kr/reg/KIMS/15-03협동연구개발촉진규정", title: "협동연구개발촉진규정", gold: [research]}
+  - {set: A, work_id: "kr/reg/KRIBB/인권경영운영지침", title: "인권경영운영지침", gold: [audit]}
+  - {set: A, work_id: "kr/reg/KBSI/민원사무처리규정", title: "민원사무처리규정", gold: [external]}
+  - {set: A, work_id: "kr/reg/KIGAM/연차수당지급방침", title: "연차수당지급방침", gold: [pay, service]}
+  - {set: A, work_id: "kr/reg/ETRI/내부연구개발과제관리지침", title: "내부연구개발과제 관리지침", gold: [research]}
+  - {set: A, work_id: "kr/reg/KFRI/수산가공식품한국산업표준(KS)인증업무규정", title: "수산가공식품 한국산업표준(KS)인증 업무규정", gold: [other, ip, external]}
+  - {set: A, work_id: "kr/reg/KRISS/이해충돌방지지침", title: "이해충돌방지지침", gold: [audit]}
+  - {set: A, work_id: "kr/reg/KRICT/KRICT연구과제감리단운영지침", title: "KRICT연구과제감리단 운영지침", gold: [research]}
+  - {set: A, work_id: "kr/reg/ETRI/제안제도운영요령", title: "제안제도운영요령", gold: [hr, org]}
+  - {set: A, work_id: "kr/reg/WIKIM/방사선작업종사자에대한보상요령", title: "방사선작업종사자에 대한 보상요령", gold: [safety]}
+  - {set: A, work_id: "kr/reg/KITECH/사업수입목표관리규정", title: "사업수입 목표관리 규정", gold: [research, accounting]}
+  - {set: A, work_id: "kr/reg/KERI/방첩업무세부운영지침", title: "방첩업무 세부운영지침(II-7-16)", gold: [security]}
+  - {set: B, work_id: "kr/reg/KIMS/국가연구개발사업보안관리지침", title: "국가연구개발사업 보안관리 지침", gold: [security, research]}
+  - {set: B, work_id: "kr/reg/KERI/업무용휴대폰관리및사용료지원기준", title: "업무용 휴대폰 관리 및 사용료 지원기준(II-2-16)", gold: [it, facility]}
+  - {set: B, work_id: "kr/reg/KFRI/한국식품연구원동물실험윤리위원회운영규정", title: "한국식품연구원 동물실험윤리위원회 운영규정", gold: [security]}
+  - {set: B, work_id: "kr/reg/KRIBB/공익신고처리및신고자보호등에관한운영지침", title: "공익신고 처리 및 신고자 보호 등에 관한 운영지침", gold: [audit]}
+  - {set: B, work_id: "kr/reg/KIOM/기본사업관리요령", title: "기본사업관리요령", gold: [research]}
+  - {set: B, work_id: "kr/reg/KFE/연구업무평가요령(폐지)", title: "연구업무평가요령 1001-03", gold: [research, hr]}
+  - {set: B, work_id: "kr/reg/KAERI/대학생실험실실습인턴십지침", title: "대학생실험실습인턴십지침", gold: [training, hr]}
+  - {set: B, work_id: "kr/reg/KICT/지식재산권관리지침", title: "지식재산권관리지침", gold: [ip]}
+  - {set: B, work_id: "kr/reg/KBSI/해외교육훈련비지급기준", title: "해외교육훈련비 지급기준", gold: [training, travel]}
+  - {set: B, work_id: "kr/reg/NIMS/지-20게스트하우스관리지침", title: "게스트하우스 관리지침", gold: [welfare, facility]}
+  - {set: B, work_id: "kr/reg/KASI/사택관리요령", title: "사택관리요령", gold: [welfare, facility]}
+  - {set: B, work_id: "kr/reg/NST/안전사고에관한문책기준", title: "안전사고에 관한 문책 기준", gold: [safety]}
+  - {set: B, work_id: "kr/reg/KIST/KIST유럽연구소운영지침", title: "KIST유럽연구소 운영지침", gold: [org, external]}
+  - {set: B, work_id: "kr/reg/KIER/청렴마일리지운영및관리지침", title: "청렴마일리지운영 및 관리지침", gold: [audit]}
+  - {set: B, work_id: "kr/reg/KICT/평가지침", title: "평가지침", gold: [hr]}
+  - {set: B, work_id: "kr/reg/KIGAM/시추시료관리지침", title: "시추시료관리지침", gold: [research, facility, other]}
+  - {set: B, work_id: "kr/reg/KIOM/전직요령", title: "전직요령", gold: [hr]}
+  - {set: B, work_id: "kr/reg/KIMM/09-05기숙사운영관리지침", title: "기숙사운영관리지침", gold: [welfare, facility]}
+  - {set: B, work_id: "kr/reg/KBSI/한국기초과학지원연구원스쿨운영기준", title: "한국기초과학지원연구원 스쿨 운영기준", gold: [training]}
+  - {set: B, work_id: "kr/reg/KASI/청렴옴부즈만설치및운영요령", title: "청렴옴부즈만 설치 및 운영 요령", gold: [audit]}
+  - {set: B, work_id: "kr/reg/KIMS/07-06기숙사관리기준", title: "기숙사관리기준", gold: [welfare, facility]}
+  - {set: B, work_id: "kr/reg/KRIBB/원규관리규정", title: "원규관리 규정", gold: [records]}
+  - {set: B, work_id: "kr/reg/KITECH/겸임연구원임용지침", title: "겸임연구원 임용지침", gold: [hr]}
+  - {set: B, work_id: "kr/reg/KFRI/인사규정", title: "인사 규정", gold: [hr]}
+  - {set: B, work_id: "kr/reg/KIGAM/퇴직급여적립금관리요령", title: "퇴직급여적립금관리요령", gold: [pay, accounting]}
+  - {set: B, work_id: "kr/reg/ETRI/공공연구기관연구인력파견사업운영지침", title: "공공연구기관 연구인력 파견사업 운영지침", gold: [ip, hr, external]}
+  - {set: B, work_id: "kr/reg/KBSI/연구실안전관리비운용기준", title: "연구실 안전관리비 운용기준", gold: [safety]}
+  - {set: B, work_id: "kr/reg/KBSI/차량관리규정", title: "차량관리규정", gold: [facility]}
+  - {set: B, work_id: "kr/reg/KISTI/노후장비관리지침", title: "노후장비 관리지침", gold: [research, facility]}
+  - {set: B, work_id: "kr/reg/KITECH/월정직책급지급요령", title: "월정직책급 지급요령", gold: [pay]}
+  - {set: B, work_id: "kr/reg/ETRI/인권경영실천규정", title: "인권경영실천규정", gold: [audit]}
+  - {set: B, work_id: "kr/reg/KIMM/07-14업무보고요령", title: "업무보고요령", gold: [records]}
+  - {set: B, work_id: "kr/reg/KIST/로봇기술플랫폼사업단산업계협력업무처리지침", title: "로봇기술 플랫폼 사업단 산업계 협력 업무처리지침", gold: [ip, external, research]}
+  - {set: B, work_id: "kr/reg/KIOM/직인관리규정", title: "직인관리규정", gold: [records]}
+  - {set: B, work_id: "kr/reg/KIGAM/전문가활용요령", title: "전문가활용요령", gold: [external]}
+  - {set: B, work_id: "kr/reg/KARI/선택적복리후생비운영지침", title: "선택적복리후생비 운영지침", gold: [welfare]}
+  - {set: B, work_id: "kr/reg/KITECH/공직자의이해충돌방지제도운영요령", title: "1차개정 2023.05.23.", gold: [audit]}
+  - {set: B, work_id: "kr/reg/KIGAM/포상요령", title: "포상요령", gold: [hr]}
+  - {set: B, work_id: "kr/reg/KIST/연구보고서의작성제출관리등에관한지침", title: "연구보고서의 작성․제출․관리 등에 관한 지침", gold: [research, records]}
+  - {set: B, work_id: "kr/reg/KASI/연구원장의요령", title: "연구원장의요령 2130 - 03", gold: [welfare]}
+  - {set: B, work_id: "kr/reg/KRISS/장비심의위원회규정", title: "장비심의위원회규정", gold: [research]}
+  - {set: B, work_id: "kr/reg/KIER/정보공개규정", title: "정보공개규정", gold: [records]}
+  - {set: B, work_id: "kr/reg/KBSI/기관업무추진비편성및집행지침", title: "기관업무추진비 편성 및 집행지침", gold: [accounting]}
+  - {set: B, work_id: "kr/reg/KIOM/공금횡령범죄고발기준", title: "공금횡령 범죄 고발 기준", gold: [audit]}
+  - {set: B, work_id: "kr/reg/KIMS/15-03부안풍력시험동운영지침", title: "부안풍력시험동 운영지침", gold: [research, facility]}
+  - {set: B, work_id: "kr/reg/WIKIM/유연근무제운영규칙", title: "유연근무제 운영규칙", gold: [service]}
+  - {set: B, work_id: "kr/reg/KRRI/안전보건관리규정", title: "8400 안전보건관리규정", gold: [safety]}
+  - {set: B, work_id: "kr/reg/KIMM/08-01법인카드사용지침", title: "법인카드 사용지침", gold: [accounting]}
+  - {set: B, work_id: "kr/reg/KERI/일반수탁연구사업관리지침", title: "일반수탁연구사업 관리지침(Ⅲ-1-39)", gold: [research]}
+  - {set: B, work_id: "kr/reg/KIER/파견근로자활용지침", title: "파견근로자 활용지침", gold: [hr]}
+  - {set: B, work_id: "kr/reg/KITECH/가족수당지급요령", title: "가족수당 지급요령", gold: [pay]}
+  - {set: B, work_id: "kr/reg/KRIBB/연구위원임용지침", title: "연구위원 임용지침", gold: [hr]}
+  - {set: B, work_id: "kr/reg/ETRI/법률자문및소송사무처리지침", title: "kr/reg/ETRI/법률자문및소송사무처리지침", gold: [external, other]}
+  - {set: B, work_id: "kr/reg/KIOM/공동기기실운영규정", title: "공동기기실 운영규정", gold: [research, facility]}
+  - {set: B, work_id: "kr/reg/KRIBB/직원파견지침", title: "직원파견 지침", gold: [hr]}
+  - {set: B, work_id: "kr/reg/NST/소관연구기관협동감사제도운영규정", title: "소관연구기관 협동감사제도 운영규정", gold: [audit]}
+  - {set: B, work_id: "kr/reg/KBSI/회계규정", title: "회계규정", gold: [accounting]}
+  - {set: B, work_id: "kr/reg/KRRI/부패행위고발기준", title: "부패행위 고발기준", gold: [audit]}
+  - {set: B, work_id: "kr/reg/KRIBB/공무국외여행승인지침", title: "공무국외여행 승인지침", gold: [travel]}
+  - {set: B, work_id: "kr/reg/KISTI/한국과학기술정보연구원정관", title: "한국과학기술정보연구원 정관", gold: [charter]}
+  - {set: B, work_id: "kr/reg/KITECH/연구인력기업파견운영요령", title: "연구인력 기업파견 운영요령", gold: [ip, hr]}
+  - {set: B, work_id: "kr/reg/KASI/방사선재해보상기준", title: "방사선재해보상기준 기 - 6", gold: [safety]}
+  - {set: B, work_id: "kr/reg/KIST/복지위원회규정", title: "복지위원회 규정", gold: [welfare]}
+  - {set: B, work_id: "kr/reg/KISTI/선택적근로시간제운영지침", title: "선택적근로시간제 운영지침", gold: [service]}
+  - {set: B, work_id: "kr/reg/KERI/안전관리우수실험실시헝장선정기준", title: "안전관리 우수 실험실 및 시험장 선정 기준(Ⅱ-7-13)", gold: [safety]}
+  - {set: B, work_id: "kr/reg/KIMM/08-37공로연수운영요령", title: "공로연수운영요령", gold: [hr, service, training]}
+  - {set: B, work_id: "kr/reg/KIER/비유동자산관리요령", title: "비유동자산관리요령", gold: [facility, accounting]}
+  - {set: B, work_id: "kr/reg/KARI/대외비보안관리기준", title: "대외비 보안관리 기준", gold: [security]}
+  - {set: B, work_id: "kr/reg/KAERI/기록물관리규정", title: "기록물관리규정", gold: [records]}
+  - {set: B, work_id: "kr/reg/KIER/울산차세대전지연구개발센터입주기업운영지침", title: "울산차세대전지연구개발센터 입주기업 운영지침", gold: [ip, facility]}
+  - {set: B, work_id: "kr/reg/KIMS/청렴시민감사관운영지침", title: "청렴시민감사관 운영지침", gold: [audit]}
+  - {set: B, work_id: "kr/reg/KAERI/직제규정시행요령", title: "직제규정시행요령", gold: [org]}
+  - {set: B, work_id: "kr/reg/KIT/기술자문지침", title: "기술자문지침", gold: [ip, external]}
+  - {set: B, work_id: "kr/reg/KRICT/시간외근무수당지급지침", title: "시간외근무수당 지급지침", gold: [pay]}
+  - {set: B, work_id: "kr/reg/KFE/ITER기구현장연수관리기준", title: "ITER 기구 현장연수 관리기준", gold: [training, research]}
+  - {set: B, work_id: "kr/reg/KRRI/노사협의운영규정", title: "3510 노사협의회운영규정", gold: [hr]}
+  - {set: B, work_id: "kr/reg/KICT/시간선택제운영지침", title: "시간선택제운영지침", gold: [service, hr]}
+  - {set: B, work_id: "kr/reg/KARI/자체연구사업관리기준", title: "자체연구사업 관리기준", gold: [research]}
+  - {set: B, work_id: "kr/reg/KIGAM/원규관리규정", title: "원규관리규정", gold: [records]}
+  - {set: B, work_id: "kr/reg/KERI/복지후생규정", title: "복지후생 규정(Ⅱ-1-4))", gold: [welfare]}
+  - {set: B, work_id: "kr/reg/KIMS/정년후재고용운영지침", title: "정년후 재고용 운영 지침", gold: [hr]}
+  - {set: B, work_id: "kr/reg/NIMS/0405장의규정", title: "장의규정", gold: [welfare]}
+  - {set: B, work_id: "kr/reg/KRISS/징계요령", title: "징계요령", gold: [hr]}
+  - {set: B, work_id: "kr/reg/KIMS/10-04기금관리규정", title: "기금관리규정", gold: [accounting]}
+  - {set: B, work_id: "kr/reg/KARI/명예연구위원등임용기준", title: "명예연구위원 등 임용기준", gold: [hr]}
+  - {set: B, work_id: "kr/reg/KASI/시간외근무수당지급기준", title: "시간외근무수당지급기준 기 - 4", gold: [pay]}
+  - {set: B, work_id: "kr/reg/ETRI/연차휴가저축제운영기준", title: "kr/reg/ETRI/연차휴가저축제운영기준", gold: [service]}
+  - {set: B, work_id: "kr/reg/KIER/명예퇴직운영요령", title: "명예퇴직 운영요령", gold: [hr]}
+  - {set: B, work_id: "kr/reg/KRICT/외부파견자활용및관리지침", title: "kr/reg/KRICT/외부파견자활용및관리지침", gold: [hr]}
+  - {set: B, work_id: "kr/reg/ETRI/정보공개관리기준", title: "kr/reg/ETRI/정보공개관리기준", gold: [records]}
+  - {set: B, work_id: "kr/reg/KIT/연구윤리지침", title: "연구윤리 지침", gold: [security]}
+  - {set: B, work_id: "kr/reg/KFE/국외파견관리요령", title: "국외파견관리요령", gold: [hr]}
+  - {set: B, work_id: "kr/reg/WIKIM/무기계약직관리기준", title: "무기계약직 관리기준", gold: [hr]}
+  - {set: B, work_id: "kr/reg/KERI/KERI스쿨운영규정", title: "KERI스쿨 운영규정(Ⅱ-2-17))", gold: [training]}
+  - {set: B, work_id: "kr/reg/KARI/유연근무제운영기준", title: "유연근무제 운영기준", gold: [service]}
+  - {set: B, work_id: "kr/reg/ETRI/원규관리요령", title: "원규관리요령", gold: [records]}
+  - {set: B, work_id: "kr/reg/KITECH/퇴직급여적립금관리요령", title: "퇴직급여적립금 관리요령", gold: [pay, accounting]}
+  - {set: B, work_id: "kr/reg/KAERI/청렴시민감사관운영지침", title: "청렴시민감사관 운영지침", gold: [audit]}
+  - {set: B, work_id: "kr/reg/WIKIM/자산관리규정", title: "자산관리규정", gold: [facility]}
+  - {set: B, work_id: "kr/reg/KICT/연구실험장비공동활용지침", title: "연구실험장비공동활용지침", gold: [research, facility]}
+  - {set: C, work_id: "kr/reg/KERI/입주기업관리규정", title: "입주기업 관리규정(Ⅱ-8-7))", gold: [ip, facility]}
+  - {set: C, work_id: "kr/reg/KIMM/11-02면세물품사후관리지침", title: "면세물품사후관리지침", gold: [facility, contract]}
+  - {set: C, work_id: "kr/reg/KIMM/11-01계약업무요령", title: "계약업무요령", gold: [contract]}
+  - {set: C, work_id: "kr/reg/KIER/직무발명관리요령", title: "직무발명 관리요령", gold: [ip]}
+  - {set: C, work_id: "kr/reg/KIST/홈페이지관리및운영지침", title: "홈페이지 관리 및 운영 지침", gold: [it, external]}
+  - {set: C, work_id: "kr/reg/KFE/지식정보자원관리규정", title: "지식정보자원관리규정", gold: [it, records]}
+  - {set: C, work_id: "kr/reg/NIMS/지-08해외교육훈련비지급지침", title: "해외교육훈련비 지급지침 지-08", gold: [training, travel]}
+  - {set: C, work_id: "kr/reg/KICT/퇴직금대여지침", title: "퇴직금대여지침", gold: [welfare, pay]}
+  - {set: C, work_id: "kr/reg/KIST/가치혁신경영위원회규정", title: "가치혁신경영위원회 규정", gold: [org]}
+  - {set: C, work_id: "kr/reg/KRISS/경력평정요령", title: "경력평정요령", gold: [hr]}
+  - {set: C, work_id: "kr/reg/KAERI/국내파견근무지침", title: "국내파견근무지침", gold: [hr]}
+  - {set: C, work_id: "kr/reg/KITECH/전직요령", title: "전직요령", gold: [hr]}
+  - {set: C, work_id: "kr/reg/KIT/별정직관리요령", title: "별정직관리요령", gold: [hr]}
+  - {set: C, work_id: "kr/reg/KIST/방문(석학)연구원제도운영지침", title: "방문(석학)연구원제도 운영지침", gold: [hr, research, external]}
+  - {set: C, work_id: "kr/reg/KIGAM/선택적복지제도운영지침", title: "선택적복지제도운영지침1-56", gold: [welfare]}
+  - {set: C, work_id: "kr/reg/KISTI/인사규정", title: "인사규정", gold: [hr]}
+  - {set: C, work_id: "kr/reg/KFRI/소송비용의회수등에관한규정", title: "소송비용의 회수 등에 관한 규정", gold: [accounting, other, external]}
+  - {set: C, work_id: "kr/reg/WIKIM/승진심사지침", title: "승진심사지침", gold: [hr]}
+  - {set: C, work_id: "kr/reg/KARI/한국우주인관리위원회설치및운영기준", title: "한국우주인관리위원회 설치 및 운영기준", gold: [research, org]}
+  - {set: C, work_id: "kr/reg/KARI/절충교역사업수행지침", title: "절충교역사업 수행지침", gold: [research, contract, other]}
+  - {set: C, work_id: "kr/reg/KRIBB/부설연구기관운영규정", title: "부설기관운영규정", gold: [org]}
+  - {set: C, work_id: "kr/reg/KAERI/학생연구자지원규정", title: "학생연구자 지원규정", gold: [research]}
+  - {set: C, work_id: "kr/reg/KICT/직종변경지침", title: "직종변경지침", gold: [hr]}
+  - {set: C, work_id: "kr/reg/KARI/연구사업장려및기술료인센티브지급요령", title: "연구사업장려 및 기술료 인센티브 지급요령", gold: [pay, ip, research]}
+  - {set: C, work_id: "kr/reg/NST/수당지급규칙", title: "수당지급규칙", gold: [pay]}
+  - {set: C, work_id: "kr/reg/KRICT/임금피크제운영지침", title: "임금피크제 운영지침", gold: [pay, hr]}
+  - {set: C, work_id: "kr/reg/ETRI/ETRI정보자원운영관리기준", title: "ETRI 정보자원 운영관리 기준", gold: [it]}
+  - {set: C, work_id: "kr/reg/NIMS/지-33업무추진비집행지침", title: "업무추진비 집행지침", gold: [accounting]}
+  - {set: C, work_id: "kr/reg/KIT/홈페이지운영지침", title: "홈페이지 운영지침", gold: [it, external]}
+  - {set: C, work_id: "kr/reg/KISTI/각종위원회운영규정", title: "각종위원회 운영규정", gold: [org]}
+  - {set: C, work_id: "kr/reg/KICT/한국건설기술연구원동물실험윤리위원회운영지침", title: "한국건설기술연구원 동물실험윤리위원회 운영지침", gold: [security]}
+  - {set: C, work_id: "kr/reg/KFRI/상품권구매및사용관리지침", title: "상품권 구매 및 사용 관리지침", gold: [accounting]}
+  - {set: C, work_id: "kr/reg/KISTI/기술지원사업및자체연구개발사업운영규정", title: "기술지원사업 및 자체연구개발사업 운영규정", gold: [research, ip]}
+  - {set: C, work_id: "kr/reg/KFE/장의규정", title: "장의규정", gold: [welfare]}
+  - {set: C, work_id: "kr/reg/KARI/연구윤리규정", title: "연구윤리규정", gold: [security]}
+  - {set: C, work_id: "kr/reg/KIT/연구요원실운용지침", title: "2-31 연구요원실 운용지침", gold: [research, facility]}
+  - {set: C, work_id: "kr/reg/KITECH/자질향상교육훈련규정", title: "자질향상 교육훈련규정", gold: [training]}
+  - {set: C, work_id: "kr/reg/WIKIM/급여규정", title: "급여규정", gold: [pay]}
+  - {set: C, work_id: "kr/reg/KERI/대전력평가본부시험업무안전관리기준", title: "대전력평가본부 시험업무 안전관리기준(Ⅲ-1-33)", gold: [safety]}
+  - {set: C, work_id: "kr/reg/KICT/과학적녹화장비설치및운영에관한지침", title: "과학적녹화장비설치및운영에관한지침", gold: [it, security]}
+  - {set: C, work_id: "kr/reg/KIMS/지식재산권관리규정", title: "지식재산권 관리규정", gold: [ip]}
+  - {set: C, work_id: "kr/reg/KASI/경력평정요령", title: "경력평정요령", gold: [hr]}
+  - {set: C, work_id: "kr/reg/NIMS/0307보안심사위원회규정", title: "보안심사위원회규정", gold: [security]}
+  - {set: C, work_id: "kr/reg/KRRI/협력연구처리지침", title: "302 협력연구처리지침", gold: [research]}
+  - {set: C, work_id: "kr/reg/NIMS/0503-01당직근무세칙", title: "당직근무세칙", gold: [service]}
+  - {set: C, work_id: "kr/reg/KIGAM/포항지질자원실증연구센터기숙사운영관리지침", title: "포항지질자원실증연구센터 기숙사 운영관리지침 1-84", gold: [welfare, facility]}
+  - {set: C, work_id: "kr/reg/KISTI/법인신용카드사용지침", title: "법인 신용카드 사용지침", gold: [accounting]}
+  - {set: C, work_id: "kr/reg/KRRI/자료관리규정", title: "7200 자료관리규정", gold: [records]}
+  - {set: C, work_id: "kr/reg/ETRI/해외사무소세부운영기준", title: "해외사무소 세부운영기준", gold: [org]}
+  - {set: C, work_id: "kr/reg/KIER/명예연구원운영지침", title: "명예연구원 운영지침", gold: [hr, external]}
+  - {set: C, work_id: "kr/reg/KISTI/청렴시민감사관운영지침", title: "청렴시민감사관 운영 지침", gold: [audit]}
+  - {set: C, work_id: "kr/reg/KASI/직무발명관리규정", title: "직무발명관리규정", gold: [ip]}
+  - {set: C, work_id: "kr/reg/KISTI/KISTI홈페이지개발및관리운영지침", title: "KISTI 홈페이지 개발 및 관리운영 지침", gold: [it]}
+  - {set: C, work_id: "kr/reg/KIOM/임금피크제운영요령", title: "임금피크제 운영요령", gold: [pay, hr]}
+  - {set: C, work_id: "kr/reg/KAERI/특정핵물질의계량관리이행지침", title: "특정핵물질의 계량관리 이행 지침", gold: [safety, security]}
+  - {set: C, work_id: "kr/reg/KIST/물품구매요령", title: "물품구매요령", gold: [contract]}
+  - {set: C, work_id: "kr/reg/KITECH/연구총괄심의위원회운영요령", title: "연구총괄심의위원회 운영요령", gold: [research]}
+  - {set: C, work_id: "kr/reg/KFE/회의실사용기준", title: "회의실사용기준", gold: [facility]}
+  - {set: C, work_id: "kr/reg/NST/판공비류사용기준", title: "판공비류 사용기준", gold: [accounting]}
+  - {set: C, work_id: "kr/reg/KRISS/직무발명관리규정", title: "직무발명관리규정", gold: [ip]}
+  - {set: C, work_id: "kr/reg/KRIBB/민원사무처리지침", title: "민원사무 처리지침", gold: [external]}
+  - {set: C, work_id: "kr/reg/KIMS/연구사업관리규정~9676", title: "연구사업관리규정", gold: [research]}
+  - {set: C, work_id: "kr/reg/KARI/부정청탁및금품등수수의신고사무처리기준", title: "부정청탁 및 금품등 수수의 신고사무 처리기준", gold: [audit]}
+  - {set: C, work_id: "kr/reg/KIST/벤처기업평가업무처리지침", title: "벤처기업 평가업무 처리지침", gold: [ip]}
+  - {set: C, work_id: "kr/reg/KIMM/15-03협동연구개발촉진규정", title: "협동연구개발촉진규정", gold: [research]}
+  - {set: C, work_id: "kr/reg/KBSI/법인카드사용및관리기준", title: "법인카드 사용 및 관리기준", gold: [accounting]}
+  - {set: C, work_id: "kr/reg/ETRI/복지후생위원회운영기준", title: "복지후생위원회 운영기준", gold: [welfare]}
+  - {set: C, work_id: "kr/reg/KIMM/08-36교육훈련규정", title: "교육훈련규정", gold: [training]}
+  - {set: C, work_id: "kr/reg/KFE/생물안전관리규정", title: "생물안전관리규정", gold: [safety]}
+  - {set: C, work_id: "kr/reg/KERI/시험인증업무협의회운영지침", title: "시험·인증업무 협의회 운영 지침(Ⅰ-3-4)", gold: [ip]}
+  - {set: C, work_id: "kr/reg/KITECH/연구심의소위원회운영지침", title: "1차개정 2012.06.19. 11차개정 2022.09.27.", gold: [research]}
+  - {set: C, work_id: "kr/reg/KIST/인사기록및인사사무지침", title: "인사기록 및 인사사무지침", gold: [hr]}
+  - {set: C, work_id: "kr/reg/KIGAM/기술이전기여자보상금지급기준", title: "제정 2011-12-28", gold: [ip, pay]}
+  - {set: C, work_id: "kr/reg/KARI/기록물관리규정", title: "기록물관리규정", gold: [records]}
+  - {set: C, work_id: "kr/reg/KIGAM/경력평점요령", title: "경력평점요령", gold: [hr]}
+  - {set: C, work_id: "kr/reg/KBSI/연구노트작성및관리기준", title: "연구노트 작성 및 관리기준", gold: [research]}
+  - {set: C, work_id: "kr/reg/KRRI/회계요령", title: "5110 회계요령", gold: [accounting]}
+  - {set: C, work_id: "kr/reg/KIMS/12-02안전보건관리규정", title: "안전보건관리규정", gold: [safety]}
+  - {set: C, work_id: "kr/reg/KRICT/청렴계약제시행지침", title: "kr/reg/KRICT/청렴계약제시행지침", gold: [audit, contract]}
+  - {set: C, work_id: "kr/reg/KAERI/원자력기술진흥기금운영지침", title: "원자력기술진흥기금운영지침", gold: [accounting, research]}
+  - {set: C, work_id: "kr/reg/KIOM/회계규정", title: "회계규정", gold: [accounting]}
+  - {set: C, work_id: "kr/reg/KIGAM/안전지출및파기계획방침", title: "제정 1999-09-21", gold: [security]}
+  - {set: C, work_id: "kr/reg/KIST/연봉제운영지침", title: "연봉제 운영 지침", gold: [pay]}
+  - {set: C, work_id: "kr/reg/KICT/승진규칙", title: "승진규칙", gold: [hr]}
+  - {set: C, work_id: "kr/reg/KFRI/취미회운영지침", title: "한국식품연구원 취미회 운영·관리지침", gold: [welfare]}
+  - {set: C, work_id: "kr/reg/KBSI/자료관리규정", title: "자료관리규정", gold: [records]}
+  - {set: C, work_id: "kr/reg/KARI/부패신고처리및신고자보호등에관한운영지침", title: "부패신고 처리 및 신고자 보호 등에 관한 운영지침", gold: [audit]}
+  - {set: C, work_id: "kr/reg/KBSI/선도장비운영위원회규정", title: "선도장비 운영위원회규정", gold: [research]}
+  - {set: C, work_id: "kr/reg/KARI/휴대용저장매체보안관리지침(명칭개정)", title: "휴대용 저장매체 보안관리지침", gold: [security, it]}
+  - {set: C, work_id: "kr/reg/KIST/시설운영지침", title: "시설운영지침", gold: [facility]}
+  - {set: C, work_id: "kr/reg/NIMS/지-21위탁사업관리지침", title: "위탁사업관리지침", gold: [research]}
+  - {set: C, work_id: "kr/reg/KISTI/국가초고성능컴퓨터운영및서비스지침", title: "국가초고성능컴퓨터 운영 및 서비스 지침", gold: [it, research]}
+  - {set: C, work_id: "kr/reg/ETRI/학연협동연구석박사학위과정운영기준", title: "<최종공포일 2021.1.20.>", gold: [training]}
+  - {set: C, work_id: "kr/reg/ETRI/기본사업관리지침", title: "기본사업 관리지침", gold: [research]}
+  - {set: C, work_id: "kr/reg/KIMS/08-13시간선택제운영지침", title: "시간선택제 운영지침", gold: [service, hr]}
+  - {set: C, work_id: "kr/reg/KISTI/법률자문및소송업무처리지침", title: "법률자문 및 소송업무처리 지침", gold: [external, other]}
+  - {set: C, work_id: "kr/reg/WIKIM/전문가활용지침", title: "전문가 활용지침", gold: [external]}
+  - {set: C, work_id: "kr/reg/KFE/원규관리규정", title: "원규관리규정", gold: [records]}
+  - {set: C, work_id: "kr/reg/KITECH/급여규정", title: "급여규정", gold: [pay]}
+  - {set: C, work_id: "kr/reg/KFE/임금피크제운영기준", title: "임금피크제 운영기준", gold: [pay, hr]}
+  - {set: D, work_id: "kr/reg/KFRI/이해충돌방지제도운영지침", title: "이해충돌 방지제도 운영지침", gold: [audit]}
+  - {set: D, work_id: "kr/reg/ETRI/직제규정", title: "직제규정", gold: [org]}
+  - {set: D, work_id: "kr/reg/KIER/외국업체와의계약업무행위기준", title: "외국업체와의 계약업무 행위기준", gold: [contract, audit]}
+  - {set: D, work_id: "kr/reg/KASI/윤리경영실천규정", title: "윤리경영실천규정", gold: [audit]}
+  - {set: D, work_id: "kr/reg/KERI/보안마일리지제운영기준", title: "보안마일리지제 운영기준(II-7-10)", gold: [security]}
+  - {set: D, work_id: "kr/reg/KIER/해외지소운영방침", title: "해외지소 운영방침", gold: [org, external, research]}
+  - {set: D, work_id: "kr/reg/KIST/기술이전활동관리지침", title: "기술이전활동 관리지침", gold: [ip]}
+  - {set: D, work_id: "kr/reg/KAERI/근접지원직활용지침", title: "근접지원직활용지침", gold: [hr]}
+  - {set: D, work_id: "kr/reg/KIT/위임전결규정", title: "위임전결규정", gold: [org]}
+  - {set: D, work_id: "kr/reg/KARI/정년후재고용운영기준제정", title: "정년 후 재고용 운영기준", gold: [hr]}
+  - {set: D, work_id: "kr/reg/KRIBB/공용차량관리지침", title: "공용차량 관리지침", gold: [facility]}
+  - {set: D, work_id: "kr/reg/KICT/연구근접지원직운영규칙", title: "연구근접지원직운영규칙", gold: [hr]}
+  - {set: D, work_id: "kr/reg/KRRI/임직원의이해충돌방지제도운영지침", title: "임직원의 이해충돌 방지제도 운영지침", gold: [audit]}
+  - {set: D, work_id: "kr/reg/KIMM/06-02승급지침", title: "승급지침", gold: [pay, hr]}
+  - {set: D, work_id: "kr/reg/NST/전문위원운영기준", title: "전문위원 운영기준", gold: [hr, org, external]}
+  - {set: D, work_id: "kr/reg/KIOM/기술실시관리요령", title: "기술실시관리요령", gold: [ip]}
+  - {set: D, work_id: "kr/reg/WIKIM/청렴옴부즈만운영지침", title: "청렴옴부즈만 운영 지침", gold: [audit]}
+  - {set: D, work_id: "kr/reg/KISTI/주요정보통신기반시설보호지침", title: "주요정보통신기반시설 보호지침", gold: [it, security]}
+  - {set: D, work_id: "kr/reg/KRIBB/국제연구협력사업운영지침", title: "국제협력연구 운영지침", gold: [external, research]}
+  - {set: D, work_id: "kr/reg/KASI/천문증명업무처리요령", title: "천문증명업무처리요령", gold: [external, other]}
+  - {set: D, work_id: "kr/reg/KITECH/해외근무지원비요령", title: "해외근무지원비요령", gold: [pay]}
+  - {set: D, work_id: "kr/reg/KIOM/자녀학비보조금지급요령", title: "자녀학비보조금 지급요령", gold: [welfare, pay]}
+  - {set: D, work_id: "kr/reg/KAERI/연봉제운영요령", title: "연봉제운영요령", gold: [pay]}
+  - {set: D, work_id: "kr/reg/KARI/인권경영운영기준", title: "인권경영 운영기준", gold: [audit]}
+  - {set: D, work_id: "kr/reg/KASI/전직요령", title: "전직요령", gold: [hr]}
+  - {set: D, work_id: "kr/reg/KARI/연구개발준비금관리규정", title: "연구개발준비금 관리규정", gold: [accounting, research]}
+  - {set: D, work_id: "kr/reg/KIMS/당직및비상근무요령", title: "당직 및 비상근무 요령", gold: [service]}
+  - {set: D, work_id: "kr/reg/KIGAM/국책사업단운영방침", title: "국책사업단운영방침 2-18", gold: [research, org]}
+  - {set: D, work_id: "kr/reg/KFRI/수강승인지침", title: "수강승인 지침", gold: [training, hr]}
+  - {set: D, work_id: "kr/reg/KISTI/부패.공익신고처리및신고자보호등에관한운영지침", title: "부패·공익 신고 처리 및 신고자 보호 등에 관한 운영지침", gold: [audit]}
+  - {set: D, work_id: "kr/reg/KIT/창업지원요령", title: "창업지원요령", gold: [ip]}
+  - {set: D, work_id: "kr/reg/KFRI/제안제도운영지침", title: "제안제도 운영 지침", gold: [hr, org]}
+  - {set: D, work_id: "kr/reg/ETRI/재량근무제운영기준", title: "재량근무제 운영기준", gold: [service]}
+  - {set: D, work_id: "kr/reg/KFE/직원채용요령", title: "직원채용요령", gold: [hr]}
+  - {set: D, work_id: "kr/reg/KFRI/안전사고에관한책임자문책규칙", title: "안전사고에 관한 책임자 문책 규칙", gold: [safety]}
+  - {set: D, work_id: "kr/reg/KFE/정년후재고용운영기준", title: "정년 후 재고용 운영기준", gold: [hr]}
+  - {set: D, work_id: "kr/reg/KIT/연구시설장비공동활용및사후관리지침", title: "연구시설장비 공동활용 및 사후관리지침", gold: [research, facility]}
+  - {set: D, work_id: "kr/reg/KITECH/중소기업전용연구시설운영요령", title: "중소기업전용연구시설 운영요령", gold: [ip, facility]}
+  - {set: D, work_id: "kr/reg/KIMS/03-02원규관리요령", title: "원규관리요령", gold: [records]}
+  - {set: D, work_id: "kr/reg/WIKIM/연수직운영지침", title: "연수직 운영지침", gold: [hr, research]}
+  - {set: D, work_id: "kr/reg/KIST/촉매제검사업무처리지침", title: "촉매제 검사업무 처리지침", gold: [ip, other]}
+  - {set: D, work_id: "kr/reg/KRIBB/출자회사관리규정", title: "출자회사 관리규정", gold: [ip]}
+  - {set: D, work_id: "kr/reg/KRISS/품질보증위원회및하부위원회운영규정", title: "품질보증위원회 및 하부 위원회 운영규정", gold: [other, research, org]}
+  - {set: D, work_id: "kr/reg/KAERI/전략물자및핵물질수출입통제규정", title: "전략물자 및 핵물질 수출입 통제규정", gold: [security, safety]}
+  - {set: D, work_id: "kr/reg/KIER/내자구매요령", title: "내자구매요령", gold: [contract]}
+  - {set: D, work_id: "kr/reg/NIMS/0504대외활동규정", title: "대외활동 규정", gold: [external, service]}
+  - {set: D, work_id: "kr/reg/KITECH/업무용표준소프트웨어사용요령", title: "업무용 표준소프트웨어 사용요령", gold: [it]}
+  - {set: D, work_id: "kr/reg/ETRI/인사관리요령", title: "전문개정 1998. 8. 1.", gold: [hr]}
+  - {set: D, work_id: "kr/reg/KIGAM/인사위원회요령", title: "인사위원회요령", gold: [hr]}
+  - {set: D, work_id: "kr/reg/KIMS/15-02원자력공인검사사업처우및보조비지급지침", title: "원자력공인검사사업 처우 및 보조비 지급 지침", gold: [pay]}
+  - {set: D, work_id: "kr/reg/KRISS/대외활동규정", title: "대외활동규정", gold: [external, service]}
+  - {set: D, work_id: "kr/reg/KICT/동태적조직운영지침", title: "동태적조직 운영지침", gold: [org]}
+  - {set: D, work_id: "kr/reg/KASI/자문위원회규정", title: "자문위원회규정 1420", gold: [external, org]}
+  - {set: D, work_id: "kr/reg/KICT/직무발명관리요령", title: "직무발명관리요령", gold: [ip]}
+  - {set: D, work_id: "kr/reg/KISTI/개방형인력활용지침", title: "개방형인력활용지침", gold: [hr]}
+  - {set: D, work_id: "kr/reg/KIT/방사선작업종사자에대한보상기준", title: "2-18 방사선작업종사자에 대한 보상기준", gold: [safety]}
+  - {set: D, work_id: "kr/reg/KITECH/직원평가규정", title: "1차개정 2006.06.01. 11차개정 2022.01.25.", gold: [hr]}
+  - {set: D, work_id: "kr/reg/KBSI/연구비카드사용관리지침", title: "연구비카드 사용관리지침", gold: [accounting]}
+  - {set: D, work_id: "kr/reg/KRRI/인권경영지침", title: "인권경영 지침", gold: [audit]}
+  - {set: D, work_id: "kr/reg/KISTI/계약직(연구.기술.행정)무기직활용지침", title: "계약직(연구,기술,행정) 무기직 활용지침", gold: [hr]}
+  - {set: D, work_id: "kr/reg/KASI/부패신고처리및신고자보호등에관한운영요령", title: "부패신고 처리 및 신고자 보호 등에 관한 운영요령", gold: [audit]}
+  - {set: D, work_id: "kr/reg/KIMS/13-02종합전산망운영규정", title: "종합전산망운영규정", gold: [it]}
+  - {set: D, work_id: "kr/reg/KIOM/기술관리원관리요령", title: "기술관리원 관리요령", gold: [hr]}
+  - {set: D, work_id: "kr/reg/KRIBB/기본사업운영규정", title: "※ 규정명 변경 ｢주요사업운영규정｣ → ｢기본사업운영규정｣, 2023.03.17.", gold: [research]}
+  - {set: D, work_id: "kr/reg/KISTI/지식관리요령", title: "지식관리요령", gold: [records, other]}
+  - {set: D, work_id: "kr/reg/KERI/임직원청렴행동수칙", title: "임직원 청렴행동수칙(Ⅱ-2-32)", gold: [audit]}
+  - {set: D, work_id: "kr/reg/KIMS/고용계약지침", title: "고용계약 지침", gold: [hr]}
+  - {set: D, work_id: "kr/reg/KIGAM/일용직운영방침", title: "일용직(연구보조원)운영방침", gold: [hr]}
+  - {set: D, work_id: "kr/reg/KRIBB/정보자료관리규정", title: "정보자료 관리규정", gold: [records]}
+  - {set: D, work_id: "kr/reg/KRIBB/예산요령", title: "예산요령", gold: [accounting]}
+  - {set: D, work_id: "kr/reg/KRIBB/학자금지급및융자지원지침", title: "학자금 지급 및 융자지원지침", gold: [welfare]}
+  - {set: D, work_id: "kr/reg/KRRI/위원회운영규정", title: "2400 위원회운영규정", gold: [org]}
+  - {set: D, work_id: "kr/reg/KRICT/징계요령", title: "징계요령", gold: [hr]}
+  - {set: D, work_id: "kr/reg/KRICT/콘도미니엄관리운영지침", title: "콘도미니엄 관리 운영지침", gold: [welfare]}
+  - {set: D, work_id: "kr/reg/KERI/검표및봉인관리기준", title: "검표 및 봉인 관리기준(Ⅲ-1-52)", gold: [ip, other]}
+  - {set: D, work_id: "kr/reg/KBSI/일상감사운영지침", title: "일상감사 운영지침", gold: [audit]}
+  - {set: D, work_id: "kr/reg/KIGAM/연구데이터관리규정", title: "제정 2019-12-27", gold: [research, records, it]}
+  - {set: D, work_id: "kr/reg/KRISS/대외사업관리요령", title: "대외사업관리요령", gold: [research, ip, external]}
+  - {set: D, work_id: "kr/reg/KARI/휴대전화기운영지침", title: "휴대전화기 운영지침", gold: [it]}
+  - {set: D, work_id: "kr/reg/KITECH/부정청탁및금품등수수의신고사무처리지침", title: "부정청탁 및 금품등 수수의 신고사무 처리지침", gold: [audit]}
+  - {set: D, work_id: "kr/reg/KICT/연봉제시행지침", title: "연봉제 등 시행지침", gold: [pay]}
+  - {set: D, work_id: "kr/reg/KICT/직무관련범죄고발기준", title: "직무관련범죄 고발기준", gold: [audit]}
+  - {set: D, work_id: "kr/reg/KAERI/학연협동석박사과정운영요령", title: "학·연협동 석·박사과정운영요령", gold: [training]}
+  - {set: D, work_id: "kr/reg/KERI/TECHNICALLEADER운영지침", title: "Technical Leader 운영지침(II-3-16)", gold: [hr, research]}
+  - {set: D, work_id: "kr/reg/KBSI/도서간행물발간및등록요령", title: "도서·간행물 발간 및 등록요령", gold: [records]}
+  - {set: D, work_id: "kr/reg/KARI/수탁연구사업관리기준", title: "수탁연구사업 관리기준", gold: [research]}
+  - {set: D, work_id: "kr/reg/KITECH/유형자산관리규정", title: "1차개정 2012.09.20. 11차개정 2023.07.25.", gold: [facility, accounting]}
+  - {set: D, work_id: "kr/reg/KBSI/석좌연구원임용요령", title: "석좌연구원 임용요령", gold: [hr, external]}
+  - {set: D, work_id: "kr/reg/KICT/징계규정", title: "징계규정", gold: [hr]}
+  - {set: D, work_id: "kr/reg/NIMS/지-60학습동아리운영지침", title: "( 소규분류기호 : 지-60 )", gold: [training]}
+  - {set: D, work_id: "kr/reg/KERI/인장관리요령", title: "인장관리요령(Ⅱ-1-2))", gold: [records]}
+  - {set: D, work_id: "kr/reg/KIGAM/사업실명제운영지침", title: "사업실명제 운영지침", gold: [audit]}
+  - {set: D, work_id: "kr/reg/KASI/직제규정", title: "직제규정", gold: [org]}
+  - {set: D, work_id: "kr/reg/KRICT/물자구매요령", title: "4(5)-2", gold: [contract]}
+  - {set: D, work_id: "kr/reg/KIGAM/인사고과요령", title: "제정 1992-10-29", gold: [hr]}
+  - {set: D, work_id: "kr/reg/KAERI/원규관리규정", title: "원규관리규정", gold: [records]}
+  - {set: D, work_id: "kr/reg/KERI/도서정보규정", title: "도서정보규정(Ⅱ-8-8))", gold: [records]}
+  - {set: D, work_id: "kr/reg/KBSI/탁월성공동연구실험실운영규정", title: "탁월성공동연구실험실(Excellent Collaboratory) 운영규정", gold: [research]}
+  - {set: D, work_id: "kr/reg/KRICT/연구개발사업비집행관리지침", title: "연구개발사업비 집행 관리지침", gold: [research, accounting]}
+  - {set: D, work_id: "kr/reg/KRISS/전문가활용요령", title: "전문가활용요령", gold: [external]}

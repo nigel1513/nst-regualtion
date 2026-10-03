@@ -33,13 +33,13 @@ export function AlertActions({ id }: { id: number }) {
   };
   return (
     <div className="flex flex-col gap-2">
-      <label htmlFor="note" className="text-xs font-semibold text-[var(--muted)]">검토 의견</label>
+      <label htmlFor="note" className="text-caption font-semibold text-[var(--muted)]">검토 의견</label>
       <textarea id="note" value={note} onChange={(e) => setNote(e.target.value)} maxLength={1000} rows={3}
-        className="rounded-[10px] border border-[var(--line-strong)] bg-white p-2.5 text-sm outline-none" placeholder="검토 내용이나 조치 불필요 사유" />
+        className="rounded-md border border-[var(--line-strong)] bg-bg-panel p-2.5 text-body outline-none" placeholder="검토 내용이나 조치 불필요 사유" />
       <div className="flex flex-wrap gap-2">
         {ACTIONS.map((a) => <button key={a.status} type="button" disabled={busy} className={a.cls} onClick={() => void act(a.status)}>{a.label}</button>)}
       </div>
-      {error && <p className="text-sm text-[var(--red)]" role="alert">{error}</p>}
+      {error && <p className="text-body text-[var(--red)]" role="alert">{error}</p>}
     </div>
   );
 }

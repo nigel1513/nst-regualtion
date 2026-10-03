@@ -19,6 +19,21 @@ def process_all() -> dict:
         return dict(st)
 
 
+def reresolve_refs(processed: dict | None = None) -> dict:
+    """참조 재해석 (process_all 뒤): 미해석·모호 참조가 있는 work를 다시 해석하고 바뀐 work만 다시 쓴다.
+
+    먼저 처리된 규정이 이번에 적재된 규정을 가리키면 그때는 미해석이었다. processed(process_all 결과)에서
+    새로 적재된 것이 없으면(ok=0) 바뀔 것이 없으므로 건너뛴다. 그래프는 이 뒤의 graph.sync가 증분으로 맞춘다."""
+    from reg.core.refs import reresolve
+
+    with open_conn() as conn, task_run("core.refs_reresolve", conn) as st:
+        if processed is not None and not processed.get("ok"):
+            st["skipped"] = "이번 처리에서 적재된 규정 없음"
+            return dict(st)
+        st.update(reresolve(conn))
+        return dict(st)
+
+
 def quality_summary() -> dict:
     """열린 검수 작업 종류별 수와 오늘 새로 생긴 수."""
     with open_conn() as conn, task_run("core.quality_summary", conn) as st:

@@ -29,7 +29,7 @@ def test_tasks_entrypoints_exist():
     from reg.index import tasks as it
     from reg.sources.alio import tasks as alt
 
-    for f in (alt.active_institutions, alt.collect_institution, ct.process_all, ct.quality_summary, gt.sync,
+    for f in (alt.active_institutions, alt.collect_institution, ct.process_all, ct.reresolve_refs, ct.quality_summary, gt.sync,
               at.scan, at.notify, it.build):
         assert callable(f)
 

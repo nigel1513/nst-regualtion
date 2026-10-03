@@ -103,6 +103,7 @@ SELECT * FROM law.alembic_version;              -- law_0001
 | `0006` | M4b Q&A | `qa_log` |
 | `0007` | M5a 영향·알림 | `change_impact`, `owner_assignment`, `notification`, `email_delivery` |
 | `0008` | M6-0 | 운영 테이블 10개를 `regulation` → `ops`로 이동. `work.status/abolished_on`, `work_version.parser_version`, `source_document.ocr_*`, `institution.aliases`, `ops.pipeline_run`, `ops.embedding_cache`, 뷰 `v_regulation_master` |
+| `0013` | 검수 화면 (서비스 UI 스펙 §6) | `review_task.status`에 `HOLD`, `review_decision`(사람 결정 보관) + `review_task` BEFORE INSERT 트리거 `review_task_apply_decision` |
 | `a001` | M6-2 | `alio_rule.missing_since` |
 | `a002` | M6-2 | `alio_rule.abolish_state/abolished_on`, `review_task.kind`에 `ABOLISHED` |
 | `law_0001` | M6-1 | `law` 스키마 테이블 7개, `regulation` 쪽 법령 FK 열 4개, `review_task.kind`에 `REF_LAW_AMBIGUOUS`·`REF_LAW_GONE` |
@@ -858,7 +859,7 @@ EXPLAIN SELECT id FROM regulation.work WHERE external_ids ? 'alio_seq' AND exter
 | `target` | text | N | | 대상 키 (버전 id, `source:{id}`, `ref:…`, `work:{id}`) |
 | `work_id` | text | Y | | 관련 규범문서 FK (`ON DELETE CASCADE`) |
 | `detail` | jsonb | N | `'{}'` | 감지 내용 (`{"basis": "history"}`, `{"check": "gap", "missing": [37]}`, `{"name": "상법", "evidence": "「상법」 제169조", "path": "a18.p2"}`) |
-| `status` | text | N | `'OPEN'` | `OPEN` / `RESOLVED` / `DISMISSED` |
+| `status` | text | N | `'OPEN'` | `OPEN` / `HOLD`(보류, 0013) / `RESOLVED` / `DISMISSED` |
 | `assignee` | text | Y | | 담당자 |
 | `decision` | jsonb | Y | | 처리 결정 (예: 자동 반려 `{"auto": "not_candidate"}`) |
 | `created_at` | timestamptz | N | `now()` | |
@@ -875,6 +876,8 @@ EXPLAIN SELECT id FROM regulation.work WHERE external_ids ? 'alio_seq' AND exter
 |---|---|---|---|
 | `review_task_kind_target_key` | (kind, target) | 모든 작성 경로의 `ON CONFLICT (kind, target)` | 같은 문제는 한 행 (멱등) |
 
+- 사람의 처리(`core/review.py`, API `POST /api/v1/review-tasks/{id}/assign|resolve|dismiss|hold|reopen`)는 `decision`에 `{"action", "by", "at", "note"/"reason", "value"}`를 남기고, 같은 내용을 `regulation.review_decision`(PK `(kind, target)`, FK 없음)에도 쓴다. `reg process --rebuild`의 `TRUNCATE … CASCADE`는 이 표를 지우지 않고, 다시 만든 `review_task` 행에 트리거가 담당·상태·결정을 되살린다. 버전 단위(PARSE·CONFLICT·EFFECTIVE_DATE)는 `detail`이 결정 때와 같을 때만 상태를 되살리고(바뀌면 새 문제, 담당만 유지), ABOLISHED는 `alio_rule`이 원장이라 담당만 되살린다.
+- 자동 닫기(`record`·`record_reference_tasks`·`close_low_text`·lawgo `_sync_tasks`·ABOLISHED 투영)는 `OPEN`과 `HOLD`를 닫는다. lawgo `_sync_tasks`는 사람이 해결한 작업(`decision ? 'action'`)을 다시 열지 않는다.
 - `core/quality.py` `record()`의 `UPDATE … WHERE target = %s AND status = 'OPEN'`과 `record_reference_tasks`의 `WHERE kind = 'REFERENCE' AND work_id = %s` 같은 조건은 맞는 인덱스가 없어 순차 스캔이다(3만 행).
 
 ### 4.16 뷰 `regulation.v_regulation_master` — 목록 마스터
@@ -1886,8 +1889,8 @@ WHERE schemaname = 'regulation' AND relname IN ('reference','provision_change','
 
 | 대상 | 관찰 | 근거 |
 |---|---|---|
-| `work_alio_seq` | `idx_scan` 0. 조회문에 부분 인덱스 조건 `external_ids ? 'alio_seq'`가 없어서 planner가 못 쓴다 (§4.7 EXPLAIN) | `loader.py:24`, `reconcile.py:23,54,85` |
-| `provision_change.work_id` | 인덱스 없음. `rebuild_work`의 `DELETE … WHERE work_id = %s`가 규정마다 27만 행을 순차 스캔. `seq_scan` 96,269회, `seq_tup_read` 약 225억 행 | `EXPLAIN SELECT 1 FROM regulation.provision_change WHERE work_id = …` → Parallel Seq Scan |
+| `work_alio_seq` | (2026-10-03 해결: 조회문에 조건 추가) `idx_scan` 0. 조회문에 부분 인덱스 조건 `external_ids ? 'alio_seq'`가 없어서 planner가 못 쓴다 (§4.7 EXPLAIN) | `loader.py:24`, `reconcile.py:23,54,85` |
+| `provision_change.work_id` | (2026-10-03 해결: 마이그레이션 0009 `provision_change_work`·`reference_work`·`review_task_target`) 인덱스 없음. `rebuild_work`의 `DELETE … WHERE work_id = %s`가 규정마다 27만 행을 순차 스캔. `seq_scan` 96,269회, `seq_tup_read` 약 225억 행 | `EXPLAIN SELECT 1 FROM regulation.provision_change WHERE work_id = …` → Parallel Seq Scan |
 | `reference.work_id` | 인덱스 없음. `resolve_and_store`의 `DELETE … WHERE work_id = %s`가 순차 스캔. `seq_scan` 23,693회, `seq_tup_read` 약 20억 행 | `EXPLAIN SELECT 1 FROM regulation.reference WHERE work_id = …` → Parallel Seq Scan |
 | `review_task.target` 단독, `review_task.work_id` | 인덱스 없음. `record()`의 `WHERE target = %s AND status = 'OPEN'`이 순차 스캔(3만 행) | `EXPLAIN` → Seq Scan |
 | `law.change_log_law`, `law.article_mst` | 쓰는 읽기 쿼리가 아직 코드에 없다 | `grep` |
@@ -1912,3 +1915,13 @@ WHERE schemaname = 'regulation' AND relname IN ('reference','provision_change','
 - `outbox`에 3회 실패로 보류된 `regulation.source_fetched` 1건이 있다.
 - KRIBB 수집(`alio.collect:KRIBB`)이 8회 연속 실패했다(마지막 2026-10-02 18:25 UTC).
 - `law` 스키마 7개 테이블과 `regulation` 쪽 법령 FK 열 4개는 모두 비어 있다. law.go.kr 운영 OC 키 승인 후 채워진다.
+
+## 9. 2026-10-04 추가 테이블
+
+| 테이블 | 마이그레이션 | 열 | 설명 |
+|---|---|---|---|
+| `regulation.work_topic` | 0011 | `work_id, topic, score, method(title·purpose·embedding·none·manual), rank(1·2), classified_at`, PK `(work_id, topic)`, 인덱스 `(topic, work_id)` | 규정 ↔ 주제. 외래 키 없음(재파싱으로 id가 바뀌어도 다시 분류) |
+| `regulation.compare_cell` | 0011 | `topic, item, institution_code, work_id, version_id, pv_id, path, value, value_norm, quote, method(llm·absent·manual), confidence, extracted_at`, PK `(topic, item, institution_code)` | 기관 비교값. 값이 있으면 근거·인용 필수(CHECK). 읽을 때 `(work_id, path)`로 현행 조문을 다시 찾는다 |
+| `regulation.review_decision` | 0013 | `(kind, target)` 키, 상태·담당·결정·detail 스냅샷·시각 | 검수 결정 보존. `review_task` BEFORE INSERT 트리거가 되살린다. `review_task.status`에 `HOLD` 추가 |
+
+화면·API·배치와 함께 보는 설명은 [06-service-ui.md](06-service-ui.md).

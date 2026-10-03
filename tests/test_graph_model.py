@@ -36,3 +36,11 @@ def test_definition_with_nested_quotes():
 def test_definition_without_malhanda_does_not_swallow_the_next_term():
     t = '1. "연구원"이란 직원을 포함한다. 2. "출장"이란 근무지 밖에 가는 것을 말한다.'
     assert [n for n, _ in extract_terms(t)] == ["출장"]
+
+
+def test_forms_get_their_own_label():
+    """PostgreSQL은 별지 서식도 unit='annex'로 두고 경로만 form…으로 구분한다 — 그래프에서는 Form으로 나눈다."""
+    from reg.graph.model import node_label
+
+    assert node_label("annex", "form2") == "Form" and node_label("annex", "annex1") == "Annex"
+    assert node_label("article", "a3") == "Article" and node_label("chapter", "c1") == "Chapter"

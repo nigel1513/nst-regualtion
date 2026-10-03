@@ -26,12 +26,14 @@ EXPECTED = {
                        "tasks": {"institutions": (D, 2), "collect": ("alio_pool", 3), "reconcile": (D, 2),
                                  "done": (D, 0), "watcher": (D, 0)}},
     "reg_process": {"cron": "30 3 * * *", "assets": ["regulation_raw", "law_mirror", "regulation_ocr", "law_promoted"],
-                    "tasks": {"process_all": (D, 1), "quality_summary": (D, 1), "annex_render": (D, 1),
+                    "tasks": {"process_all": (D, 1), "refs_reresolve": (D, 1), "quality_summary": (D, 1),
+                              "annex_render": (D, 1),
                               "annex_tables": ("gpu_pool", 1), "watcher": (D, 0)}},
-    "reg_ocr": {"assets": ["regulation_structured"], "tasks": {"run_pending": (D, 2), "announce": (D, 0)}},
+    "reg_ocr": {"assets": ["regulation_structured"], "tasks": {"run_pending": ("gpu_pool", 2), "announce": (D, 0)}},
     "reg_publish": {"assets": ["regulation_structured"],
                     "tasks": {"graph_sync": (D, 2), "alerts_scan": (D, 2), "embed_check": ("gpu_pool", 6),
                               "index_build": ("gpu_pool", 6), "index_gate": (D, 3), "index_publish": (D, 1),
+                              "topics_classify": (D, 2), "compare_build": ("gpu_pool", 2),
                               "daily_summary": (D, 1), "watcher": (D, 0)}},
     "reg_notify": {"cron": "5 * * * *", "tasks": {"notify": (D, 2)}},
     "reg_maintenance": {"cron": "0 4 * * *", "tasks": {"maintenance": (D, 1)}},
@@ -41,11 +43,12 @@ EXPECTED = {
 OUTLETS = {("reg_law_daily", "sync_daily"): "law_mirror", ("reg_law_full", "sync_full"): "law_mirror",
            ("reg_law_link", "announce"): "law_promoted",
            ("reg_alio_daily", "done"): "regulation_raw", ("reg_backfill", "done"): "regulation_raw",
-           ("reg_process", "process_all"): "regulation_structured", ("reg_ocr", "announce"): "regulation_ocr"}
+           ("reg_process", "refs_reresolve"): "regulation_structured", ("reg_ocr", "announce"): "regulation_ocr"}
 TRIGGERS = {("reg_alio_daily", "reconcile"): "all_done", ("reg_alio_daily", "done"): "all_done",
             ("reg_alio_daily", "watcher"): "one_failed", ("reg_backfill", "done"): "all_done",
             ("reg_backfill", "watcher"): "one_failed", ("reg_process", "quality_summary"): "all_done",
             ("reg_process", "watcher"): "one_failed", ("reg_publish", "daily_summary"): "all_done",
+            ("reg_publish", "topics_classify"): "all_done",
             ("reg_publish", "watcher"): "one_failed"}
 RETRY_DELAY = {("reg_publish", "embed_check"): timedelta(minutes=30),
                ("reg_publish", "index_build"): timedelta(minutes=30)}

@@ -20,7 +20,7 @@ SELECT w.id AS work_id, r.seq, r.title, r.missing_since, i.code AS institution,
        ELSE 'ACTIVE' END AS status,
   CASE WHEN r.abolish_state = 'ABOLISHED' THEN r.abolished_on END AS abolished_on
 FROM regulation.alio_rule r
-JOIN regulation.work w ON w.external_ids->>'alio_seq' = r.seq
+JOIN regulation.work w ON w.external_ids ? 'alio_seq' AND w.external_ids->>'alio_seq' = r.seq
 JOIN regulation.institution i ON i.id = r.institution_id
 """
 
@@ -51,7 +51,7 @@ def mark_missing(conn, institution_id: int, started_at: datetime, today: date) -
     out["candidates"] = conn.execute(
         "UPDATE regulation.alio_rule r SET abolish_state = 'CANDIDATE'"
         " WHERE r.institution_id = %s AND r.abolish_state IS NULL AND r.missing_since <= %s"
-        " AND EXISTS (SELECT 1 FROM regulation.work w WHERE w.external_ids->>'alio_seq' = r.seq)",
+        " AND EXISTS (SELECT 1 FROM regulation.work w WHERE w.external_ids ? 'alio_seq' AND w.external_ids->>'alio_seq' = r.seq)",
         (institution_id, today - timedelta(days=CANDIDATE_AFTER_DAYS))).rowcount
     return out
 
@@ -69,11 +69,12 @@ def project(conn) -> dict:
         f" FROM ({_DESIRED}) d WHERE d.status = 'ABOLISHED_CANDIDATE'"
         " ON CONFLICT (kind, target) DO UPDATE SET detail = EXCLUDED.detail, status = 'OPEN',"
         "  resolved_at = NULL, decision = NULL"
-        " WHERE regulation.review_task.status <> 'OPEN' OR regulation.review_task.detail <> EXCLUDED.detail").rowcount
+        " WHERE NOT (regulation.review_task.status IN ('OPEN', 'HOLD')"  # 보류는 내용이 같으면 그대로 둔다
+        "  AND regulation.review_task.detail = EXCLUDED.detail)").rowcount
     dismissed = conn.execute(
         "UPDATE regulation.review_task t SET status = 'DISMISSED', resolved_at = now(),"
         " decision = '{\"auto\": \"not_candidate\"}'::jsonb"
-        f" WHERE t.kind = 'ABOLISHED' AND t.status = 'OPEN' AND NOT EXISTS (SELECT 1 FROM ({_DESIRED}) d"
+        f" WHERE t.kind = 'ABOLISHED' AND t.status IN ('OPEN', 'HOLD') AND NOT EXISTS (SELECT 1 FROM ({_DESIRED}) d"
         "  WHERE 'work:' || d.work_id = t.target AND d.status = 'ABOLISHED_CANDIDATE')").rowcount
     return {"status_changed": changed, "tasks_opened": opened, "tasks_dismissed": dismissed}
 

@@ -1,34 +1,145 @@
 @import "tailwindcss";
+@import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
+@import "@fontsource-variable/jetbrains-mono";
+@custom-variant dark (&:where(.dark, .dark *));
 
-:root {
-  --ground: #f4f5f7; --surface: #ffffff; --ink: #16191d; --ink-2: #3a414a; --muted: #5a626c;
-  --line: #dde1e6; --line-strong: #cdd3db; --accent: #1e4faf; --accent-soft: #e8eefa; --accent-line: #c9d6f0;
-  --amber: #9a4a00; --amber-soft: #fbf0e4; --green: #1d5b33; --green-soft: #e3f1e7; --red: #9a3412; --red-soft: #fbe9df;
-  --mark: #fff1a8;
+/* 디자인 토큰: NAIS 디자인 시스템 방향 A (nst-nexus docs/superpowers/specs/2026-10-01-ui-design-system.md §2),
+   서비스 UI 개편 spec docs/superpowers/specs/2026-10-03-service-ui-redesign.md §0.
+   색 값(hex)은 이 파일에만 둔다. 부품은 의미 토큰(bg, fg, border, accent …)만 쓴다. */
+@theme {
+  --font-sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  --font-serif: var(--font-sans); /* 옛 화면의 font-serif도 Pretendard로 (조문 본문은 15/26 sans) */
+  --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --color-bg: #fcfcfd;            /* slate-1 */
+  --color-bg-subtle: #f9f9fb;     /* slate-2 */
+  --color-bg-panel: #ffffff;
+  --color-bg-hover: #f0f0f3;      /* slate-3 */
+  --color-bg-active: #e8e8ec;     /* slate-4 */
+  --color-border: #d9d9e0;        /* slate-6 */
+  --color-border-subtle: #e8e8ec; /* slate-4: 표 행·목록 구분선 */
+  --color-border-strong: #cdced6; /* slate-7 */
+  --color-fg: #1c2024;            /* slate-12 */
+  --color-fg-muted: #60646c;      /* slate-11 */
+  --color-fg-subtle: #80838d;     /* slate-10 — 자리표시자·비활성·장식 전용 (본문 금지) */
+  --color-accent: #3e63dd;        /* indigo-9 */
+  --color-accent-fg: #3a5bc7;     /* indigo-11 */
+  --color-accent-fg-hover: #1f2d5c; /* indigo-12 */
+  --color-accent-soft: #edf2fe;   /* indigo-3 */
+  --color-accent-line: #abbdf9;   /* indigo-7: 참조 문구 밑줄 */
+  --color-primary: #1c2024;       /* slate-12: 주 버튼(잉크색) */
+  --color-primary-hover: #2b3036;
+  --color-primary-fg: #ffffff;
+  --color-focus: #8da4ef;         /* indigo-8 */
+  --color-focus-ring: #e1e9ff;    /* indigo-4 */
+  --color-success-soft: #e9f6e9; --color-success-line: #b2ddb5; --color-success-solid: #46a758; --color-success: #2a7e3b;
+  --color-warning-soft: #fff7c2; --color-warning-line: #f3d673; --color-warning-solid: #ffc53d; --color-warning: #9e5c00;
+  --color-warning-cell: #fffbe6;  /* 비교표에서 우리 기관과 다른 칸 (amber-2) */
+  --color-danger-soft: #feebec;  --color-danger-line: #fdbdbe;  --color-danger-solid: #e5484d;  --color-danger: #ce2c31;
+  --color-info-soft: #e0f8f3;    --color-info-line: #a1ded2;    --color-info-solid: #12a594;    --color-info: #007c6b;
+  --color-mark: #fff7c2;          /* 인용·대상 항 음영 (amber-3) */
+  --color-bg-raised: #ffffff;     /* SegmentedControl 선택 칸 */
+  --color-scrim: rgb(0 0 0 / 0.4);
+  --color-graph-1: #3e63dd; --color-graph-2: #12a594; --color-graph-3: #ef5f00; --color-graph-4: #8e4ec6;
+  --color-graph-muted: #b9bbc6; --color-graph-danger: #e5484d;
+
+  --radius-xs: 4px; /* Kbd, 16px 체크박스, SegmentedControl 안쪽 칸만 */
+  --radius-sm: 6px; --radius-md: 10px; --radius-lg: 14px;
+  --shadow-popover: 0 1px 2px rgb(0 0 0 / 0.04), 0 8px 24px -6px rgb(0 0 0 / 0.16);
+  --shadow-dialog: 0 1px 2px rgb(0 0 0 / 0.06), 0 24px 48px -12px rgb(0 0 0 / 0.28);
+  --shadow-raised: 0 1px 2px rgb(0 0 0 / 0.08), 0 0 0 1px rgb(0 0 0 / 0.04);
+
+  --text-display: 28px; --text-display--line-height: 34px; --text-display--letter-spacing: -0.02em; --text-display--font-weight: 650;
+  --text-title: 20px; --text-title--line-height: 28px; --text-title--letter-spacing: -0.015em; --text-title--font-weight: 600;
+  --text-heading: 16px; --text-heading--line-height: 24px; --text-heading--letter-spacing: -0.01em; --text-heading--font-weight: 600;
+  --text-body: 14px; --text-body--line-height: 22px;
+  --text-small: 13px; --text-small--line-height: 20px;
+  --text-caption: 12px; --text-caption--line-height: 16px; --text-caption--letter-spacing: 0.01em; --text-caption--font-weight: 500;
+  --text-mono: 12.5px; --text-mono--line-height: 20px;
+  --text-long: 15px; --text-long--line-height: 26px; /* 조문 본문, 최대 72ch */
+  --text-micro: 11px; --text-micro--line-height: 14px; --text-micro--font-weight: 500;
+
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --dur-exit: 100ms; --dur-press: 120ms; --dur-fast: 150ms; --dur-base: 200ms; --dur-sheet: 280ms;
 }
-@theme inline {
-  --color-ground: var(--ground); --color-surface: var(--surface); --color-ink: var(--ink); --color-ink-2: var(--ink-2);
-  --color-muted: var(--muted); --color-line: var(--line); --color-accent: var(--accent); --color-accent-soft: var(--accent-soft);
-  --font-sans: var(--font-ui), system-ui, sans-serif; --font-serif: var(--font-law), serif;
+
+:root { --z-sticky: 10; --z-sidebar: 20; --z-header: 30; --z-popover: 50; --z-dialog: 50; --z-toast: 60; --z-tooltip: 70; }
+
+.dark {
+  --color-bg: #111113; --color-bg-subtle: #18191b; --color-bg-panel: #18191b; --color-bg-hover: #212225; --color-bg-active: #272a2d;
+  --color-border: #363a3f; --color-border-subtle: #272a2d; --color-border-strong: #43484e;
+  --color-fg: #edeef0; --color-fg-muted: #b0b4ba; --color-fg-subtle: #777b84;
+  --color-accent: #3e63dd; --color-accent-fg: #9eb1ff; --color-accent-fg-hover: #d6e1ff; --color-accent-soft: #182449;
+  --color-accent-line: #3a4f97;
+  --color-primary: #edeef0; --color-primary-hover: #d9dbde; --color-primary-fg: #111113;
+  --color-focus: #435db1; --color-focus-ring: #1d2e62;
+  --color-success-soft: #1b2a1e; --color-success-line: #2d5736; --color-success-solid: #46a758; --color-success: #71d083;
+  --color-warning-soft: #302008; --color-warning-line: #5c3d05; --color-warning-solid: #ffc53d; --color-warning: #ffca16;
+  --color-warning-cell: #2a1d06;
+  --color-danger-soft: #3b1219;  --color-danger-line: #72232d;  --color-danger-solid: #e5484d;  --color-danger: #ff9592;
+  --color-info-soft: #0d2d2a;    --color-info-line: #145750;    --color-info-solid: #12a594;    --color-info: #0bd8b6;
+  --color-mark: #4a3a05;
+  --color-bg-raised: #2e3135; --color-scrim: rgb(0 0 0 / 0.6);
+  --color-graph-1: #5472e4; --color-graph-2: #0eb39e; --color-graph-3: #e2620f; --color-graph-4: #9a5cd0;
+  --color-graph-muted: #5a6169; --color-graph-danger: #e5484d;
+  --shadow-raised: 0 0 0 1px #43484e;
+  --shadow-popover: 0 0 0 1px #363a3f, 0 8px 24px -6px rgb(0 0 0 / 0.5);
+  --shadow-dialog: 0 0 0 1px #363a3f, 0 24px 48px -12px rgb(0 0 0 / 0.6);
+  color-scheme: dark;
 }
+
+/* 아직 옮기지 않은 화면(법령·개정 알림·원문 대조)이 쓰는 옛 변수: 새 토큰을 가리키게 둔다. */
+:root, .dark {
+  --ground: var(--color-bg); --surface: var(--color-bg-panel); --ink: var(--color-fg); --ink-2: var(--color-fg);
+  --muted: var(--color-fg-muted); --line: var(--color-border-subtle); --line-strong: var(--color-border-strong);
+  --accent: var(--color-accent-fg); --accent-soft: var(--color-accent-soft); --accent-line: var(--color-accent-line);
+  --amber: var(--color-warning); --amber-soft: var(--color-warning-soft); --green: var(--color-success);
+  --green-soft: var(--color-success-soft); --red: var(--color-danger); --red-soft: var(--color-danger-soft);
+  --mark: var(--color-mark);
+}
+
 @layer base {
-  body { background: var(--ground); color: var(--ink); }
-  a { color: var(--accent); }
-  a:hover { text-decoration: underline; }
+  html { -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; scroll-padding-top: 4rem; }
+  body {
+    background: var(--color-bg); color: var(--color-fg); font-family: var(--font-sans); font-size: 14px; line-height: 22px;
+    font-feature-settings: "ss06"; text-rendering: geometricPrecision;
+  }
+  /* Chromium은 폼 컨트롤의 text-rendering을 auto로 되돌린다 (버튼 안 글자 간격이 벌어짐) */
+  button, input, textarea, select { text-rendering: inherit; }
+  a { color: var(--color-accent-fg); text-decoration: none; }
+  @media (hover: hover) and (pointer: fine) { a:hover { color: var(--color-accent-fg-hover); text-decoration: underline; } }
+  :focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+  button, a, [role="button"] { touch-action: manipulation; }
+  ::selection { background: var(--color-accent-soft); }
+  @media (max-width: 767px) { input, textarea, select { font-size: 16px; } }
 }
-.chip { display: inline-flex; align-items: center; height: 24px; padding: 0 9px; border-radius: 999px; font-size: 12px; font-weight: 500; background: #eef1f5; color: var(--ink-2); }
-.chip-green { background: var(--green-soft); color: var(--green); }
-.chip-blue { background: var(--accent-soft); color: var(--accent); }
-.chip-amber { background: var(--amber-soft); color: var(--amber); }
-.chip-red { background: var(--red-soft); color: var(--red); }
-.btn { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); font-size: 13px; transition: transform 160ms ease-out; }
+
+@utility num { font-variant-numeric: tabular-nums; }
+@utility press { transition: transform var(--dur-press) var(--ease-out); &:active { transform: scale(0.97); } }
+
+/* 옛 화면용 부품 클래스 — 새 토큰·반경 단계로 다시 그린다 (알약 모양 없음). */
+.chip { display: inline-flex; align-items: center; height: 20px; padding: 0 6px; border-radius: var(--radius-sm); font-size: 12px; line-height: 16px; font-weight: 500; background: var(--color-bg-active); color: var(--color-fg-muted); white-space: nowrap; }
+.chip-green { background: var(--color-success-soft); color: var(--color-success); }
+.chip-blue { background: var(--color-accent-soft); color: var(--color-accent-fg); }
+.chip-amber { background: var(--color-warning-soft); color: var(--color-warning); }
+.chip-red { background: var(--color-danger-soft); color: var(--color-danger); }
+.btn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: var(--radius-sm); border: 1px solid var(--color-border); background: var(--color-bg-panel); color: var(--color-fg); font-size: 13px; font-weight: 500; cursor: pointer; transition: transform var(--dur-press) var(--ease-out); }
 .btn:active { transform: scale(0.97); }
-.btn:hover { text-decoration: none; }
-.btn-dark { background: var(--ink); color: #fff; border-color: var(--ink); }
-.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
-.ref { color: var(--accent); border-bottom: 1px dashed #9fb4dd; background: var(--accent-soft); border-radius: 3px; padding: 0 2px; }
-button.ref { font: inherit; line-height: inherit; cursor: pointer; border-top: 0; border-left: 0; border-right: 0; }
-button.ref:hover, button.ref[aria-expanded="true"] { background: var(--mark); }
-.ref-unresolved { color: var(--ink-2); border-bottom: 1px dotted var(--amber); }
-.note { font-family: var(--font-ui); font-size: 12px; color: var(--amber); }
-@media (prefers-reduced-motion: reduce) { .btn { transition: none; } }
+.btn:hover { text-decoration: none; background: var(--color-bg-hover); color: var(--color-fg); }
+.btn-dark { background: var(--color-primary); color: var(--color-primary-fg); border-color: var(--color-primary); }
+.btn-dark:hover { background: var(--color-primary-hover); color: var(--color-primary-fg); }
+.card { background: var(--color-bg-panel); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+
+/* 조문 안 참조 문구: 누르면 팝업 (사용자 요청 2026-10-03) */
+.ref { color: var(--color-accent-fg); border-bottom: 1px dashed var(--color-accent-line); }
+button.ref { font: inherit; line-height: inherit; cursor: pointer; background: transparent; padding: 0; border-top: 0; border-left: 0; border-right: 0; }
+button.ref:hover, button.ref[aria-expanded="true"] { background: var(--color-mark); }
+.ref-unresolved { color: var(--color-fg); border-bottom: 1px dotted var(--color-warning); }
+.note { font-size: 12px; color: var(--color-fg-muted); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-property: opacity !important; transition-duration: 120ms !important; animation: none !important; }
+  .press:active, .btn:active, [data-starting-style], [data-ending-style] { transform: none !important; scale: none !important; translate: none !important; }
+}

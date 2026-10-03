@@ -10,6 +10,8 @@ from reg.core.parse import PARSER_VERSION
 
 _NORM = re.compile(r"[\s·ㆍ‧∙・]")
 RENUMBER_UNITS = {"article", "paragraph", "item"}
+# 부분 인덱스 work_alio_seq는 조건(external_ids ? 'alio_seq')이 쿼리에 있어야 쓰인다
+WORK_BY_ALIO_SEQ = "SELECT id FROM regulation.work WHERE external_ids ? 'alio_seq' AND external_ids->>'alio_seq' = %s"
 
 
 def norm_title(s: str) -> str:
@@ -21,7 +23,7 @@ def text_hash(p: Prov) -> str:
 
 
 def work_key_for_regulation(conn, inst_code: str, inst_id: int, title: str, seq: str) -> str:
-    row = conn.execute("SELECT id FROM regulation.work WHERE external_ids->>'alio_seq' = %s", (seq,)).fetchone()
+    row = conn.execute(WORK_BY_ALIO_SEQ, (seq,)).fetchone()
     if row:
         return row["id"]
     key = f"kr/reg/{inst_code}/{norm_title(title)}"
@@ -169,3 +171,16 @@ def rebuild_work(conn, work_id: str, today: date) -> dict:
     n_prov = conn.execute("SELECT count(*) AS n FROM regulation.provision WHERE work_id = %s",
                           (work_id,)).fetchone()["n"]
     return {"versions": len(versions), "provisions": n_prov, "changes": n_changes}
+
+
+def fix_revision_titles(conn) -> int:
+    """제목 자리에 제·개정 이력 줄('제정 1992-02-01')이 들어간 판본은 규정 이름으로 바로잡는다 (파서 2026.10.7 이전 적재분)."""
+    from reg.core.parse import RE_REVISION_LINE
+
+    rows = conn.execute("SELECT v.id, w.title FROM regulation.work_version v JOIN regulation.work w ON w.id = v.work_id"
+                        " WHERE v.title ~ '^\\s*[<\\[(]?\\s*(제정|개정|전부\\s*개정|일부\\s*개정|시행)'").fetchall()
+    rows = [r for r in rows if RE_REVISION_LINE.match(conn.execute(
+        "SELECT title FROM regulation.work_version WHERE id = %s", (r["id"],)).fetchone()["title"])]
+    for r in rows:
+        conn.execute("UPDATE regulation.work_version SET title = %s WHERE id = %s", (r["title"], r["id"]))
+    return len(rows)
