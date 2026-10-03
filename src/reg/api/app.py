@@ -124,11 +124,6 @@ def create_app(dsn: str, blob: BlobStore, search_deps: dict | None = None) -> Fa
     def search(q: str = Query(..., min_length=2), institution: str | None = None, c=Depends(conn)):
         return Q.search(c, q, institution)
 
-    @app.get("/api/v1/review-tasks")
-    def review_tasks(status: str = Query("OPEN", pattern="^(OPEN|RESOLVED|DISMISSED)$"), kind: str | None = None,
-                     c=Depends(conn)):
-        return Q.review_tasks(c, status, kind)
-
     def _search_deps() -> dict:
         deps = app.state.search
         if not deps or deps["os"].alias_target() is None:
@@ -246,4 +241,7 @@ def create_app(dsn: str, blob: BlobStore, search_deps: dict | None = None) -> Fa
     from reg.api.graph_routes import router as graph_router  # M7-G 구조 그래프
 
     app.include_router(graph_router)
+    from reg.api.review_routes import router as review_router  # 검수 (서비스 UI 스펙 §6)
+
+    app.include_router(review_router)
     return app
