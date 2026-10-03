@@ -5,7 +5,15 @@ import unicodedata
 UNIT_LABELS = {"article": "Article", "paragraph": "Paragraph", "item": "Item", "subitem": "Subitem",
                "annex": "Annex", "form": "Form", "supplement": "Supplement", "supp_article": "SuppArticle",
                "chapter": "Chapter", "section": "Section"}
-CONTEXT_UNITS = ("chapter", "section")  # 전체 라벨·용어 사용에서 빼는 문맥 단위
+CONTEXT_UNITS = ("chapter", "section")
+
+
+def node_label(unit: str, path: str) -> str:
+    """단위의 그래프 라벨. PostgreSQL은 별지 서식도 unit='annex'(경로 form…)로 두므로 경로로 Form을 가른다."""
+    if unit == "annex" and path.startswith("form"):
+        return "Form"
+    return UNIT_LABELS.get(unit, "")
+  # 전체 라벨·용어 사용에서 빼는 문맥 단위
 REF_RELS = ("BASIS", "DELEGATION", "IMPLEMENTS", "MUTATIS", "EXCEPTION", "CITATION")
 
 # "출장"이란 …을 말한다 / “고시금액”이라 함은 …을 말한다. 약칭 정의 '(이하 "법"이라 한다)'는 '말한다'가 없어 걸리지 않는다
