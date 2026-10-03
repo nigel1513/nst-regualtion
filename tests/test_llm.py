@@ -37,3 +37,16 @@ def test_llm_json_retries_bad_json_once():
     route.side_effect = [httpx.Response(200, json={"choices": [{"message": {"content": "{bad"}}]}),
                          httpx.Response(200, json={"choices": [{"message": {"content": '{"a": 1}'}}]})]
     assert LLMProvider("http://l", "llm").json([{"role": "user", "content": "x"}], {"type": "object"}) == {"a": 1}
+
+
+@respx.mock
+def test_rerank_truncates_long_documents():
+    """긴 별표·표 본문을 그대로 보내면 리랭커(vLLM)가 토큰화에 묶여 멈췄다 (2026-10-04) — 문서마다 앞부분만 보낸다."""
+    import json
+
+    from reg.platform.llm import RERANK_MAX_CHARS
+
+    route = respx.post("http://r/rerank").respond(200, json={"results": [{"index": 0, "relevance_score": 1.0}]})
+    RerankProvider("http://r", "m").rerank("q", ["가" * 50_000])
+    sent = json.loads(route.calls[0].request.content)["documents"][0]
+    assert len(sent) == RERANK_MAX_CHARS
