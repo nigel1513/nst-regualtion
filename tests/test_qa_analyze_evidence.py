@@ -90,3 +90,31 @@ def test_cross_work_citation_uses_the_version_valid_at_as_of(conn, tmp_path):
     assert _version_at(conn, "kr/law/L9", "2023-06-01") == vids[0]
     assert _version_at(conn, "kr/law/L9", "2019-01-01") is None
     assert _version_at(conn, "kr/law/L9", None, release_id="99") is None  # 색인 release 밖의 버전은 쓰지 않는다
+
+
+def test_graph_related_adds_definitions_and_falls_back_on_failure(conn, tmp_path):
+    """M7-Q: 그래프(related)가 주면 용어 정의·예외를 그래프 이유와 함께 붙이고, 그래프가 죽으면 PG 방식으로 돌아간다."""
+    blob = LocalBlobStore(tmp_path)
+    seed_alio(conn, blob, (FX / "samples" / "kasi-yeobi-339.pdf").read_bytes())
+    process_once(conn, blob, today=date(2026, 10, 2))
+    v = conn.execute("SELECT id, work_id, title FROM regulation.work_version").fetchone()
+    hit = {"version_id": v["id"], "work_id": v["work_id"], "title": v["title"], "path": "a27"}
+    seen = []
+
+    def related(pv_ids, as_of):
+        seen.append((list(pv_ids), as_of))
+        return [{"work_id": v["work_id"], "path": "a2.i1", "reason": "용어 정의: 출장", "rel": "DEFINES",
+                 "direction": "term"},
+                {"work_id": v["work_id"], "path": "a26", "reason": "상위 조문", "rel": "CONTAINS", "direction": "parent"}]
+
+    ev = expand(conn, [hit], related=related, as_of="2026-10-02")
+    assert seen and seen[0][0] and seen[0][1] == "2026-10-02"
+    d = [e for e in ev if e.role == "definition"]
+    assert [e.path for e in d] == ["a2"] and d[0].reason == "용어 정의: 출장" and d[0].matched_paths == ["a2.i1"]
+    assert not any(e.path == "a26" for e in ev)  # 상위 조문(parent)은 이미 조 단위로 보여주므로 넣지 않는다
+
+    def down(pv_ids, as_of):
+        raise ConnectionError("neo4j down")
+
+    fallback = expand(conn, [hit], related=down)
+    assert any(e.role == "cited" and e.path == "a13" for e in fallback)

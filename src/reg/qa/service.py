@@ -93,11 +93,12 @@ def ask(db, deps: dict, question: str, institution: str | None = None, user_inst
         with _db(db) as conn:
             res.update(status="not_found", note="관련 규정을 찾지 못했습니다. 아래는 가까운 후보입니다.",
                        evidence=[asdict(e) for e in expand(conn, hits[:5], limit_articles=5, as_of=as_of,
-                                                           release_id=found["release_id"])])
+                                                           release_id=found["release_id"],
+                                                           related=deps.get("related"))])
             res["id"] = record(conn, None, retrieved)
         return res
     with _db(db) as conn:
-        evidence = expand(conn, hits, as_of=as_of, release_id=found["release_id"])
+        evidence = expand(conn, hits, as_of=as_of, release_id=found["release_id"], related=deps.get("related"))
         conn.commit()  # 풀에 돌려줄 때 열린 트랜잭션이 남지 않게
     res["evidence"] = [asdict(e) for e in evidence]
     gen = generate(deps["llm"], q, a, evidence) if deps.get("llm") else \

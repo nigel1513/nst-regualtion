@@ -174,11 +174,23 @@ def create_app(dsn: str, blob: BlobStore, search_deps: dict | None = None) -> Fa
 
         return suggest(_search_deps()["os"], q, institution, size)
 
+    def _graph_related(request: Request):
+        """QA 근거 확장용 구조 그래프 (M7-Q). 드라이버를 못 만들면 None — QA는 PostgreSQL 방식으로 간다."""
+        from reg.api.graph_routes import _driver
+        from reg.graph.query import expand as graph_expand
+
+        def related(pv_ids, as_of):
+            return graph_expand(_driver(request), pv_ids, as_of, depth=1)
+
+        return related
+
     @app.post("/api/v1/qa")
-    def qa(body: QaIn):
+    def qa(body: QaIn, request: Request):
         from reg.qa.service import ask
 
         deps = app.state.search
+        if deps and "related" not in deps:
+            deps = {**deps, "related": _graph_related(request)}
         if not deps or deps["os"].alias_target() is None:
             raise HTTPException(503, "검색 색인이 아직 없습니다")
         # 답변 생성은 GPU 한 대를 나눠 쓴다: 동시에 QA_SLOTS개까지만 받고, DB 연결은 단계마다 잠깐씩만 빌린다

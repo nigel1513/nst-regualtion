@@ -5,6 +5,7 @@ import { ProvisionText } from "@/components/ProvisionText";
 import { LawPanel } from "@/components/LawPanel";
 import { RegAnnexCard } from "@/components/RegAnnexCard";
 import { Relations } from "@/components/Relations";
+import { GraphMap } from "@/components/GraphMap";
 import { apiGet, decodeSegments, type LawArticleDetail, type LawCite, type Provision, sourceHref, validDate, type VersionRow, type ViewData, type Work, type WorkStatusFields, workHref } from "@/lib/api";
 import { BASIS_LABEL, fmtDate, STATE_LABEL, STATUS_LABEL, TASK_LABEL } from "@/lib/format";
 
@@ -143,6 +144,7 @@ export default async function ViewerPage({ params, searchParams }: {
         <aside className="flex flex-col gap-4 self-start lg:sticky lg:top-4">
           {lawDetail && <LawPanel d={lawDetail} closeHref={closeLawHref} />}
           {selected && <Relations pvIds={[selected.id, ...subtree(selected.path).map((c) => c.id)]} label={selected.label} workId={work.id} />}
+          {selected && <GraphMap key={selected.id} pvId={selected.id} label={selected.label} />}
           <section className="card p-4">
             <div className="mb-3 flex items-baseline justify-between">
               <h2 className="text-[13px] font-semibold">연혁</h2>
