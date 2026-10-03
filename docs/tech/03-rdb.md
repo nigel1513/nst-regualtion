@@ -1915,3 +1915,13 @@ WHERE schemaname = 'regulation' AND relname IN ('reference','provision_change','
 - `outbox`에 3회 실패로 보류된 `regulation.source_fetched` 1건이 있다.
 - KRIBB 수집(`alio.collect:KRIBB`)이 8회 연속 실패했다(마지막 2026-10-02 18:25 UTC).
 - `law` 스키마 7개 테이블과 `regulation` 쪽 법령 FK 열 4개는 모두 비어 있다. law.go.kr 운영 OC 키 승인 후 채워진다.
+
+## 9. 2026-10-04 추가 테이블
+
+| 테이블 | 마이그레이션 | 열 | 설명 |
+|---|---|---|---|
+| `regulation.work_topic` | 0011 | `work_id, topic, score, method(title·purpose·embedding·none·manual), rank(1·2), classified_at`, PK `(work_id, topic)`, 인덱스 `(topic, work_id)` | 규정 ↔ 주제. 외래 키 없음(재파싱으로 id가 바뀌어도 다시 분류) |
+| `regulation.compare_cell` | 0011 | `topic, item, institution_code, work_id, version_id, pv_id, path, value, value_norm, quote, method(llm·absent·manual), confidence, extracted_at`, PK `(topic, item, institution_code)` | 기관 비교값. 값이 있으면 근거·인용 필수(CHECK). 읽을 때 `(work_id, path)`로 현행 조문을 다시 찾는다 |
+| `regulation.review_decision` | 0013 | `(kind, target)` 키, 상태·담당·결정·detail 스냅샷·시각 | 검수 결정 보존. `review_task` BEFORE INSERT 트리거가 되살린다. `review_task.status`에 `HOLD` 추가 |
+
+화면·API·배치와 함께 보는 설명은 [06-service-ui.md](06-service-ui.md).
