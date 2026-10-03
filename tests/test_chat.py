@@ -190,18 +190,16 @@ class FakeConn:
                           else None}])
         if "FROM regulation.institution" in sql:
             return Rows([{"code": c, "name": al[0], "aliases": al[1:]} for c, al in ALIASES.items()])
-        if "information_schema.columns" in sql:
-            return Rows([{"column_name": c} for c in ("topic", "item_label", "institution", "value", "quote",
-                                                       "provision_version_id")])
         if "FROM regulation.work w" in sql:
             return Rows([{"id": h["work_id"], "code": h["institution"], "name": h["institution_name"]} for h in HITS
                          if h["work_id"] in params[0]])
         if "FROM regulation.compare_cell" in sql:
+            assert params == ("travel", "evidence_deadline")
             return Rows(self.cells)
-        if "WHERE pv.id = %s" in sql:
-            h = next(h for h in HITS if h["institution"] == {11: "KASI", 12: "KBSI"}[params[0]])
-            return Rows([{"path": "a10.p1", "text": h["text"], "version_id": h["version_id"], "work_id": h["work_id"],
-                          "title": h["title"]}])
+        if "version_state = 'CURRENT'" in sql:
+            h = next(h for h in HITS if h["work_id"] == params[0])
+            body = h["text"].split(") ", 1)[1].lstrip("① ")
+            return Rows([{"path": "a10.p1", "text": body, "version_id": h["version_id"], "title": h["title"]}])
         if "FROM regulation.version_provision" in sql:
             h = next(h for h in HITS if h["version_id"] == params[0])
             body = h["text"].split(") ", 1)[1]
@@ -280,17 +278,62 @@ def test_comparison_over_selected_institutions_searches_each(fake_search):
     assert {c["institution"]["code"] for c in cards} == {"KASI", "KBSI"}
 
 
-def test_comparison_uses_compare_cell_when_present(fake_search):
-    cells = [{"item": "증빙 제출 기한", "institution": "KASI", "value": "7일", "quote": "7일 이내에 증빙서를", "pv_id": 11},
-             {"item": "증빙 제출 기한", "institution": "KBSI", "value": "5일", "quote": "5일 안에 영수증을", "pv_id": 12},
-             {"item": "일비", "institution": "KASI", "value": "2만원", "quote": "x", "pv_id": 11}]
+ITEMS = {"travel": [
+    {"id": "evidence_deadline", "label": "출장 증빙 제출 기한", "query": "출장 종료 후 출장 증빙서 제출 기한 며칠 이내",
+     "ask": "국내 출장을 마친 뒤 출장 증빙서류나 출장복명서를 며칠 이내에 제출해야 하는가?", "unit": "일"},
+    {"id": "settlement_deadline", "label": "여비 정산 기한", "query": "출장 여비 정산 신청 기한 출장 종료 후 이내 정산",
+     "ask": "국내 출장 여비는 출장이 끝난(귀임한) 뒤 며칠 이내에 정산해야 하는가?", "unit": "일"}],
+    "research": [{"id": "note_retention", "label": "연구노트 보존 기간", "query": "연구노트 보존 기간"}]}
+
+
+def _cell(code, value, quote, method="llm"):
+    return {"institution_code": code, "work_id": next(h["work_id"] for h in HITS if h["institution"] == code),
+            "path": "a10.p1", "value": value, "value_norm": value, "quote": quote, "method": method, "confidence": 0.9}
+
+
+def test_match_item_by_label_and_query():
+    from reg.qa.chat import match_item
+
+    t, it = match_item("출장 증빙은 출장 후 며칠 안에 내야 하나요?", ITEMS)
+    assert (t, it["id"]) == ("travel", "evidence_deadline")
+    assert match_item("여비 정산은 언제까지 하나요?", ITEMS)[1]["id"] == "settlement_deadline"
+    assert match_item("연구장비 구매 절차", ITEMS) is None
+    assert match_item("출장 증빙 제출 기한", ITEMS, topic="research") is None
+
+
+def test_comparison_uses_compare_cell_when_present(fake_search, monkeypatch):
+    monkeypatch.setattr(chat_mod, "compare_items", lambda: ITEMS)
+    cells = [_cell("KASI", "7일", "7일 이내에 증빙서를"), _cell("KBSI", "5일", "5일 안에 영수증을"),   # KBSI 인용은 원문에 없다
+             {**_cell("KIST", None, None, "absent"), "work_id": None, "path": None}]
     llm = ExtractLLM()
     ev = _events(FakeConn(cells), llm, "다른 기관도 출장 증빙 제출 기한은?")
     table = next(e["data"] for e in ev if e["event"] == "table")
     assert table["source"] == "compare_cell" and llm.calls == 0
-    assert [(r["institution"]["code"], r["value"]) for r in table["rows"]] == [("KASI", "7일")]   # KBSI 인용은 원문에 없다
+    assert (table["item"], table["item_id"], table["topic"], table["unit"]) == ("출장 증빙 제출 기한", "evidence_deadline",
+                                                                                "travel", "일")
+    rows = {r["institution"]["code"]: r for r in table["rows"]}
+    assert rows["KASI"]["value"] == "7일" and rows["KASI"]["cite"] == 1
+    assert rows["KBSI"]["value"] is None and rows["KIST"] == {"institution": {"code": "KIST", "name": "한국과학기술연구원"},
+                                                             "value": None, "cite": None, "absent": True}
     cites = next(e["data"]["items"] for e in ev if e["event"] == "citations")
-    assert cites[0]["quote"] == "7일 이내에 증빙서를"
+    assert len(cites) == 1 and cites[0]["quote"] == "7일 이내에 증빙서를" and cites[0]["label"] == "여비규정 제10조 제1항"
+
+
+def test_compare_cell_respects_selected_institutions_and_focus(fake_search, monkeypatch):
+    monkeypatch.setattr(chat_mod, "compare_items", lambda: ITEMS)
+    cells = [_cell("KASI", "7일", "7일 이내에 증빙서를"), _cell("KBSI", "5일", "5일 이내에 증빙서류를")]
+    ev = _events(FakeConn(cells), ExtractLLM(), "출장 증빙 제출 기한", only("KBSI", "KASI"))
+    table = next(e["data"] for e in ev if e["event"] == "table")
+    assert [r["institution"]["code"] for r in table["rows"]] == ["KASI", "KBSI"] and all(r["cite"] for r in table["rows"])
+    ev = _events(FakeConn(cells), ExtractLLM(), "출장 증빙 제출 기한은? 다른 기관도", only("KBSI"))
+    table = next(e["data"] for e in ev if e["event"] == "table")
+    assert table["rows"][0]["institution"]["code"] == "KBSI"
+
+
+def test_compare_cell_without_matching_item_falls_back_to_extraction(fake_search, monkeypatch):
+    monkeypatch.setattr(chat_mod, "compare_items", dict)
+    ev = _events(FakeConn([]), ExtractLLM(), "다른 기관도 출장 증빙 제출 기한은?")
+    assert next(e["data"] for e in ev if e["event"] == "table")["source"] == "extracted"
 
 
 def test_comparison_without_llm_still_sends_cards(fake_search):
@@ -410,3 +453,26 @@ def test_all_institution_answer_with_invented_number_falls_back_to_cards(fake_se
     assert "answer" not in [e["event"] for e in ev] and ev[-1]["data"]["status"] == "evidence_only"
     assert sum(p.startswith("설명") for p in llm.calls) == 2                               # 한 번 다시 묻는다
     assert next(e["data"]["cards"] for e in ev if e["event"] == "results")
+
+
+def test_overview_answer_ignores_evidence_ids_in_explanation():
+    from reg.qa.chat import overview_answer
+    from reg.qa.evidence import Evidence
+
+    class L:
+        def regex(self, messages, pattern, **kw):
+            return ("설명: 구매는 관련 규정에 따른다 (E1: \"계약 규정\"). 기술검사를 거친다 E2.\n"
+                    "근거: E1\n인용: 연구시설장비의 구매는 관련 규정에 따른다.")
+
+    ev = [Evidence("E1", "w", "v", "지침", "a16", "제16조", "연구시설장비의 구매는 관련 규정에 따른다.", "primary", None)]
+    got = overview_answer(L(), "연구장비 구매 절차", ev, {})
+    assert got and got["설명"] == "구매는 관련 규정에 따른다. 기술검사를 거친다." and got["결론"] is None
+
+
+def test_best_sentence_is_verbatim_and_requires_overlap():
+    from reg.qa.chat import best_sentence
+
+    text = "제7조(구매)\n① 시설·장비활용부서의 장은 심의를 통과한 시설·장비에 대해 구매신청한다.\n② 관리부서는 계약절차를 진행한다."
+    got = best_sentence("시설·장비활용부서의 장이 심의를 통과한 장비에 대해 구매신청한다", text)
+    assert got == "시설·장비활용부서의 장은 심의를 통과한 시설·장비에 대해 구매신청한다." and got in text
+    assert best_sentence("연구노트는 30년 보존한다", text) is None

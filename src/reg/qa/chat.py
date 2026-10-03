@@ -58,7 +58,8 @@ EXTRACT_SYSTEM = ("너는 기관별 규정 비교표를 만든다. 질문에 대
 EXTRACT_PATTERN = r"값: ([^\n]{1,40})\n인용: ([^\n]{2,160})"
 OVERVIEW_SYSTEM = ("너는 공공연구기관 내부규정 안내자다. 여러 기관의 근거(E1, E2…)만 읽고 질문에 대해 기관들에 공통된 내용을 "
                    "3문장 이내로 정리하라. 기관마다 다른 점이 있으면 한 문장으로 덧붙인다. 근거에 없는 내용·숫자는 쓰지 않는다. "
-                   "인용에는 근거 본문의 핵심 구절을 글자 그대로(80자 이내) 옮기고, 서로 다른 기관의 근거를 2~3개 인용하라.")
+                   "설명에는 근거 번호를 쓰지 않는다. 인용에는 근거 본문의 한 문장을 글자 그대로(80자 이내) 복사하고, 서로 다른 기관의 "
+                   "근거를 2~3개 인용하라.")
 OVERVIEW_EVIDENCE = 4      # 전체 기관 질문: 기관마다 1위 조 하나씩, 이만큼
 OVERVIEW_CARDS = 10
 PER_INSTITUTION = 2        # 전체 기관 질문의 카드: 기관당 최대
@@ -334,40 +335,72 @@ def _bigrams(s: str) -> set[str]:
     return {s[i:i + 2] for i in range(len(s) - 1)}
 
 
-def compare_cells(conn, query: str) -> list[dict] | None:
-    """regulation.compare_cell(기관 비교 트랙)이 있으면 질문과 가장 비슷한 비교 항목의 칸들. 표나 맞는 항목이 없으면 None.
-    열 이름은 설계(UI v2 §4)를 따르되 다를 수 있어 information_schema로 확인하고, 모르는 꼴이면 쓰지 않는다."""
+def compare_items() -> dict[str, list[dict]]:
+    """config/topics.yaml의 비교 항목 {주제 id: [{id, label, query, ask, unit, norm}…]} (기관 비교 트랙). 없으면 {}."""
+    import yaml
+
+    from reg.platform.settings import ROOT
+
+    f = ROOT / "config" / "topics.yaml"
+    try:
+        return (yaml.safe_load(f.read_text(encoding="utf-8")) or {}).get("items") or {}
+    except (OSError, yaml.YAMLError):
+        return {}
+
+
+def match_item(question: str, items: dict[str, list[dict]], topic: str | None = None) -> tuple[str, dict] | None:
+    """질문 ↔ 비교 항목: 항목 라벨의 두 글자 조각이 질문에 2개 이상 있어야 하고, 점수(라벨 조각 ×2 + 검색어·질문문 조각)가
+    가장 높은 항목 하나. 동점이면 고르지 않는다."""
+    qb = _bigrams(question)
+    scored = []
+    for t, its in items.items():
+        if topic and t != topic:
+            continue
+        for it in its or []:
+            lab = len(qb & _bigrams(it.get("label") or ""))
+            if lab >= 2:
+                extra = len(qb & (_bigrams(it.get("query") or "") | _bigrams(it.get("ask") or "")))
+                scored.append((2 * lab + extra, t, it))
+    scored.sort(key=lambda x: -x[0])
+    if not scored or (len(scored) > 1 and scored[0][0] == scored[1][0]):
+        return None
+    return scored[0][1], scored[0][2]
+
+
+def compare_cells(conn, question: str, topic: str | None = None, items: dict | None = None) -> dict | None:
+    """regulation.compare_cell(topic, item, institution_code, work_id, pv_id, path, value, value_norm, quote, method,
+    confidence, extracted_at)에서 질문과 맞는 항목의 칸들 → {topic, item, rows}. 표·항목·칸이 없으면 None."""
     if not _has_table(conn, "regulation.compare_cell"):
         return None
-    cols = {r["column_name"] for r in conn.execute(
-        "SELECT column_name FROM information_schema.columns WHERE table_schema = 'regulation'"
-        " AND table_name = 'compare_cell'").fetchall()}
-    item = next((c for c in ("item_label", "item_name", "item", "item_key") if c in cols), None)
-    pv = next((c for c in ("provision_version_id", "pv_id", "evidence_pv_id") if c in cols), None)
-    inst = "i.code" if "institution_id" in cols else "cc.institution" if "institution" in cols else None
-    if not (item and pv and inst and {"value", "quote"} <= cols):
+    hit = match_item(question, compare_items() if items is None else items, topic)
+    if hit is None:
         return None
-    join = " JOIN regulation.institution i ON i.id = cc.institution_id" if inst == "i.code" else ""
-    rows = conn.execute(f"SELECT cc.{item}::text AS item, {inst} AS institution, cc.value::text AS value,"
-                        f" cc.quote::text AS quote, cc.{pv} AS pv_id FROM regulation.compare_cell cc{join}"
-                        " WHERE cc.value IS NOT NULL").fetchall()
-    qb = _bigrams(query)
-    score: dict[str, float] = {}
-    for r in rows:
-        ib = _bigrams(r["item"])
-        if ib:
-            score[r["item"]] = len(ib & qb) / len(ib)
-    if not score or (best := max(score, key=score.get)) is None or score[best] < 0.5:
-        return None
-    return [r for r in rows if r["item"] == best]
+    rows = conn.execute(
+        "SELECT institution_code, work_id, path, value, value_norm, quote, method, confidence"
+        " FROM regulation.compare_cell WHERE topic = %s AND item = %s ORDER BY institution_code",
+        (hit[0], hit[1]["id"])).fetchall()
+    return {"topic": hit[0], "item": hit[1], "rows": rows} if rows else None
 
 
-def _cell_evidence(conn, pv_id) -> dict | None:
-    return conn.execute(
-        "SELECT pv.path, pv.text, wv.id AS version_id, wv.work_id, wv.title FROM regulation.provision_version pv"
-        " JOIN regulation.version_provision vp ON vp.provision_version_id = pv.id"
-        " JOIN regulation.work_version wv ON wv.id = vp.work_version_id WHERE pv.id = %s"
-        " ORDER BY (wv.version_state = 'CURRENT') DESC LIMIT 1", (pv_id,)).fetchone()
+def cell_text(conn, work_id: str, path: str) -> dict | None:
+    """칸의 근거 조문을 현행 판본에서 (work_id, path)로 다시 찾는다 (재파싱으로 pv_id가 바뀌어도). 하위 조항까지 합친 본문."""
+    rows = conn.execute(
+        "SELECT pv.path, pv.text, wv.id AS version_id, wv.title FROM regulation.work_version wv"
+        " JOIN regulation.version_provision vp ON vp.work_version_id = wv.id"
+        " JOIN regulation.provision_version pv ON pv.id = vp.provision_version_id"
+        " WHERE wv.work_id = %s AND wv.version_state = 'CURRENT' AND (pv.path = %s OR pv.path LIKE %s)"
+        " ORDER BY vp.ord", (work_id, path, path + ".%")).fetchall()
+    if not rows:
+        return None
+    return {"version_id": rows[0]["version_id"], "title": rows[0]["title"], "units": rows,
+            "text": "\n".join(r["text"] for r in rows if r["text"])}
+
+
+def path_label(path: str) -> str:
+    """a27.p1 → '제27조 제1항', a3-3 → '제3조의3'."""
+    m = re.match(r"a(\d+)(?:-(\d+))?", path or "")
+    art = f"제{int(m[1])}조" + (f"의{int(m[2])}" if m and m[2] else "") if m else ""
+    return " ".join(x for x in (art, sub_label(path or "")) if x)
 
 
 def extract_value(llm, question: str, h: dict) -> tuple[str, str] | None:
@@ -463,7 +496,7 @@ def chat(db, deps: dict, messages: list[dict], scope: dict | None = None, as_of:
             works = scope_works(conn, scope)
             conn.commit()
         query, rewritten = standalone(deps.get("llm"), msgs, aliases)
-        p = plan(query, scope, aliases)
+        p = {**plan(query, scope, aliases), "topic": scope.get("topic")}
         st.update(intent=p["intent"], query=query, institution=p["focus"])
         names = {c: al[0] for c, al in aliases.items()}
         yield "status", {"stage": "understand", "label": "질문을 이해했습니다", "conversation_id": cid,
@@ -589,6 +622,20 @@ def _overview_pattern(ids: list[str]) -> str:
     return r"설명: ([^\n]{10,500})(?:\n근거: (?:" + alt + r")\n인용: [^\n]{5,160}){1,3}"
 
 
+RE_EREF = re.compile(r"\s*[(\[](?:E\d+)[^)\]]*[)\]]|\s*\bE\d+\b")   # 설명 속 근거 번호 표기 "(E1)", "(E1: …)"
+
+
+def best_sentence(quote: str, text: str, min_overlap: float = 0.5) -> str | None:
+    """근거 본문에서 인용과 두 글자 조각이 가장 많이 겹치는 문장(원문 그대로). 겹침이 min_overlap 미만이면 None."""
+    qb = _bigrams(quote)
+    best, score = None, 0.0
+    for sent in re.split(r"(?<=다\.)\s+|\n", text or ""):
+        sent = re.sub(r"^\s*(?:[①-⑳]|\d+\.|[가-하]\.)\s*", "", sent).strip()
+        if len(sent) >= 8 and qb and (sc := len(qb & _bigrams(sent)) / len(qb)) > score:
+            best, score = sent, sc
+    return best if score >= min_overlap else None
+
+
 def overview_answer(llm, question: str, evidence: list[Evidence], meta: dict) -> dict | None:
     """전체 기관 질문의 짧은 정리: 설명 + 근거·인용 1~3개. 숫자가 근거에 없으면 한 번 다시 묻고, 그래도면 None."""
     def name(e):
@@ -609,10 +656,11 @@ def overview_answer(llm, question: str, evidence: list[Evidence], meta: dict) ->
         if not m:
             return None
         cites = [{"id": i, "인용": q.strip().strip('"“”\'')} for i, q in re.findall(r"\n근거: (E\d+)\n인용: ([^\n]+)", out)]
+        expl = RE_EREF.sub("", m[1]).strip()
         cited = " ".join(f"{by_id[c['id']].label} {by_id[c['id']].text}" for c in cites if c["id"] in by_id)
-        nums = set(RE_NUM.findall(m[1])) - set(RE_NUM.findall(cited)) - set(RE_NUM.findall(question))
+        nums = set(RE_NUM.findall(expl)) - set(RE_NUM.findall(cited)) - set(RE_NUM.findall(question))
         if not nums:
-            return {"결론": None, "설명": m[1].strip(), "근거": cites, "확인_필요": [], "문의처": None, "mode": "overview"}
+            return {"결론": None, "설명": expl, "근거": cites, "확인_필요": [], "문의처": None, "mode": "overview"}
         note = "\n\n이전 답변의 문제: 근거에 없는 숫자(" + ", ".join(sorted(nums)) + ")를 썼다. 근거에 있는 숫자만 쓸 것."
     return None
 
@@ -648,7 +696,14 @@ def _overview(db, deps, query, p, aliases, works, as_of, st, results) -> Iterato
     with _db(db) as conn:
         evidence = [e for e in expand(conn, picked, limit_articles=OVERVIEW_EVIDENCE, as_of=as_of,
                                       release_id=found.get("release_id")) if e.role == "primary"]
-        meta = _work_meta(conn, [e.work_id for e in evidence])
+        have = {e.version_id for e in evidence}
+        for h in picked:   # DB에서 못 읽은 조(재적재 중 등)는 색인의 조 본문으로 (인용은 그 본문과 대조한다)
+            if h["version_id"] not in have and h.get("text"):
+                art = h.get("article_path") or h["path"].split(".")[0]
+                evidence.append(Evidence(f"E{len(evidence) + 1}", h["work_id"], h["version_id"], _title(h) or "", art,
+                                         h.get("path_label") or art, h["text"], "primary", h.get("effective_from")))
+        meta = {h["work_id"]: {"code": h.get("institution"), "name": h.get("institution_name")} for h in picked}
+        meta.update({k: v for k, v in _work_meta(conn, [e.work_id for e in evidence]).items() if v["code"]})
         conn.commit()
     yield "status", {"stage": "write", "label": "답변을 쓰고 있습니다"}
     ans = overview_answer(llm, query, evidence, meta) if llm and evidence else None
@@ -657,7 +712,13 @@ def _overview(db, deps, query, p, aliases, works, as_of, st, results) -> Iterato
         by_id = {e.id: e for e in evidence}
         with _db(db) as conn:
             for c in ans["근거"]:
-                if c["id"] in by_id and (x := citation(conn, len(cites) + 1, by_id[c["id"]], c["인용"], meta, as_of)):
+                e = by_id.get(c["id"])
+                if e is None or any(x["version_id"] == e.version_id for x in cites):
+                    continue
+                # 모델이 말을 바꿔 옮긴 인용은 그 근거에서 가장 비슷한 원문 문장으로 (원문 그대로만 싣는다)
+                x = citation(conn, len(cites) + 1, e, c["인용"], meta, as_of) or \
+                    ((s2 := best_sentence(c["인용"], e.text)) and citation(conn, len(cites) + 1, e, s2, meta, as_of))
+                if x:
                     cites.append(x)
             conn.commit()
     if ans and cites:
@@ -704,21 +765,30 @@ def _comparison(db, deps, query, p, aliases, works, as_of, st, results) -> Itera
         return
     yield "status", {"stage": "compare", "label": "기관별 값을 뽑고 있습니다"}
     rows, cites = [], []
+    names = {c: al[0] for c, al in aliases.items()}
+    item_label = question
     with _db(db) as conn:
-        cells = compare_cells(conn, question)
-        names = {c: al[0] for c, al in aliases.items()}
+        # 비교표(compare_cell)는 현행 기준이라 기준일 질문에는 쓰지 않는다
+        cells = None if as_of else compare_cells(conn, question, p.get("topic"))
         if cells is not None:
-            for r in cells:
-                ev = _cell_evidence(conn, r["pv_id"]) if r["pv_id"] else None
+            item_label = cells["item"].get("label") or question
+            got = [r for r in cells["rows"] if not p["institutions"] or r["institution_code"] in p["institutions"]]
+            got.sort(key=lambda r: r["institution_code"] != p["focus"])
+            for r in got:
+                inst = {"code": r["institution_code"], "name": names.get(r["institution_code"])}
+                ev = cell_text(conn, r["work_id"], r["path"]) if r["method"] != "absent" and r["work_id"] else None
                 span = verbatim(r["quote"], ev["text"]) if ev else None
-                if not span:
+                if not span:   # 규정 없음(absent)이거나 인용이 지금 원문에 그대로 없으면 값을 싣지 않는다
+                    rows.append({"institution": inst, "value": None, "cite": None, "absent": r["method"] == "absent"})
                     continue
+                path = locate(ev["units"], span, r["path"])
                 n = len(cites) + 1
-                cites.append({"n": n, "institution": {"code": r["institution"], "name": names.get(r["institution"])},
-                              "work_id": ev["work_id"], "version_id": ev["version_id"], "title": ev["title"],
-                              "path": ev["path"], "label": " ".join(x for x in (ev["title"], sub_label(ev["path"])) if x),
-                              "quote": span, "href": href(ev["work_id"], ev["path"], as_of)})
-                rows.append({"institution": cites[-1]["institution"], "value": r["value"], "cite": n})
+                cites.append({"n": n, "institution": inst, "work_id": r["work_id"], "version_id": ev["version_id"],
+                              "title": ev["title"], "path": path,
+                              "label": " ".join(x for x in (ev["title"], path_label(path)) if x),
+                              "quote": span, "href": href(r["work_id"], path, as_of)})
+                rows.append({"institution": inst, "value": r["value"], "value_norm": r["value_norm"], "cite": n,
+                             "title": ev["title"], "href": cites[-1]["href"]})
         conn.commit()
     source = "compare_cell" if cells is not None else "extracted"
     if cells is None:
@@ -745,7 +815,9 @@ def _comparison(db, deps, query, p, aliases, works, as_of, st, results) -> Itera
                 rows.append({"institution": inst, "value": value, "cite": n, "title": _title(h),
                              "href": cites[-1]["href"]})
             conn.commit()
-    yield "table", {"item": question, "source": source, "focus": p["focus"], "rows": rows}
+    yield "table", {"item": item_label, "source": source, "focus": p["focus"], "rows": rows,
+                    **({"topic": cells["topic"], "item_id": cells["item"]["id"], "unit": cells["item"].get("unit")}
+                       if cells is not None else {})}
     if cites:
         yield "citations", {"items": cites}
     st.update(status="compared" if cites else "evidence_only", answer={"table": rows},
