@@ -1,8 +1,11 @@
 """규정 도우미 범위 (assistant-scope): 규정·주제 범위는 검색 질의 안의 필터이고, 규정을 고르면 기관도 정해진다."""
 import pytest
 
+import tests.test_chat as base
 from reg.qa.chat import chat, collect
-from tests.test_chat import ALL, HITS, FakeConn, OverviewLLM, fake_expand, fake_search, only  # noqa: F401
+from tests.test_chat import HITS, FakeConn, OverviewLLM, only
+
+fake_search, fake_expand = base.fake_search, base.fake_expand     # 같은 가짜 검색·근거 확장 픽스처
 
 KASI_TRAVEL = HITS[0]["work_id"]          # kr/reg/KASI/여비규정
 KBSI_TRAVEL = HITS[1]["work_id"]
