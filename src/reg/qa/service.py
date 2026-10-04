@@ -53,10 +53,13 @@ def _with_lookup(found: dict) -> list[dict]:
 
 
 def retrieve(deps: dict, query: str, institution: str | None, as_of: str | None, aliases: dict, size: int = 10,
-             kind: str | None = None, with_units: bool = False) -> tuple[dict, list[dict]]:
-    """QA·규정 도우미가 같이 쓰는 검색: 하이브리드(+리랭크) 결과에 번호 직접 조회를 1순위로 얹는다."""
+             kind: str | None = None, with_units: bool = False,
+             work_ids: list[str] | set[str] | None = None) -> tuple[dict, list[dict]]:
+    """QA·규정 도우미가 같이 쓰는 검색: 하이브리드(+리랭크) 결과에 번호 직접 조회를 1순위로 얹는다.
+    work_ids: 규정 범위 (검색 질의 안의 필터)."""
     found = search(deps["os"], deps["embedder"], deps.get("reranker"), query, institution=institution, as_of=as_of,
-                   kind=kind, rerank=True, size=size, aliases=aliases, facets=False, with_units=with_units)
+                   kind=kind, rerank=True, size=size, aliases=aliases, facets=False, with_units=with_units,
+                   work_ids=work_ids)
     return found, _with_lookup(found)
 
 
