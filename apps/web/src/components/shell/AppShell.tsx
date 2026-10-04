@@ -6,6 +6,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { BreadcrumbsProvider } from "./Breadcrumbs";
 import { CommandPaletteProvider } from "./CommandPalette";
 import { Sidebar, useSidebarCollapsed } from "./Sidebar";
+import { SiteFooter } from "./SiteFooter";
 import { TopBar } from "./TopBar";
 
 /**
@@ -49,6 +50,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <main id="main" tabIndex={-1} className="w-full flex-1 px-4 pb-12 pt-6 outline-none md:px-6 md:pt-7 xl:px-8">
               {children}
             </main>
+            <SiteFooter />
           </div>
         </div>
         <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
