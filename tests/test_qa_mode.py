@@ -127,3 +127,12 @@ def test_explain_retries_on_invented_number_then_gives_up():
     g = explain(llm, "콜로키움이 뭐야?", _a("콜로키움이 뭐야?"), EV)
     assert g["answer"] is None and len(llm.calls) == 2 and "number" in g["verification"]["problems"]
     assert "이전 답변의 문제" in llm.calls[1][1]["content"]
+
+
+def test_explain_may_state_the_effective_date_shown_with_the_evidence():
+    ev = [Evidence(**{**EV[0].__dict__, "effective_from": "2023-08-01"})]
+    llm = ExplainLLM("설명: KASI 콜로키움은 콜로키움 위원회가 주관하는 세미나 또는 토론회이며, 이 기준은 2023년 8월 1일부터 "
+                     "시행되었습니다.\n근거: E1\n인용: 콜로키움 위원회에서 주관하는 세미나 또는 토론회를 의미한다.")
+    g = explain(llm, "콜로키움 규정이 뭐야?", _a(), ev)
+    assert g["answer"] and len(llm.calls) == 1
+    assert "시행일" in llm.calls[0][0]["content"]

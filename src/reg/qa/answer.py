@@ -243,7 +243,8 @@ def generate(llm, question: str, analysis, evidence: list[Evidence]) -> dict:
 
 GENERAL_SYSTEM = ("너는 공공연구기관 내부규정 안내자다. 주어진 근거(E1, E2…)만 읽고 질문에 바로 답하라. 무엇인지·누가·어떻게·"
                   "언제까지·얼마인지·어떤 조건인지를 쉬운 한국어 2~4문장으로 쓴다. 질문자의 상황을 판정하지 말고(충족·미충족 같은 "
-                  "결론을 쓰지 않는다) 규정 내용을 알려 준다. 근거에 없는 내용·숫자는 쓰지 않는다. 설명에는 근거 번호를 쓰지 않는다. "
+                  "결론을 쓰지 않는다) 규정 내용을 알려 준다. 근거에 없는 내용·숫자는 쓰지 않고, 시행일은 묻지 않으면 쓰지 않는다. "
+                  "설명에는 근거 번호를 쓰지 않는다. "
                   "인용에는 답의 핵심이 되는 근거 본문 한 문장을 글자 그대로(80자 이내) 복사하고 1~2개 든다.")
 RE_EREF = re.compile(r"\s*[(\[](?:E\d+)[^)\]]*[)\]]|\s*\bE\d+\b")   # 설명 속 근거 번호 표기 "(E1)", "(E1: …)"
 
@@ -267,6 +268,16 @@ def best_sentence(quote: str, text: str, min_overlap: float = 0.5) -> str | None
 def _general_pattern(ids: list[str]) -> str:
     alt = "|".join(map(re.escape, ids))
     return r"설명: ([^\n]{10,500})(?:\n근거: (?:" + alt + r")\n인용: [^\n]{5,160}){1,2}"
+
+
+def _dates(evidence: list[Evidence]) -> set[str]:
+    """근거 머리에 보여 준 시행일(2023-08-01)의 숫자: 설명에 '2023년 8월 1일'로 써도 된다."""
+    out: set[str] = set()
+    for e in evidence:
+        for part in str(e.effective_from or "").split("-"):
+            if part.isdigit():
+                out |= {part, str(int(part))}
+    return out
 
 
 def explain(llm, question: str, analysis, evidence: list[Evidence]) -> dict:
@@ -300,7 +311,8 @@ def explain(llm, question: str, analysis, evidence: list[Evidence]) -> dict:
             if not any(c["id"] == i and c["인용"] == q for c in cites):
                 cites.append({"id": i, "인용": q})
         ans = {"결론": None, "근거": cites, "설명": RE_EREF.sub("", m[1]).strip(), "확인_필요": [], "문의처": None}
-        last_v = {**verify(ans, evidence, qnums, _derived_numbers(analysis, evidence)), "mode": "general"}
+        last_v = {**verify(ans, evidence, qnums, _derived_numbers(analysis, evidence) | _dates(evidence)),
+                  "mode": "general"}
         if last_v["ok"]:
             return {"answer": ans, "verification": last_v, "attempts": attempt, "verdict_source": None}
         note = ("\n\n이전 답변의 문제: " + ", ".join(last_v["problems"]) +
