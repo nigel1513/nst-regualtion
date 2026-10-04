@@ -1,5 +1,5 @@
 "use client";
-import { ChevronsUpDown, Moon, PanelLeftClose, PanelLeftOpen, Sun, SunMoon } from "lucide-react";
+import { LogOut, Moon, PanelLeftClose, PanelLeftOpen, Sun, SunMoon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
@@ -57,7 +57,7 @@ function ThemeButton({ compact }: { compact: boolean }) {
 /** 왼쪽 내비 (§1): 240px bg-subtle, 접으면 64px 레일. 모바일 시트 안에서는 늘 펼친 모양. */
 export function Sidebar({ collapsed = false, onToggle, onNavigate }: { collapsed?: boolean; onToggle?: () => void; onNavigate?: () => void }) {
   const pathname = usePathname();
-  const { current, setPickerOpen } = useInstitution();
+  const { current, user, logout } = useInstitution();
   const AlertIcon = ALERTS.icon;
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -91,21 +91,16 @@ export function Sidebar({ collapsed = false, onToggle, onNavigate }: { collapsed
           {collapsed ? <div aria-hidden="true" className="mb-3 h-px bg-border" /> : (
             <span className="flex h-7 items-center px-2.5 text-caption text-fg-muted">우리 기관</span>
           )}
-          <button type="button" onClick={() => setPickerOpen(true)} aria-label={`우리 기관: ${current?.name ?? "선택 안 함"} (바꾸기)`}
-            className={cn(row(collapsed), focusRing, "press w-full cursor-pointer text-left text-fg hover:bg-bg-hover", collapsed && "w-8")}>
+          <div className={cn(row(collapsed), "text-fg", collapsed && "w-8")} title={current?.name ?? "전체 기관"}>
             {current ? <InstitutionMark code={current.code} /> : (
-              <span aria-hidden="true" className="flex size-[22px] shrink-0 items-center justify-center rounded-sm border border-dashed border-border-strong text-micro text-fg-muted">–</span>
+              <span aria-hidden="true" className="flex size-[22px] shrink-0 items-center justify-center rounded-sm bg-bg-active text-micro text-fg-muted">전체</span>
             )}
-            {!collapsed ? (
-              <>
-                <span className={cn("min-w-0 flex-1 truncate", !current && "text-fg-muted")}>{current?.name ?? "전체 기관"}</span>
-                <ChevronsUpDown aria-hidden="true" className="size-3.5 shrink-0 text-fg-muted" strokeWidth={iconStroke} />
-              </>
-            ) : null}
-          </button>
+            {!collapsed ? <span className="min-w-0 flex-1 truncate">{current?.name ?? "전체 기관"}</span> : null}
+          </div>
         </div>
         <div className="flex-1" />
         <div className={cn("flex flex-col gap-px", collapsed && "items-center")}>
+          {user ? <UserRow name={user.name} role={user.role} compact={collapsed} onLogout={logout} /> : null}
           <ThemeButton compact={collapsed} />
           <span aria-disabled="true" className={cn(row(collapsed), "cursor-default text-fg-subtle")} title="개정 알림 · 준비 중">
             <AlertIcon aria-hidden="true" className="size-4 shrink-0" strokeWidth={iconStroke} />
@@ -116,4 +111,18 @@ export function Sidebar({ collapsed = false, onToggle, onNavigate }: { collapsed
       </nav>
     </div>
   );
+}
+
+
+/** 로그인한 사람 (목업 로그인): 이름·역할과 로그아웃. */
+function UserRow({ name, role, compact, onLogout }: { name: string; role: string; compact: boolean; onLogout: () => void }) {
+  const button = (
+    <button type="button" onClick={onLogout} aria-label={`${name} 로그아웃`}
+      className={cn(row(compact), focusRing, "press w-full cursor-pointer text-left text-fg-muted hover:bg-bg-hover hover:text-fg")}>
+      <LogOut aria-hidden="true" className="size-4 shrink-0" strokeWidth={iconStroke} />
+      {!compact ? <span className="min-w-0 flex-1 truncate"><span className="text-fg">{name}</span> · {role}</span> : null}
+      {!compact ? <span className="text-caption text-fg-subtle">로그아웃</span> : null}
+    </button>
+  );
+  return compact ? <Tooltip content={`${name} · 로그아웃`} side="right">{button}</Tooltip> : button;
 }
