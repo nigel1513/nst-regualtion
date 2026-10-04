@@ -5,7 +5,7 @@ import { Crumbs } from "@/components/shell/Breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { iconStroke } from "@/components/ui/styles";
-import { ChatHttpError, type ChatEvent, type Scope, streamChat } from "@/lib/chat";
+import { ChatHttpError, type ChatEvent, requestScope, type Scope, streamChat, type TopicOption } from "@/lib/chat";
 import { setLocalValue, useIsClient, useLocalValue } from "@/lib/hooks";
 import type { InstOption } from "@/lib/institution";
 import { CitationRail } from "./CitationRail";
@@ -15,12 +15,14 @@ import { CHATS_KEY, history, newTurn, type SavedChat, type Turn } from "./types"
 
 const EXAMPLES = ["천문연 여비규정 27조", "출장 다녀온 지 10일 지났는데 증빙 안 냈어요", "출장 증빙은 며칠 안에 내야 하나요? 다른 기관도", "연구장비 구매 절차"];
 
-function apply(t: Turn, e: ChatEvent, insts: InstOption[]): Turn {
+/** scopeText: 규정·주제로 좁힌 범위면 그 한 줄 (차례 머리에 그대로 보인다). */
+function apply(t: Turn, e: ChatEvent, insts: InstOption[], scopeText: string | null = null): Turn {
   switch (e.event) {
     case "status": {
       const d = e.data;
       const names = d.institutions?.map((i) => i.name).filter(Boolean) ?? [];
-      const scopeNote = d.scope_mode ? `범위 · ${d.scope_mode === "all" || names.length === 0 ? `전체 기관 ${insts.filter((i) => i.works > 0).length}곳` : names.join(", ")}` : t.scopeNote;
+      const scopeNote = !d.scope_mode ? t.scopeNote : scopeText ? `범위 · ${scopeText}`
+        : `범위 · ${d.scope_mode === "all" || names.length === 0 ? `전체 기관 ${insts.filter((i) => i.works > 0).length}곳` : names.join(", ")}`;
       return { ...t, stage: d.stage, stageLabel: d.label, intent: d.intent ?? t.intent, scopeNote };
     }
     case "results": return { ...t, cards: e.data.cards };
@@ -46,8 +48,8 @@ function loadChats(raw: string | null): SavedChat[] {
  * 규정 도우미 (서비스 UI 개편 §5): 가운데 대화 | 오른쪽 레일 320px(근거 N · 질문 범위 · 최근 대화).
  * POST /api/v1/chat SSE를 읽어 차례(turn)를 채운다. Esc나 멈춤 단추로 스트림을 끊는다.
  */
-export function Assistant({ insts, initialQ, initialScope, workTitle }: {
-  insts: InstOption[]; initialQ: string; initialScope: Scope; workTitle: string | null;
+export function Assistant({ insts, topics = [], initialQ, initialScope }: {
+  insts: InstOption[]; topics?: TopicOption[]; initialQ: string; initialScope: Scope;
 }) {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [scope, setScope] = useState<Scope>(initialScope);
@@ -80,13 +82,14 @@ export function Assistant({ insts, initialQ, initialScope, workTitle }: {
     let conv = cid;
     const patch = (fn: (t: Turn) => Turn) => setTurns((all) => all.map((x) => (x.id === turn.id ? fn(x) : x)));
     let latest: Turn = turn;
+    const scopeText = scope.work_ids.length || scope.topic ? scopeLabel(scope, insts, topics) : null;
     try {
       await streamChat(
-        { messages: [...history(base), { role: "user", content: q }], scope, ...(conv ? { conversation_id: conv } : {}) },
+        { messages: [...history(base), { role: "user", content: q }], scope: requestScope(scope), ...(conv ? { conversation_id: conv } : {}) },
         (e) => {
           if (e.event === "status" && e.data.conversation_id) { conv = e.data.conversation_id; setCid(conv); }
-          latest = apply(latest, e, insts);
-          patch((t) => apply(t, e, insts));
+          latest = apply(latest, e, insts, scopeText);
+          patch((t) => apply(t, e, insts, scopeText));
         },
         ac.signal,
       );
@@ -97,7 +100,7 @@ export function Assistant({ insts, initialQ, initialScope, workTitle }: {
     } finally {
       ctl.current = null;
     }
-  }, [turns, scope, cid, insts]);
+  }, [turns, scope, cid, insts, topics]);
 
   // 한 차례가 끝나면 이 브라우저의 최근 대화에 남긴다
   useEffect(() => {
@@ -123,6 +126,7 @@ export function Assistant({ insts, initialQ, initialScope, workTitle }: {
     return [...turns].reverse().find((t) => t.citations.length) ?? turns[turns.length - 1];
   }, [turns, active]);
 
+  const workTitle = scope.work_ids.length === 1 ? scope.works?.find((w) => w.id === scope.work_ids[0])?.title ?? null : null;
   const reset = () => { ctl.current?.abort(); setTurns([]); setCid(undefined); setActive(null); input.current?.focus(); };
   const restore = (c: SavedChat) => { ctl.current?.abort(); setTurns(c.turns); setCid(c.id); setActive(null); };
   const retry = () => {
@@ -167,7 +171,7 @@ export function Assistant({ insts, initialQ, initialScope, workTitle }: {
               placeholder={turns.length ? "이어서 물어보세요" : workTitle ? `${workTitle}에 대해 물어보세요` : "예: 출장 증빙은 며칠 안에 내야 하나요?"}
               className="block max-h-48 min-h-11 w-full resize-none bg-transparent text-long text-fg outline-none placeholder:text-fg-subtle" />
             <div className="mt-1 flex items-center justify-between gap-2">
-              <ScopePicker scope={scope} onChange={setScope} insts={insts} workTitle={workTitle} />
+              <ScopePicker scope={scope} onChange={setScope} insts={insts} topics={topics} />
               {busy ? (
                 <Button size="sm" onClick={() => ctl.current?.abort()} aria-label="멈추기 (Esc)">
                   <Square aria-hidden="true" strokeWidth={iconStroke} className="!size-3.5" />멈추기
@@ -187,7 +191,7 @@ export function Assistant({ insts, initialQ, initialScope, workTitle }: {
         <CitationRail items={railTurn?.citations ?? []} active={active && railTurn && active.turn === railTurn.id ? active.n : null} />
         <section aria-labelledby="scope-h">
           <h2 id="scope-h" className="mb-1.5 text-caption text-fg-muted">질문 범위</h2>
-          <p className="text-small text-fg">{scopeLabel(scope, insts, workTitle)}</p>
+          <p className="text-small text-fg">{scopeLabel(scope, insts, topics)}</p>
           <p className="mt-1 text-caption font-normal text-fg-muted">입력 상자 아래 범위 단추로 바꿉니다.</p>
         </section>
         <section aria-labelledby="recent-h" className="flex flex-col gap-2">

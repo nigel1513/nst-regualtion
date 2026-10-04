@@ -237,3 +237,121 @@ def generate(llm, question: str, analysis, evidence: list[Evidence]) -> dict:
             return {"answer": ans, "verification": last_v, "attempts": attempt, "verdict_source": source}
         problems = last_v["problems"]
     return {"answer": None, "verification": last_v, "attempts": 2, "verdict_source": None}
+
+
+# ---------------------------------------------------------------- 일반 답변 (결론 없음)
+
+GENERAL_SYSTEM = ("너는 공공연구기관 내부규정 안내자다. 주어진 근거(E1, E2…)만 읽고 질문에 바로 답하라. 무엇인지·누가·어떻게·"
+                  "언제까지·얼마인지·어떤 조건인지를 쉬운 한국어 2~4문장으로 쓴다. 질문자의 상황을 판정하지 말고(충족·미충족 같은 "
+                  "결론을 쓰지 않는다) 규정 내용을 알려 준다. 근거에 없는 내용·숫자는 쓰지 않고, 시행일은 묻지 않으면 쓰지 않는다. "
+                  "설명에는 근거 번호를 쓰지 않는다. "
+                  "인용에는 설명의 각 내용이 기댄 근거 본문 문장을 글자 그대로(80자 이내) 복사한다. 설명에 쓴 내용은 모두 인용으로 "
+                  "뒷받침되어야 하며, 서로 다른 근거를 1~3개 든다.")
+RE_EREF = re.compile(r"\s*[(\[](?:E\d+)[^)\]]*[)\]]|\s*\bE\d+\b")   # 설명 속 근거 번호 표기 "(E1)", "(E1: …)"
+
+
+def _bigrams(s: str) -> set[str]:
+    s = _n(s)
+    return {s[i:i + 2] for i in range(len(s) - 1)}
+
+
+def best_sentence(quote: str, text: str, min_overlap: float = 0.5) -> str | None:
+    """근거 본문에서 인용과 두 글자 조각이 가장 많이 겹치는 문장(원문 그대로). 겹침이 min_overlap 미만이면 None."""
+    qb = _bigrams(quote)
+    best, score = None, 0.0
+    for sent in re.split(r"(?<=다\.)\s+|\n", text or ""):
+        sent = re.sub(r"^\s*(?:[①-⑳]|\d+\.|[가-하]\.)\s*", "", sent).strip()
+        if len(sent) >= 8 and qb and (sc := len(qb & _bigrams(sent)) / len(qb)) > score:
+            best, score = sent, sc
+    return best if score >= min_overlap else None
+
+
+SUPPORT_MIN = 0.35      # 설명 문장의 두 글자 조각 중 인용 문장에 있어야 하는 비율 (그만큼 겹쳐야 그 문장의 근거로 본다)
+MAX_CITES = 4
+
+
+def _sentences(text: str) -> list[str]:
+    return [p.strip() for p in re.split(r"(?<=다\.)\s+|(?<=[.!?])\s+", text or "") if p.strip()]
+
+
+def _cover(sent: str, quote: str) -> float:
+    sb = _bigrams(sent)
+    return len(sb & _bigrams(quote)) / len(sb) if sb else 0.0
+
+
+def _support(ans: dict, evidence: list[Evidence]) -> None:
+    """인용이 받치지 않는 설명 문장마다, 근거 본문에서 그 문장과 가장 많이 겹치는 원문 문장을 인용으로 더한다
+    (모델이 인용을 하나만 들고 다른 근거의 내용도 설명에 쓴 경우). 충분히 겹치는 문장이 없으면 더하지 않는다."""
+    for sent in _sentences(ans["설명"]):
+        if len(ans["근거"]) >= MAX_CITES or any(_cover(sent, c["인용"]) >= SUPPORT_MIN for c in ans["근거"]):
+            continue
+        best = None
+        for e in evidence:
+            for cand in re.split(r"(?<=다\.)\s+|\n", e.text or ""):
+                cand = re.sub(r"^\s*(?:제\d+조(?:의\d+)?\([^)]*\)|[①-⑳]|\d+\.|[가-하]\.)\s*", "", cand).strip()
+                if len(cand) >= 8 and cand in e.text and (sc := _cover(sent, cand)) >= SUPPORT_MIN and \
+                        (best is None or sc > best[0]):
+                    best = (sc, e.id, cand)
+        if best is None:
+            continue
+        same = next((c for c in ans["근거"] if c["id"] == best[1] and (c["인용"] in best[2] or best[2] in c["인용"])), None)
+        if same is not None:            # 이미 든 인용을 품은 문장이면 더하지 않고 그 인용을 문장 전체로 넓힌다
+            same["인용"] = max(same["인용"], best[2], key=len)
+        else:
+            ans["근거"].append({"id": best[1], "인용": best[2]})
+
+
+def _general_pattern(ids: list[str]) -> str:
+    alt = "|".join(map(re.escape, ids))
+    return r"설명: ([^\n]{10,500})(?:\n근거: (?:" + alt + r")\n인용: [^\n]{5,160}){1,3}"
+
+
+def _dates(evidence: list[Evidence]) -> set[str]:
+    """근거 머리에 보여 준 시행일(2023-08-01)의 숫자: 설명에 '2023년 8월 1일'로 써도 된다."""
+    out: set[str] = set()
+    for e in evidence:
+        for part in str(e.effective_from or "").split("-"):
+            if part.isdigit():
+                out |= {part, str(int(part))}
+    return out
+
+
+def explain(llm, question: str, analysis, evidence: list[Evidence]) -> dict:
+    """일반 답변: 질문에 바로 답하는 2~4문장 + 원문 인용 1~2개, 결론 없음. generate와 같은 검증(인용 원문 대조·숫자)을
+    거치고, 말을 바꿔 옮긴 인용은 그 근거에서 가장 비슷한 원문 문장으로 바꾼다. 두 번 실패하면 answer=None."""
+    qnums = set(RE_NUM.findall(question))
+    pattern = _general_pattern([e.id for e in evidence])
+    by_id = {e.id: e for e in evidence}
+    ev = "\n\n".join(f"[{e.id}] {e.title} {e.label} (시행 {e.effective_from or '미상'}"
+                      f"{', ' + e.rel if e.rel else ''})\n{e.text}" for e in evidence)
+    note, last_v = "", {"ok": False, "problems": []}
+    for attempt in (1, 2):
+        user = (f"질문: {question}\n\n근거:\n{ev}{note}\n\n다음 형식으로만 답하라:\n설명: 질문에 대한 답(2~4문장)\n"
+                "근거: 사용한 근거 id(예: E1)\n인용: 근거 본문 한 문장을 글자 그대로(근거·인용 줄은 1~3번)")
+        try:
+            out = llm.regex([{"role": "system", "content": GENERAL_SYSTEM}, {"role": "user", "content": user}],
+                            pattern, max_tokens=700)
+        except ProviderError:
+            return {"answer": None, "verification": {"ok": False, "problems": ["llm_unavailable"], "mode": "general"},
+                    "attempts": attempt, "verdict_source": None}
+        m = re.fullmatch(pattern, out)
+        if m is None:
+            return {"answer": None, "verification": {"ok": False, "problems": ["llm_invalid_output"], "mode": "general"},
+                    "attempts": attempt, "verdict_source": None}
+        cites = []
+        for i, q in re.findall(r"\n근거: (E\d+)\n인용: ([^\n]+)", out):
+            q = q.strip().strip('"“”\'')
+            text = by_id[i].text
+            if _align(q, text) is None and (near := best_sentence(q, text)):
+                q = near
+            if not any(c["id"] == i and c["인용"] == q for c in cites):
+                cites.append({"id": i, "인용": q})
+        ans = {"결론": None, "근거": cites, "설명": RE_EREF.sub("", m[1]).strip(), "확인_필요": [], "문의처": None}
+        last_v = {**verify(ans, evidence, qnums, _derived_numbers(analysis, evidence) | _dates(evidence)),
+                  "mode": "general"}
+        if last_v["ok"]:
+            _support(ans, evidence)
+            return {"answer": ans, "verification": last_v, "attempts": attempt, "verdict_source": None}
+        note = ("\n\n이전 답변의 문제: " + ", ".join(last_v["problems"]) +
+                " — 근거 본문을 글자 그대로 인용하고, 근거에 없는 숫자를 쓰지 말 것.")
+    return {"answer": None, "verification": last_v, "attempts": 2, "verdict_source": None}
