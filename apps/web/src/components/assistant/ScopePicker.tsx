@@ -22,7 +22,7 @@ export function scopeLabel(scope: Scope, insts: InstOption[], topics: TopicOptio
   const several = (first: string, n: number, unit: string) => (n > 1 ? `${first} 외 ${n - 1}${unit}` : first);
   if (scope.work_ids.length) {
     const works = scope.work_ids.map((id) => scope.works?.find((w) => w.id === id) ?? { id, title: id.split("/").pop() ?? id, institution: null });
-    const codes = [...new Set(works.map((w) => w.institution).filter((c): c is string => !!c))];
+    const codes = [...new Set(works.map((w) => w.institution).filter((c): c is string => !!c && insts.some((i) => i.code === c)))];   // 법령(LAW)은 기관이 아니다
     return [codes.length ? several(name(codes[0]), codes.length, "곳") : null, several(works[0].title, works.length, "개")].filter(Boolean).join(" · ");
   }
   const inst = scope.mode === "all" || scope.institutions.length === 0 ? "전체 기관" : several(name(scope.institutions[0]), scope.institutions.length, "곳");
