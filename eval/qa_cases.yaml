@@ -37,7 +37,9 @@
   expect: {status: answered, institution: KASI, work_contains: 국외출장, article: a8, verdict: 미충족}
 - id: nst-disaster-leave
   question: 연구회 직원이 수해를 입으면 재해구호휴가를 며칠 받을 수 있나요?
-  expect: {status: answered, institution: NST, work_contains: NST/복무규정, article: a26, verdict: null}
+  # 취업규칙 제33조 제3항에 같은 문장이 그대로 있다 (2026-10-04 확인)
+  expect: {status: answered, institution: NST, work_contains: NST/복무규정, article: a26, verdict: null,
+           alt: [{work_contains: NST/취업규칙, article: a33}]}
 # 일반 답변 (정의·절차·기한을 사실로 묻는 질문). 정답 조문은 2026-10-04 실데이터(읽기 전용)에서 확인함
 - id: kasi-colloquium-def
   question: 한국천문연구원 콜로키움 규정이 뭐야?

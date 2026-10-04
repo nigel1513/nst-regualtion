@@ -25,8 +25,12 @@ def run_eval(conn, deps: dict, cases: list[dict], log: bool = True) -> dict:
         if "article" in e:
             evs = [{**x, "id": x.get("id") or f"E{i + 1}"} for i, x in enumerate(r.get("evidence") or [])]
 
+            # alt: 같은 문장이 다른 규정에도 그대로 있으면 그 조도 정답 (예: NST 복무규정 제26조 = 취업규칙 제33조)
+            want_arts = [(e["article"], e.get("work_contains", ""))] + [(x["article"], x.get("work_contains", ""))
+                                                                        for x in e.get("alt") or []]
+
             def hit(x):
-                return x["path"].split(".")[0] == e["article"] and e.get("work_contains", "") in x["work_id"]
+                return any(x["path"].split(".")[0] == art and w in x["work_id"] for art, w in want_arts)
 
             retr_ok = any(hit(x) for x in evs[:2])  # 검색: 상위 근거 2개 안에 정답 조문
             if r.get("answer"):  # 인용 정확도 (spec 12): 답변이 실제로 인용한 근거가 정답 조문인가

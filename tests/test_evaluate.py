@@ -74,3 +74,16 @@ def test_general_cases_expect_no_conclusion_and_are_scored_apart_from_verdicts(m
     r = run_eval(None, {}, cases)
     assert r["general_acc"] == 0.5 and r["verdict_acc"] == 1.0 and r["citation_hit"] == 1.0
     assert [c["general_ok"] for c in r["cases"]] == [True, False, None]
+
+
+def test_expect_may_accept_an_alternative_article_with_the_same_text(monkeypatch):
+    from reg.qa import evaluate as E
+
+    monkeypatch.setattr(E, "ask", lambda *a, **k: {
+        "status": "answered", "evidence": [{"id": "E1", "work_id": "kr/reg/NST/복무규정", "path": "a23"},
+                                           {"id": "E2", "work_id": "kr/reg/NST/취업규칙", "path": "a33"}],
+        "answer": {"결론": None, "근거": [{"id": "E2"}]}, "id": 1})
+    e = {"status": "answered", "work_contains": "NST/복무규정", "article": "a26", "verdict": None,
+         "alt": [{"work_contains": "NST/취업규칙", "article": "a33"}]}
+    r = run_eval(None, {}, [{"id": "x", "question": "q", "expect": e}])
+    assert r["citation_hit"] == 1.0 and r["retrieval_hit"] == 1.0
