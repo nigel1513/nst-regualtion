@@ -458,13 +458,25 @@ def followups(intent: str, *, qtype: str | None = None, top: dict | None = None,
 # ---------------------------------------------------------------- 범위
 
 def scope_works(conn, scope: dict) -> set[str] | None:
-    """scope.work_ids·topic → 검색 결과를 걸러낼 규정 id 집합 (없으면 None = 거르지 않음).
-    주제는 regulation.work_topic(기관 비교 트랙)이 있을 때만 쓴다."""
-    works = set(scope.get("work_ids") or [])
+    """scope.work_ids·topic → 검색 질의에 넣을 규정 id 집합 (없으면 None = 거르지 않음).
+    고른 규정이 있으면 그것만 쓰고(주제는 무시), 없으면 주제의 규정들 — 주제는 regulation.work_topic(기관 비교 트랙)이
+    있을 때만 쓴다. 기관 선택은 검색의 기관 필터로 따로 걸리므로 주제 + 기관은 둘 다 적용된다."""
+    if scope.get("work_ids"):
+        return set(scope["work_ids"])
     if scope.get("topic") and _has_table(conn, "regulation.work_topic"):
-        works |= {r["work_id"] for r in conn.execute(
+        works = {r["work_id"] for r in conn.execute(
             "SELECT work_id FROM regulation.work_topic WHERE topic = %s", (scope["topic"],)).fetchall()}
-    return works or None
+        return works or None
+    return None
+
+
+def scope_institutions(conn, scope: dict) -> dict:
+    """규정을 고른 범위는 그 규정들의 기관으로 정해진다 (고른 기관·질문 속 언급보다 우선). 법령만 고르면 기관이 없다."""
+    if not scope.get("work_ids"):
+        return scope
+    meta = _work_meta(conn, scope["work_ids"])
+    codes = list(dict.fromkeys(meta[w]["code"] for w in scope["work_ids"] if (meta.get(w) or {}).get("code")))
+    return {**scope, "mode": "institutions", "institutions": codes}
 
 
 # ---------------------------------------------------------------- 대화 한 턴
@@ -494,15 +506,24 @@ def chat(db, deps: dict, messages: list[dict], scope: dict | None = None, as_of:
         with _db(db) as conn:
             aliases = load_aliases(conn)
             works = scope_works(conn, scope)
+            scoped = scope_institutions(conn, scope)
             conn.commit()
         query, rewritten = standalone(deps.get("llm"), msgs, aliases)
-        p = {**plan(query, scope, aliases), "topic": scope.get("topic")}
+        p = {**plan(query, scoped, aliases), "topic": scope.get("topic"), "work_scoped": bool(scope.get("work_ids"))}
+        if p["work_scoped"]:
+            if not scoped["institutions"] and p["intent"] == "question":   # 법령만 고른 범위: 기관 없이 그 법령에서
+                p["institutions"] = None
+            # 고른 규정 안에서는 '다른 기관' 비교가 뜻이 없다 (규정이 한 기관 것이면 그 기관 질문)
+            if p["intent"] == "comparison" and len(scoped["institutions"]) < 2:
+                p.update(intent="question", institutions=scoped["institutions"] or None,
+                         focus=(scoped["institutions"] or [None])[0])
         st.update(intent=p["intent"], query=query, institution=p["focus"])
         names = {c: al[0] for c, al in aliases.items()}
         yield "status", {"stage": "understand", "label": "질문을 이해했습니다", "conversation_id": cid,
                          "intent": p["intent"], "query": query, "rewritten": rewritten,
                          "institutions": [{"code": c, "name": names.get(c)} for c in p["institutions"] or []],
-                         "scope_mode": "institutions" if p["institutions"] else "all"}
+                         "scope_mode": "institutions" if p["institutions"] else "all",
+                         "work_ids": list(scope.get("work_ids") or []), "topic": scope.get("topic")}
         run = {"lookup": _lookup, "question": _question, "comparison": _comparison}[p["intent"]]
         yield from run(db, deps, query, p, aliases, works, as_of, st, results)
     except Exception as e:  # 실패해도 done은 보낸다 (이미 보낸 근거 카드는 화면에 남는다)
@@ -535,7 +556,7 @@ def _filter(hits: list[dict], works: set[str] | None) -> list[dict]:
 def _lookup(db, deps, query, p, aliases, works, as_of, st, results) -> Iterator[Event]:
     yield "status", {"stage": "search", "label": "조문을 찾고 있습니다"}
     inst = p["institutions"][0] if p["institutions"] and len(p["institutions"]) == 1 else None
-    found, hits = retrieve(deps, query, inst, as_of, aliases, size=30 if works else 10)
+    found, hits = retrieve(deps, query, inst, as_of, aliases, work_ids=works)
     cs = cards(found, as_of, works)
     if p["institutions"] and len(p["institutions"]) > 1:
         cs = [c for c in cs if c["institution"]["code"] in p["institutions"] or c["kind"] != "reg"]
@@ -546,24 +567,24 @@ def _lookup(db, deps, query, p, aliases, works, as_of, st, results) -> Iterator[
 
 
 def _question(db, deps, query, p, aliases, works, as_of, st, results) -> Iterator[Event]:
-    if not p["institutions"]:
+    if not p["institutions"] and not p.get("work_scoped"):
         yield from _overview(db, deps, query, p, aliases, works, as_of, st, results)
         return
-    inst = p["institutions"][0]
+    inst = p["institutions"][0] if p["institutions"] else None
     llm = deps.get("llm")
     yield "status", {"stage": "search", "label": "관련 규정을 찾고 있습니다"}
-    size = 30 if works else 10
+    size = 10
     # 질의 분석(LLM)과 첫 검색을 함께 돌려 근거 카드를 먼저 보낸다
     with ThreadPoolExecutor(1) as ex:
         fut = ex.submit(analyze, llm, query, aliases)
-        found0, hits0 = retrieve(deps, query, inst, as_of, aliases, size=size)
+        found0, hits0 = retrieve(deps, query, inst, as_of, aliases, size=size, work_ids=works)
         first = cards(found0, as_of, works)
         yield results(first)
         a = fut.result()
     as_of0, as_of = as_of, as_of or a.as_of
     st["as_of"] = as_of
     if a.terms or as_of != as_of0:
-        found, hits = retrieve(deps, " ".join([query, *a.terms]), inst, as_of, aliases, size=size)
+        found, hits = retrieve(deps, " ".join([query, *a.terms]), inst, as_of, aliases, size=size, work_ids=works)
         cs = cards(found, as_of, works)
         if [c["id"] for c in cs] != [c["id"] for c in first]:
             yield results(cs)
@@ -672,7 +693,7 @@ def _overview(db, deps, query, p, aliases, works, as_of, st, results) -> Iterato
     yield "status", {"stage": "search", "label": "기관별 규정을 찾고 있습니다"}
     with ThreadPoolExecutor(1) as ex:
         fut = ex.submit(analyze, llm, query, aliases)
-        found0, _ = retrieve(deps, query, None, as_of, aliases, size=30, kind="reg")
+        found0, _ = retrieve(deps, query, None, as_of, aliases, size=30, kind="reg", work_ids=works)
         first = diverse(cards(found0, as_of, works, limit=60))
         yield results(first)
         a = fut.result()
@@ -680,7 +701,8 @@ def _overview(db, deps, query, p, aliases, works, as_of, st, results) -> Iterato
     st["as_of"] = as_of
     found = found0
     if a.terms or as_of != as_of0:
-        found, _ = retrieve(deps, " ".join([query, *a.terms]), None, as_of, aliases, size=30, kind="reg")
+        found, _ = retrieve(deps, " ".join([query, *a.terms]), None, as_of, aliases, size=30, kind="reg",
+                            work_ids=works)
         cs = diverse(cards(found, as_of, works, limit=60))
         if [c["id"] for c in cs] != [c["id"] for c in first]:
             yield results(cs)
@@ -750,11 +772,11 @@ def _comparison(db, deps, query, p, aliases, works, as_of, st, results) -> Itera
     insts = p["institutions"]
     if insts:   # 고른 기관마다 검색 (기관 수가 적다)
         with ThreadPoolExecutor(min(len(insts), EXTRACT_WORKERS)) as ex:
-            got = list(ex.map(lambda c: retrieve(deps, q, c, as_of, aliases, size=5, kind="reg"), insts))
+            got = list(ex.map(lambda c: retrieve(deps, q, c, as_of, aliases, size=5, kind="reg", work_ids=works), insts))
         found = {"hits": [h for f, _ in got for h in f["hits"]], "lookup": [], "release_id": got[0][0].get("release_id"),
                  "reranked": all(f["reranked"] for f, _ in got)}
     else:       # 전체 기관: 한 번 검색해 기관마다 1위 조를 고른다
-        found, _ = retrieve(deps, q, None, as_of, aliases, size=40, kind="reg")
+        found, _ = retrieve(deps, q, None, as_of, aliases, size=40, kind="reg", work_ids=works)
     hits = _filter([h for h in found["hits"] if h.get("family") == "reg"], works)
     picked = _pick_per_institution(hits, p["focus"], MAX_TABLE)
     yield results([card(h, as_of) for h in picked])
