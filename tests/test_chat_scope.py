@@ -82,3 +82,47 @@ def test_unknown_topic_without_table_does_not_filter(fake_search, fake_expand):
 def test_lookup_inside_work_scope(fake_search, q):
     ev = _run(FakeConn(), None, q, {"mode": "all", "institutions": [], "work_ids": [KASI_TRAVEL]})
     assert _status(ev)["intent"] == "lookup" and set(fake_search[0]["work_ids"]) == {KASI_TRAVEL}
+
+
+# ---------------------------------------------------------------- 일반 답변 / 판정 (기관 하나)
+
+class ModeLLM:
+    """분석 → (일반) 설명·인용 형식 또는 (판정) 결론 형식. 어떤 형식을 받았는지 남긴다."""
+
+    def __init__(self):
+        self.patterns = []
+
+    def regex(self, messages, pattern, **kw):
+        self.patterns.append(pattern[:2])
+        if pattern.startswith("유형"):
+            return "유형: 기한\n검색어: 증빙"
+        if pattern.startswith("설명"):
+            return ("설명: 한국천문연구원 출장자는 출장 후 7일 이내에 증빙서를 제출해야 합니다 (E1).\n"
+                    "근거: E1\n인용: 출장자는 출장 후 7일 이내에 증빙서를 제출하여야 한다.")
+        assert pattern.startswith("결론")
+        return ("결론: 미충족\n근거: E1\n인용: 출장자는 출장 후 7일 이내에 증빙서를 제출하여야 한다.\n"
+                "설명: 출장 후 7일 이내에 증빙서를 내야 하는데 10일이 지나 기한을 넘겼습니다.\n확인: 없음\n문의처: 회계담당부서")
+
+
+def test_general_question_gets_direct_answer_without_verdict(fake_search, fake_expand):
+    llm = ModeLLM()
+    ev = _run(FakeConn(), llm, "출장 증빙은 언제까지 내야 해?", only("KASI"))
+    ans = next(e["data"] for e in ev if e["event"] == "answer")
+    assert ans["conclusion"] is None and ans["checks"] == [] and "E1" not in ans["explanation"]
+    assert ans["sentences"] and all(s["cites"] == [1] for s in ans["sentences"])
+    cites = next(e["data"]["items"] for e in ev if e["event"] == "citations")
+    assert cites[0]["quote"] in HITS[0]["text"]
+    assert "결론" not in [p[:2] for p in llm.patterns] and ev[-1]["data"]["status"] == "answered"
+
+
+def test_own_situation_with_ok_question_gets_verdict(fake_search, fake_expand):
+    llm = ModeLLM()
+    ev = _run(FakeConn(), llm, "출장 다녀온 지 10일 지났는데 증빙 안 냈어요. 괜찮나요?", only("KASI"))
+    ans = next(e["data"] for e in ev if e["event"] == "answer")
+    assert ans["conclusion"] == "미충족" and "설명" not in llm.patterns
+
+
+def test_general_question_inside_regulation_scope(fake_search, fake_expand):
+    ev = _run(FakeConn(), ModeLLM(), "증빙 기한은?", {"mode": "all", "institutions": [], "work_ids": [KASI_TRAVEL]})
+    ans = next(e["data"] for e in ev if e["event"] == "answer")
+    assert ans["conclusion"] is None

@@ -5,7 +5,7 @@ from contextlib import nullcontext
 from dataclasses import asdict
 
 from reg.qa.analyze import analyze
-from reg.qa.answer import generate
+from reg.qa.answer import explain, generate
 from reg.qa.evidence import expand
 from reg.qa.institutions import load_aliases, resolve_mention
 from reg.qa.mask import mask_pii
@@ -74,7 +74,7 @@ def ask(db, deps: dict, question: str, institution: str | None = None, user_inst
     inst = institution or (mention if not (mention and user_institution and mention != user_institution)
                            else None) or (None if mention else user_institution)
     res = {"status": "", "institution": inst, "as_of": as_of, "question_type": None, "evidence": [], "answer": None,
-           "verification": None, "verdict_source": None, "release_id": None, "note": None}
+           "verification": None, "verdict_source": None, "release_id": None, "note": None, "answer_mode": None}
 
     def ms() -> int:
         return int((time.monotonic() - t0) * 1000)
@@ -93,6 +93,7 @@ def ask(db, deps: dict, question: str, institution: str | None = None, user_inst
         return res
     a = analyze(deps.get("llm"), q, aliases)
     res["question_type"] = a.question_type
+    res["answer_mode"] = a.mode
     res["as_of"] = as_of = as_of or a.as_of
     query = " ".join([q, *a.terms])
     found, hits = retrieve(deps, query, inst, as_of, aliases)
@@ -112,7 +113,8 @@ def ask(db, deps: dict, question: str, institution: str | None = None, user_inst
         evidence = expand(conn, hits, as_of=as_of, release_id=found["release_id"], related=deps.get("related"))
         conn.commit()  # 풀에 돌려줄 때 열린 트랜잭션이 남지 않게
     res["evidence"] = [asdict(e) for e in evidence]
-    gen = generate(deps["llm"], q, a, evidence) if deps.get("llm") else \
+    # 기본은 일반 답변(결론 없음). 자기 상황 + 괜찮은지·가능한지 물을 때만 판정 (analyze.answer_mode)
+    gen = (generate if a.mode == "judgment" else explain)(deps["llm"], q, a, evidence) if deps.get("llm") else \
         {"answer": None, "verification": {"ok": False, "problems": ["llm_unavailable"]}, "verdict_source": None}
     res.update(answer=gen["answer"], verification=gen["verification"], verdict_source=gen.get("verdict_source"),
                status="answered" if gen["answer"] else "evidence_only")

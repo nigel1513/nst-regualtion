@@ -18,7 +18,7 @@ from urllib.parse import quote as urlquote
 
 from reg.platform.llm import ProviderError
 from reg.qa.analyze import analyze
-from reg.qa.answer import RE_NUM, _align, generate
+from reg.qa.answer import RE_EREF, RE_NUM, _align, _bigrams, best_sentence, explain, generate
 from reg.qa.evidence import Evidence, expand, sub_label
 from reg.qa.institutions import load_aliases
 from reg.qa.mask import mask_pii
@@ -324,15 +324,25 @@ def answer_event(ans: dict, cites: list[dict]) -> dict:
             "checks": ans.get("확인_필요") or [], "contact": ans.get("문의처")}
 
 
+def general_event(ans: dict, cites: list[dict]) -> dict:
+    """일반 답변(결론 없음) → 문장별 근거 번호: 수량이 맞는 인용, 아니면 낱말이 가장 많이 겹치는 인용, 아니면 모든 인용."""
+    sents = []
+    for s in _sentences(ans.get("설명", "")):
+        q = {x.replace(" ", "") for x in _qty(s)}
+        hit = [c["n"] for c in cites if q and q & {x.replace(" ", "") for x in _qty(c["quote"])}]
+        if not hit and cites:
+            sb = _bigrams(s)
+            score = {c["n"]: len(sb & _bigrams(c["quote"])) / max(1, len(sb)) for c in cites}
+            top = max(score.values())
+            hit = [n for n, v in score.items() if v == top] if top >= 0.2 else [c["n"] for c in cites]
+        sents.append({"text": s, "cites": hit})
+    return {"conclusion": None, "sentences": sents, "explanation": ans.get("설명", ""), "checks": [], "contact": None}
+
+
 # ---------------------------------------------------------------- 비교
 
 def _has_table(conn, name: str) -> bool:
     return conn.execute("SELECT to_regclass(%s) AS r", (name,)).fetchone()["r"] is not None
-
-
-def _bigrams(s: str) -> set[str]:
-    s = _n(s)
-    return {s[i:i + 2] for i in range(len(s) - 1)}
 
 
 def compare_items() -> dict[str, list[dict]]:
@@ -602,7 +612,9 @@ def _question(db, deps, query, p, aliases, works, as_of, st, results) -> Iterato
         evidence = expand(conn, hits, as_of=as_of, release_id=found["release_id"], related=deps.get("related"))
         conn.commit()
     yield "status", {"stage": "write", "label": "답변을 쓰고 있습니다"}
-    gen = generate(llm, query, a, evidence) if llm else \
+    # 기본은 일반 답변(결론 없음). 자기 상황 + 괜찮은지·가능한지 물을 때만 판정 (analyze.answer_mode)
+    general = a.mode != "judgment"
+    gen = (explain if general else generate)(llm, query, a, evidence) if llm else \
         {"answer": None, "verification": {"ok": False, "problems": ["llm_unavailable"]}, "verdict_source": None}
     st["verification"] = {**gen["verification"], "verdict_source": gen.get("verdict_source")}
     ans = gen["answer"]
@@ -616,7 +628,7 @@ def _question(db, deps, query, p, aliases, works, as_of, st, results) -> Iterato
                     cites.append(x)
             conn.commit()
     if ans and cites:
-        ev = answer_event(ans, cites)
+        ev = general_event(ans, cites) if general else answer_event(ans, cites)
         yield "answer_delta", {"text": ev["explanation"]}   # 생성기가 스트리밍을 하지 않아 검증된 설명을 한 번에
         yield "answer", ev
         yield "citations", {"items": cites}
@@ -641,20 +653,6 @@ def diverse(cs: list[dict], per: int = PER_INSTITUTION, limit: int = OVERVIEW_CA
 def _overview_pattern(ids: list[str]) -> str:
     alt = "|".join(map(re.escape, ids))
     return r"설명: ([^\n]{10,500})(?:\n근거: (?:" + alt + r")\n인용: [^\n]{5,160}){1,3}"
-
-
-RE_EREF = re.compile(r"\s*[(\[](?:E\d+)[^)\]]*[)\]]|\s*\bE\d+\b")   # 설명 속 근거 번호 표기 "(E1)", "(E1: …)"
-
-
-def best_sentence(quote: str, text: str, min_overlap: float = 0.5) -> str | None:
-    """근거 본문에서 인용과 두 글자 조각이 가장 많이 겹치는 문장(원문 그대로). 겹침이 min_overlap 미만이면 None."""
-    qb = _bigrams(quote)
-    best, score = None, 0.0
-    for sent in re.split(r"(?<=다\.)\s+|\n", text or ""):
-        sent = re.sub(r"^\s*(?:[①-⑳]|\d+\.|[가-하]\.)\s*", "", sent).strip()
-        if len(sent) >= 8 and qb and (sc := len(qb & _bigrams(sent)) / len(qb)) > score:
-            best, score = sent, sc
-    return best if score >= min_overlap else None
 
 
 def overview_answer(llm, question: str, evidence: list[Evidence], meta: dict) -> dict | None:
