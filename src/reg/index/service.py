@@ -46,9 +46,16 @@ def kind_filter(kind: str | None) -> dict | None:
     return {"terms": {"family": FAMILIES[kind]}} if kind in FAMILIES else None
 
 
+def work_filter(work_ids: list[str] | set[str] | None) -> dict | None:
+    """규정 범위 (규정 도우미 "이 규정에 묻기"·주제): 그 규정들의 조항만. 빈 목록·None은 거르지 않는다."""
+    return {"terms": {"work_id": sorted(work_ids)}} if work_ids else None
+
+
 def filters(institution: str | None = None, as_of: str | None = None, kind: str | None = None,
-            unit: str | list[str] | None = None, current_only: bool = True) -> list[dict]:
-    return base_filters(as_of, unit, current_only) + [x for x in (institution_filter(institution), kind_filter(kind)) if x]
+            unit: str | list[str] | None = None, current_only: bool = True,
+            work_ids: list[str] | set[str] | None = None) -> list[dict]:
+    extra = (institution_filter(institution), kind_filter(kind), work_filter(work_ids))
+    return base_filters(as_of, unit, current_only) + [x for x in extra if x]
 
 
 def bm25_query(q: str, flt: list[dict]) -> dict:
@@ -140,8 +147,10 @@ def cited_hit(os, u: dict, with_units: bool = False, index: str | None = None) -
 
 def search(os, embedder, reranker, q: str, institution: str | None = None, as_of: str | None = None,
            kind: str | None = None, rerank: bool = True, size: int = 10, index: str | None = None,
-           unit: str | list[str] | None = None, current_only: bool = True, with_units: bool = False) -> dict:
-    flt = filters(institution, as_of, kind, unit, current_only)
+           unit: str | list[str] | None = None, current_only: bool = True, with_units: bool = False,
+           work_ids: list[str] | set[str] | None = None) -> dict:
+    """work_ids: 이 규정들의 조항만 후보로 (BM25·knn 둘 다 질의 안에서 거른다 — 뒤에서 거르면 후보 밖으로 밀린다)."""
+    flt = filters(institution, as_of, kind, unit, current_only, work_ids)
     bm25 = bm25_query(q, flt)
     kw = {"index": index} if index else {}      # 게이트는 게시 전 색인을 직접 본다
     mode = "hybrid"

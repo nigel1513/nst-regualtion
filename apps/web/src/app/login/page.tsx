@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { LoginForm } from "@/components/auth/LoginForm";
+import { FAMILY_SITES } from "@/components/shell/SiteFooter";
 import { apiGet, type Institution } from "@/lib/api";
 
 export const metadata: Metadata = { title: "로그인 · 출연연 규정" };
@@ -22,6 +23,11 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           <LoginForm insts={insts} next={next ?? "/"} />
         </div>
         <p className="mt-4 text-caption text-fg-subtle">실제 서비스에서는 기관 계정(SSO)으로 바뀝니다.</p>
+        <nav aria-label="패밀리 사이트" className="mt-8 flex flex-wrap gap-x-4 gap-y-1 text-caption">
+          {FAMILY_SITES.map((s) => (
+            <a key={s.href} href={s.href} target="_blank" rel="noopener noreferrer" className="text-fg-muted no-underline hover:text-fg">{s.label}</a>
+          ))}
+        </nav>
       </div>
     </div>
   );

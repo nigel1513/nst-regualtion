@@ -121,3 +121,28 @@ def test_prompt_names_matched_paragraph():
                  ["a27.p1", "a27.p2.i3"])
     user = _prompt("q", Analysis("KASI", None, "기한", 10), [e], None)[1]["content"]
     assert "질문과 맞는 부분: 제1항, 제2항 제3호" in user
+
+
+class GeneralLLM(SeqLLM):
+    """일반 답변 형식(설명·근거·인용)으로 답한다. 판정 형식(결론)을 받으면 실패시킨다."""
+    def __init__(self):
+        super().__init__(None)
+        self.patterns = []
+
+    def regex(self, messages, pattern, **kw):
+        self.patterns.append(pattern[:2])
+        if pattern.startswith("유형"):
+            return "유형: 기한\n검색어: 증빙 제출"
+        assert pattern.startswith("설명"), pattern
+        return ("설명: 출장자는 출장을 마친 다음 날부터 7일 이내에 증빙서를 회계담당부서에 제출해야 합니다.\n"
+                "근거: E1\n인용: 7일 이내에 출장을 확인할 수 있는 증빙서를")
+
+
+def test_general_question_answers_without_verdict(loaded, deps):
+    llm = GeneralLLM()
+    r = ask(loaded, {**deps, "llm": llm}, "천문연 출장 증빙 제출 기한이 며칠인가요?")
+    assert r["status"] == "answered" and r["answer"]["결론"] is None and r["verdict_source"] is None
+    assert r["verification"]["ok"] and r["verification"]["mode"] == "general" and r["answer_mode"] == "general"
+    assert r["evidence"][0]["path"] == "a27" and r["answer"]["근거"][0]["id"] == "E1"
+    log = loaded.execute("SELECT status, verdict FROM ops.qa_log WHERE id = %s", (r["id"],)).fetchone()
+    assert log["status"] == "answered" and log["verdict"] is None

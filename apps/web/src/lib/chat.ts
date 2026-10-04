@@ -26,7 +26,7 @@ export type DoneData = {
 };
 export type StatusData = {
   stage: Stage; label: string; conversation_id?: string; intent?: "lookup" | "question" | "comparison"; query?: string;
-  rewritten?: boolean; institutions?: ChatInst[]; scope_mode?: "all" | "institutions";
+  rewritten?: boolean; institutions?: ChatInst[]; scope_mode?: "all" | "institutions"; work_ids?: string[]; topic?: string | null;
 };
 export type ChatEvent =
   | { event: "status"; data: StatusData }
@@ -38,9 +38,17 @@ export type ChatEvent =
   | { event: "followups"; data: { items: string[] } }
   | { event: "done"; data: DoneData };
 
-export type Scope = { mode: "all" | "institutions"; institutions: string[]; work_ids: string[]; topic?: string };
+/** 고른 규정 (범위 칩 표시용: 이름·기관). 서버에는 work_ids만 간다. */
+export type ScopeWork = { id: string; title: string; institution: string | null };
+export type Scope = { mode: "all" | "institutions"; institutions: string[]; work_ids: string[]; topic?: string; works?: ScopeWork[] };
+export type TopicOption = { id: string; label: string; works: number };
+
+/** 서버로 보낼 범위: 표시용 works는 빼고, 주제가 없으면 키도 뺀다. */
+export function requestScope(s: Scope): Omit<Scope, "works"> {
+  return { mode: s.mode, institutions: s.institutions, work_ids: s.work_ids, ...(s.topic ? { topic: s.topic } : {}) };
+}
 export type ChatRequest = {
-  messages: { role: "user" | "assistant"; content: string }[]; scope: Scope; as_of?: string; conversation_id?: string;
+  messages: { role: "user" | "assistant"; content: string }[]; scope: Omit<Scope, "works">; as_of?: string; conversation_id?: string;
 };
 
 export class ChatHttpError extends Error {

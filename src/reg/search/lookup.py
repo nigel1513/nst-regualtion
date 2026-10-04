@@ -5,8 +5,8 @@ from reg.index.service import SOURCE, filters
 from reg.search.citation import Citation, parse_citation
 
 
-def citation_query(c: Citation, as_of: str | None = None) -> dict:
-    flt = filters(c.institution, as_of, unit=c.unit())
+def citation_query(c: Citation, as_of: str | None = None, work_ids: list[str] | set[str] | None = None) -> dict:
+    flt = filters(c.institution, as_of, unit=c.unit(), work_ids=work_ids)
     flt.append({"bool": {"must_not": {"range": {"window": {"gt": 1}}}}})       # 긴 단위는 첫 창만
     if c.annex is not None:
         flt.append({"term": {"annex_no": c.annex}})
@@ -37,14 +37,14 @@ def _hit(h: dict) -> dict:
 
 
 def lookup(os, q: str | Citation, aliases: dict[str, list[str]] | None = None, as_of: str | None = None,
-           size: int = 5, index: str | None = None) -> dict:
+           size: int = 5, index: str | None = None, work_ids: list[str] | set[str] | None = None) -> dict:
     c = q if isinstance(q, Citation) else parse_citation(q, aliases)
     if c is None:
         return {"citation": None, "hits": [], "relaxed": False}
     kw = {"index": index} if index else {}
     cur, relaxed = c, False
     while True:
-        res = os.search({"size": size, "_source": SOURCE, "query": citation_query(cur, as_of),
+        res = os.search({"size": size, "_source": SOURCE, "query": citation_query(cur, as_of, work_ids),
                          "sort": ["_score", {"title.kw": "asc"}, {"ord": "asc"}]}, **kw)
         hits = [_hit(h) for h in res["hits"]["hits"]]
         broader = _broader(cur)

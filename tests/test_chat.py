@@ -180,14 +180,17 @@ class Rows:
 class FakeConn:
     """규정 도우미가 보내는 SQL만 흉내낸다."""
 
-    def __init__(self, cells=None):
-        self.cells, self.sql = cells, []
+    def __init__(self, cells=None, topics=None):
+        self.cells, self.topics, self.sql = cells, topics, []
 
     def execute(self, sql, params=None):
         self.sql.append(sql)
         if "to_regclass" in sql:
-            return Rows([{"r": "regulation.compare_cell" if self.cells is not None and params[0].endswith("compare_cell")
-                          else None}])
+            have = (self.cells is not None and params[0].endswith("compare_cell")) or \
+                (self.topics is not None and params[0].endswith("work_topic"))
+            return Rows([{"r": params[0] if have else None}])
+        if "FROM regulation.work_topic" in sql:
+            return Rows([{"work_id": w} for w in self.topics.get(params[0], [])])
         if "FROM regulation.institution" in sql:
             return Rows([{"code": c, "name": al[0], "aliases": al[1:]} for c, al in ALIASES.items()])
         if "FROM regulation.work w" in sql:
@@ -230,9 +233,9 @@ class ExtractLLM:
 def fake_search(monkeypatch):
     seen = []
 
-    def retrieve(deps, query, institution, as_of, aliases, size=10, kind=None, with_units=False):
-        seen.append({"query": query, "institution": institution, "kind": kind})
-        hits = [h for h in HITS if institution in (None, h["institution"])]
+    def retrieve(deps, query, institution, as_of, aliases, size=10, kind=None, with_units=False, work_ids=None):
+        seen.append({"query": query, "institution": institution, "kind": kind, "work_ids": work_ids})
+        hits = [h for h in HITS if institution in (None, h["institution"]) and (not work_ids or h["work_id"] in work_ids)]
         return {"hits": hits, "lookup": [], "release_id": "r1", "reranked": True}, hits
 
     monkeypatch.setattr(chat_mod, "retrieve", retrieve)

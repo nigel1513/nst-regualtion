@@ -31,3 +31,10 @@ def test_unit_and_kind_filters(indexed):
     r = search(indexed, FakeEmbedder(), None, "증빙서", rerank=False, unit="paragraph")
     assert r["hits"] and all(m["unit"] == "paragraph" for h in r["hits"] for m in h["matches"])
     assert search(indexed, FakeEmbedder(), None, "증빙서", rerank=False, kind="law")["hits"] == []
+
+
+def test_work_filter_limits_candidates_to_those_works(indexed):
+    any_hit = search(indexed, FakeEmbedder(), None, "증빙서", rerank=False)["hits"][0]
+    r = search(indexed, FakeEmbedder(), None, "증빙서", rerank=False, work_ids=[any_hit["work_id"]])
+    assert r["hits"] and {h["work_id"] for h in r["hits"]} == {any_hit["work_id"]}
+    assert search(indexed, FakeEmbedder(), None, "증빙서", rerank=False, work_ids=["kr/reg/NOPE/없는규정"])["hits"] == []
