@@ -1,65 +1,36 @@
 "use client";
-import { usePathname, useRouter } from "next/navigation";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { ALL, INST_COOKIE, INST_STORAGE_KEY, type InstOption } from "@/lib/institution";
+import { useRouter } from "next/navigation";
+import { createContext, useCallback, useContext, useMemo, type ReactNode } from "react";
+import { INST_COOKIE, INST_STORAGE_KEY, type InstOption } from "@/lib/institution";
+import { REVIEWER_KEY, SESSION_COOKIE, type SessionUser } from "@/lib/session";
 
-type Ctx = {
-  inst: string | null; insts: InstOption[]; current: InstOption | null;
-  choose: (code: string | null) => void; pickerOpen: boolean; setPickerOpen: (open: boolean) => void;
-};
+/**
+ * 우리 기관 = 로그인한 사람의 기관 (목업 로그인, 2026-10-04). 고르는 화면은 없다 — 기관을 바꾸려면 다른 계정으로 로그인한다.
+ * inst=null은 전체 기관(연구회 관리자). 기관은 미리 거르는 기본값일 뿐, 다른 기관 규정도 모두 볼 수 있다.
+ */
+type Ctx = { inst: string | null; insts: InstOption[]; current: InstOption | null; user: SessionUser | null; logout: () => void };
 
 const InstCtx = createContext<Ctx | null>(null);
 
-function persist(code: string | null) {
-  try {
-    window.localStorage.setItem(INST_STORAGE_KEY, code ?? "");
-  } catch {
-    /* 사생활 보호 모드 등: 이 탭에서만 유지 */
-  }
-  document.cookie = `${INST_COOKIE}=${encodeURIComponent(code ?? ALL)}; path=/; max-age=31536000; samesite=lax`;
-}
-
-/** 화면이 주소(?inst=)로 기관을 받는 곳: 고르면 그 주소로 옮긴다. 다른 곳은 새로고침만. */
-const URL_SCREENS = ["/", "/regulations"];
-
-export function InstitutionProvider({ insts, initial, children }: { insts: InstOption[]; initial: string | null; children: ReactNode }) {
-  const [inst, setInst] = useState<string | null>(initial);
-  const [pickerOpen, setPickerOpen] = useState(false);
+export function InstitutionProvider({ insts, initial, user, children }: {
+  insts: InstOption[]; initial: string | null; user: SessionUser | null; children: ReactNode;
+}) {
   const router = useRouter();
-  const pathname = usePathname();
-
-  useEffect(() => {
-    // 홈의 ?inst=만 "우리 기관"을 바꾼다 (규정 찾기의 inst는 필터라서 다르다)
-    const fromUrl = window.location.pathname === "/" ? new URLSearchParams(window.location.search).get("inst") : null;
-    let stored: string | null = null;
+  const logout = useCallback(() => {
+    for (const c of [SESSION_COOKIE, INST_COOKIE]) document.cookie = `${c}=; path=/; max-age=0; samesite=lax`;
     try {
-      stored = window.localStorage.getItem(INST_STORAGE_KEY);
+      window.localStorage.removeItem(INST_STORAGE_KEY);
+      window.localStorage.removeItem(REVIEWER_KEY);
     } catch {
-      stored = null;
+      /* 저장소가 막혀 있어도 쿠키를 지웠으니 로그아웃된다 */
     }
-    // 하이드레이션 뒤 브라우저 저장소·주소와 맞춘다 (서버는 쿠키만 안다) — 외부 상태 동기화라 effect에서 한 번 설정한다
-    if (fromUrl && (fromUrl === ALL || insts.some((i) => i.code === fromUrl))) {
-      const code = fromUrl === ALL ? null : fromUrl;
-      setInst(code); // eslint-disable-line react-hooks/set-state-in-effect
-      persist(code);
-    } else if (stored !== null) {
-      setInst(stored || null);
-    } else if (!document.cookie.includes(`${INST_COOKIE}=`)) {
-      setPickerOpen(true);           // 처음 방문: 기관을 고르게 한다 (건너뛰면 전체)
-    }
-  }, [insts]);
-
-  const choose = useCallback((code: string | null) => {
-    setInst(code);
-    persist(code);
-    setPickerOpen(false);
-    if (URL_SCREENS.includes(pathname)) router.push(`${pathname}?inst=${code ?? ALL}`);
-    else router.refresh();
-  }, [pathname, router]);
+    router.replace("/login");
+    router.refresh();
+  }, [router]);
 
   const value = useMemo<Ctx>(() => ({
-    inst, insts, current: insts.find((i) => i.code === inst) ?? null, choose, pickerOpen, setPickerOpen,
-  }), [inst, insts, choose, pickerOpen]);
+    inst: initial, insts, current: insts.find((i) => i.code === initial) ?? null, user, logout,
+  }), [initial, insts, user, logout]);
   return <InstCtx.Provider value={value}>{children}</InstCtx.Provider>;
 }
 

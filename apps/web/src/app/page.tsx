@@ -1,6 +1,5 @@
 import { ArrowRight, MessageSquare } from "lucide-react";
 import Link from "next/link";
-import { ChooseInstitution } from "@/components/home/ChooseInstitution";
 import { RecentViewed } from "@/components/home/RecentViewed";
 import { Crumbs } from "@/components/shell/Breadcrumbs";
 import { Badge } from "@/components/ui/badge";
@@ -191,7 +190,7 @@ function AllHome({ h }: { h: HomeData }) {
           <span>판본 <span className="num text-fg">{fmtNum(t.versions)}</span></span><span aria-hidden="true">·</span>
           <span>마지막 수집 <span className="num">{fmtDateTime(t.last_fetched)}</span></span>
         </> : null}
-        actions={<><ChooseInstitution />{assistantButton}</>}
+        actions={assistantButton}
       />
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_300px]">
         <section aria-labelledby="inst-h" className="min-w-0">

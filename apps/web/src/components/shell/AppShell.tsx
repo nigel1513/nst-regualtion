@@ -5,7 +5,6 @@ import { cn } from "@/components/ui/cn";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { BreadcrumbsProvider } from "./Breadcrumbs";
 import { CommandPaletteProvider } from "./CommandPalette";
-import { InstitutionPicker } from "./InstitutionPicker";
 import { Sidebar, useSidebarCollapsed } from "./Sidebar";
 import { TopBar } from "./TopBar";
 
@@ -30,6 +29,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     mq.addEventListener("change", onChange);
     return () => mq.removeEventListener("change", onChange);
   }, []);
+
+  if (pathname === "/login") return <>{children}</>; // 로그인 화면은 셸 없이
 
   return (
     <BreadcrumbsProvider>
@@ -56,7 +57,6 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Sidebar onNavigate={() => setSheetOpen(false)} />
           </SheetContent>
         </Sheet>
-        <InstitutionPicker />
       </CommandPaletteProvider>
     </BreadcrumbsProvider>
   );

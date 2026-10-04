@@ -8,7 +8,8 @@
 
 | 화면 | 경로 | 하는 일 | API |
 |---|---|---|---|
-| 앱 셸 | 모든 화면 | 사이드바(접기·모바일 시트), 브레드크럼, ⌘K/Ctrl+K 명령 팔레트(조문 찾기·규정 제목·이동·도우미에게 묻기), "우리 기관" 선택(첫 방문 선택, localStorage + 쿠키, `/?inst=`), 다크 모드 | `GET /api/v1/suggest`, `GET /api/v1/search/lookup` |
+| 로그인 (목업) | `/login` | 계정을 고르거나 이름·기관·역할을 적는다. 그 사람의 기관이 "우리 기관"이 되어 홈·규정 찾기·기관 비교가 미리 걸러진다(권한 차이 없음). 세션 쿠키 `nst-session`, 없으면 `src/proxy.ts`가 로그인 화면으로 보낸다. 실제 서비스에서는 기관 SSO로 바꾼다 | — |
+| 앱 셸 | 모든 화면 | 사이드바(접기·모바일 시트, 우리 기관 표시, 사용자·로그아웃), 브레드크럼, ⌘K/Ctrl+K 명령 팔레트(조문 찾기·규정 제목·이동·도우미에게 묻기), 다크 모드 | `GET /api/v1/suggest`, `GET /api/v1/search/lookup` |
 | 홈 | `/` | 우리 기관: 현황, **다른 기관과 다른 점**, 최근 바뀐 규정(바뀐 조문 요약), 주제별 규정 수 · 전체: 기관별 현황 표 | `GET /api/v1/home?inst=`, `GET /api/v1/compare/divergences?inst=` |
 | 규정 찾기 | `/regulations` | 기관·주제·종류·상태 필터(각 축 개수), 목록 / 기관별 묶기, 정렬, 페이지 | `GET /api/v1/regulations?q=&inst=&topic=&kind=&status=&sort=&page=` |
 | 규정 보기 | `/regulations/[...id]` | 탭 본문·개정 이력(판본 간 글자 비교: 삭제 빨강·추가 초록)·관계도·별표·서식, 목차, 참조 팝업, 오른쪽 **다른 기관의 같은 조항**(의미 검색, 비교값 같음/다름) | `GET /api/v1/provision/similar?pv=`, `GET /api/v1/provision/compare?pv=`, 기존 규정·참조·그래프 API |
