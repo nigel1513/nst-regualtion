@@ -55,3 +55,22 @@ def test_run_eval_passes_log_flag_and_reports_top(monkeypatch):
     monkeypatch.setattr(E, "ask", fake)
     r = run_eval(None, {}, [{"id": "x", "question": "q", "expect": {"status": "answered"}}], log=False)
     assert seen["log"] is False and r["cases"][0]["top"] == "v a27.p1" and r["cases"][0]["verdict"] == "충족"
+
+
+def test_general_cases_expect_no_conclusion_and_are_scored_apart_from_verdicts(monkeypatch):
+    from reg.qa import evaluate as E
+
+    answers = iter([
+        {"status": "answered", "evidence": [{"work_id": "kr/reg/ETRI/출장요령", "path": "a11"}],
+         "answer": {"결론": None, "근거": [{"id": "E1"}]}, "id": 1},
+        {"status": "answered", "evidence": [{"work_id": "kr/reg/ETRI/출장요령", "path": "a11"}],
+         "answer": {"결론": "충족", "근거": [{"id": "E1"}]}, "id": 2},
+        {"status": "answered", "evidence": [], "answer": {"결론": "미충족", "근거": []}, "id": 3},
+    ])
+    monkeypatch.setattr(E, "ask", lambda *a, **k: next(answers))
+    g = {"status": "answered", "work_contains": "ETRI/출장요령", "article": "a11", "verdict": None}
+    cases = [{"id": "g1", "question": "q", "expect": g}, {"id": "g2", "question": "q", "expect": g},
+             {"id": "v1", "question": "q", "expect": {"status": "answered", "verdict": "미충족"}}]
+    r = run_eval(None, {}, cases)
+    assert r["general_acc"] == 0.5 and r["verdict_acc"] == 1.0 and r["citation_hit"] == 1.0
+    assert [c["general_ok"] for c in r["cases"]] == [True, False, None]

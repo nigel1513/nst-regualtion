@@ -126,13 +126,15 @@ def eval_qa(limit: int = typer.Option(None, help="앞에서 N문항만"),
              f"| 상태 일치율 | {r['status_acc']} | - |", f"| 인용 정확도 (답변이 인용한 조문이 기대 조문) | {r['citation_hit']} | ≥ 0.90 |",
              f"| 검색 적중률 (기대 조문이 근거 1·2위) | {r['retrieval_hit']} | - |",
              f"| 숫자 일치율 | {r['numbers_rate']} | 1.00 |", f"| 결론-설명 일관성 | {r['consistency_rate']} | 1.00 |",
-             f"| 결론 정확도 | {r['verdict_acc']} | ≥ 0.85 |", f"| 기관 되묻기 정확도 | {r['need_institution_acc']} | 1.00 |",
+             f"| 결론 정확도 | {r['verdict_acc']} | ≥ 0.85 |",
+             f"| 일반 답변 (결론 없이 답함, verdict: null 문항) | {r['general_acc']} | 1.00 |", f"| 기관 되묻기 정확도 | {r['need_institution_acc']} | 1.00 |",
              f"| p95 응답 시간(ms) | {r['p95_latency_ms']} | < 10000 |", "",
              "| 문항 | 기대 상태 | 실제 상태 | 근거 | 결론 | 근거 1위 |", "|---|---|---|---|---|---|"]
     for c, row in zip(cases, r["cases"]):
         mark = lambda v: "-" if v is None else ("O" if v else "X")
         lines.append(f"| {c['id']} | {c['expect']['status']} | {row['status']} | {mark(row['citation_ok'])} | "
-                     f"{mark(row['verdict_ok'])} {row.get('verdict') or ''} | {row.get('top') or ''} |")
+                     f"{mark(row['verdict_ok'] if row.get('general_ok') is None else row['general_ok'])} "
+                     f"{row.get('verdict') or ('일반' if row.get('general_ok') is not None else '')} | {row.get('top') or ''} |")
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text("\n".join(lines) + "\n", encoding="utf-8")
     typer.echo({k: v for k, v in r.items() if k != "cases"})
