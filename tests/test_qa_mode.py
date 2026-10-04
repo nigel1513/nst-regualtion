@@ -109,7 +109,8 @@ def test_explain_answers_without_verdict_and_keeps_verbatim_quote():
     ans = g["answer"]
     assert ans["결론"] is None and g["verdict_source"] is None and g["verification"]["ok"]
     assert "E1" not in ans["설명"] and ans["설명"].startswith("KASI 콜로키움은")
-    assert ans["근거"] == [{"id": "E1", "인용": "콜로키움 위원회에서 주관하는 세미나 또는 토론회를 의미한다."}]
+    assert len(ans["근거"]) == 1 and ans["근거"][0]["id"] == "E1"           # 설명 첫 문장을 받치는 원문 문장 전체로 넓힌다
+    assert ans["근거"][0]["인용"] in DEF and ans["근거"][0]["인용"].endswith("콜로키움 위원회에서 주관하는 세미나 또는 토론회를 의미한다.")
     sys_prompt = llm.calls[0][0]["content"]
     assert "판정" in sys_prompt and "2~4문장" in sys_prompt
 
@@ -136,3 +137,20 @@ def test_explain_may_state_the_effective_date_shown_with_the_evidence():
     g = explain(llm, "콜로키움 규정이 뭐야?", _a(), ev)
     assert g["answer"] and len(llm.calls) == 1
     assert "시행일" in llm.calls[0][0]["content"]
+
+
+def test_explain_adds_source_sentence_for_explanation_sentences_without_a_quote():
+    ev = EV + [Evidence("E2", "kr/reg/KASI/KASI콜로키움운영기준", "v1", "KASI 콜로키움 운영 기준", "a10", "제10조(운영 예산)",
+                        "제10조(콜로키움 운영 예산) 콜로키움 운영 예산은 다과비, 회의비, 연사료로 구성한다.", "primary", None)]
+    llm = ExplainLLM("설명: KASI 콜로키움은 콜로키움 위원회가 주관하는 세미나 또는 토론회입니다. 운영 예산은 다과비, 회의비, 연사료로 "
+                     "구성됩니다.\n근거: E1\n인용: 콜로키움 위원회에서 주관하는 세미나 또는 토론회를 의미한다.")
+    ans = explain(llm, "콜로키움 규정이 뭐야?", _a(), ev)["answer"]
+    assert [c["id"] for c in ans["근거"]] == ["E1", "E2"]
+    assert ans["근거"][1]["인용"] in ev[1].text and "다과비" in ans["근거"][1]["인용"]
+
+
+def test_explain_does_not_add_weak_matches():
+    llm = ExplainLLM("설명: KASI 콜로키움은 콜로키움 위원회가 주관하는 세미나 또는 토론회입니다. 자세한 내용은 담당 부서에 물어보세요."
+                     "\n근거: E1\n인용: 콜로키움 위원회에서 주관하는 세미나 또는 토론회를 의미한다.")
+    ans = explain(llm, "콜로키움 규정이 뭐야?", _a(), EV)["answer"]
+    assert [c["id"] for c in ans["근거"]] == ["E1"]
